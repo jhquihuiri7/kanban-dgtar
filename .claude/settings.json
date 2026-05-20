@@ -1,0 +1,29 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:api.anthropic.com)",
+      "Bash(cp webfetch-1779230227934-ic45v0.bin design.gz)",
+      "Bash(gunzip -f design.gz)",
+      "Bash(mkdir -p extracted)",
+      "Bash(tar -xf design -C extracted)",
+      "Bash(npm --version)",
+      "Bash(npm install *)",
+      "Bash(node -e \"console.log\\(require\\('next/package.json'\\).version\\)\")",
+      "Bash(npm run *)",
+      "Bash(curl -s -o /dev/null -w \"HTTP %{http_code}\\\\n\" http://localhost:3000)",
+      "Bash(curl -s http://localhost:3000 -o page.html)",
+      "Bash(rm -f page.html)",
+      "Bash(taskkill //F //IM node.exe)",
+      "Bash(rm -f dev.log)",
+      "mcp__claude_ai_Google_Drive__create_file",
+      "Bash(ls \"C:\\\\Users\\\\Jhonatan Quihuiri\\\\.claude\\\\projects\\\\c--Users-Jhonatan-Quihuiri-Documents-kanban-dgtar\\\\memory\\\\\" 2>/dev/null && echo \"---\" && cat \"C:\\\\Users\\\\Jhonatan Quihuiri\\\\.claude\\\\projects\\\\c--Users-Jhonatan-Quihuiri-Documents-kanban-dgtar\\\\memory\\\\MEMORY.md\" 2>/dev/null)",
+      "Read(//c/Users/Jhonatan Quihuiri/.claude/projects/c--Users-Jhonatan-Quihuiri-Documents-kanban-dgtar/memory\" 2>/dev/**)",
+      "Bash(rm -f lib/sheets.ts scripts/seed-sheet.ts .env.local.example)",
+      "Bash(ls package-lock.json)",
+      "Bash(chmod +x deploy.sh)",
+      "Bash(echo \"=== tsc exit: $? ===\")",
+      "Bash(npx tsx *)",
+      "Bash(echo \"tsx loads ok or not \\(expected DB error\\): $?\")"
+    ]
+  }
+}
