@@ -184,7 +184,7 @@ export function StatsView({
   }));
 
   const compData = s.porCompetencia.slice(0, 6).map((x) => ({
-    name: x.c.codigo,
+    name: x.c.nombre,
     full: x.c.nombre,
     total: x.total,
   }));
@@ -363,7 +363,7 @@ export function StatsView({
               <BarChart layout="vertical" data={compData} margin={{ top: 8, right: 16, left: 8, bottom: 4 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" horizontal={false} />
                 <XAxis type="number" tick={{ fontSize: 11, fill: "#64748b" }} axisLine={false} tickLine={false} allowDecimals={false} />
-                <YAxis type="category" dataKey="name" tick={{ fontSize: 11, fill: "#0f172a" }} axisLine={false} tickLine={false} width={60} />
+                <YAxis type="category" dataKey="name" tick={{ fontSize: 11, fill: "#0f172a" }} axisLine={false} tickLine={false} width={150} />
                 <Tooltip contentStyle={tooltipStyle} formatter={(v, _n, item: { payload?: { full?: string } }) => [v, item?.payload?.full]} />
                 <Bar dataKey="total" radius={[0, 6, 6, 0]} fill="#7c3aed" />
               </BarChart>

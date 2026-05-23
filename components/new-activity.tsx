@@ -32,21 +32,21 @@ export function NewActivityDialog({
   competencias: Competencia[];
   defaultEstado?: EstadoActividad;
 }) {
-  const activos = funcionarios.filter((f) => f.activo);
-  const competenciasActivas = competencias.filter((c) => c.activo);
+  const funcionariosDisponibles = funcionarios;
+  const competenciasDisponibles = competencias;
 
   const [titulo, setTitulo] = useState("");
   const [descripcion, setDescripcion] = useState("");
-  const [funcionarioId, setFuncionarioId] = useState(activos[0]?.id || "");
-  const [competenciaId, setCompetenciaId] = useState(competenciasActivas[0]?.id || "");
+  const [funcionarioId, setFuncionarioId] = useState(funcionariosDisponibles[0]?.id || "");
+  const [competenciaId, setCompetenciaId] = useState(competenciasDisponibles[0]?.id || "");
   const [plazoDias, setPlazoDias] = useState<number | string>(7);
 
   useEffect(() => {
     if (open) {
       setTitulo("");
       setDescripcion("");
-      setFuncionarioId(funcionarios.filter((f) => f.activo)[0]?.id || "");
-      setCompetenciaId(competencias.filter((c) => c.activo)[0]?.id || "");
+      setFuncionarioId(funcionarios[0]?.id || "");
+      setCompetenciaId(competencias[0]?.id || "");
       setPlazoDias(7);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -54,8 +54,8 @@ export function NewActivityDialog({
 
   if (!open) return null;
 
-  const catalogosVacios = activos.length === 0 || competenciasActivas.length === 0;
-  const vence = iso(addDays(new Date(TODAY_ISO + "T12:00:00"), Number(plazoDias) || 0));
+  const catalogosVacios = funcionariosDisponibles.length === 0 || competenciasDisponibles.length === 0;
+  const vence = iso(addDays(TODAY_ISO, Number(plazoDias) || 0));
   const estadoDef = ESTADOS.find((e) => e.id === defaultEstado);
 
   function submit(e: React.FormEvent) {
@@ -109,8 +109,8 @@ export function NewActivityDialog({
               Catálogos incompletos
             </div>
             <p className="mx-auto mt-1 max-w-sm text-xs text-slate-500">
-              Necesitas al menos un funcionario activo y una competencia activa para crear
-              actividades. Actívalos en la pestaña <b>Catálogos</b>.
+              Necesitas al menos un funcionario y una competencia para crear
+              actividades. Revísalos en la pestaña <b>Catálogos</b>.
             </p>
           </div>
         ) : (
@@ -139,7 +139,7 @@ export function NewActivityDialog({
               <div className="space-y-1.5">
                 <Label htmlFor="resp">Funcionario responsable</Label>
                 <Select id="resp" value={funcionarioId} onChange={(e) => setFuncionarioId(e.target.value)}>
-                  {activos.map((f) => (
+                  {funcionariosDisponibles.map((f) => (
                     <option key={f.id} value={f.id}>
                       {f.nombre} — {f.unidad}
                     </option>
@@ -149,9 +149,9 @@ export function NewActivityDialog({
               <div className="space-y-1.5">
                 <Label htmlFor="comp">Competencia</Label>
                 <Select id="comp" value={competenciaId} onChange={(e) => setCompetenciaId(e.target.value)}>
-                  {competenciasActivas.map((c) => (
+                  {competenciasDisponibles.map((c) => (
                     <option key={c.id} value={c.id}>
-                      {c.codigo} — {c.nombre}
+                      {c.nombre} — {c.unidad}
                     </option>
                   ))}
                 </Select>

@@ -36,7 +36,6 @@ calcula la fecha de vencimiento a partir del plazo en días.
 
 - Densidad de cards: Estándar / Compacto
 - Avatares con color vs. iniciales
-- Acento del módulo: PG (violeta) · PMA (verde) · RGDP (azul)
 
 ## Arranque en local (Docker)
 
@@ -44,18 +43,21 @@ Requiere **Docker** con el plugin `compose`. Un solo comando levanta la base, la
 app y siembra los datos de demo:
 
 ```bash
-./deploy.sh            # build + arranque + seed (si la base está vacía)
-./deploy.sh --force    # re-siembra: reescribe los datos de demo
+./deploy.sh dev        # desarrollo con hot reload: http://localhost:3000
+./deploy.sh prod       # producción: http://localhost:8001
+./deploy.sh --force    # producción + re-siembra los datos de demo
 ./deploy.sh --down     # detiene y elimina los contenedores
 ```
 
-Luego abre **http://localhost:3000**. `deploy.sh` crea `.env` a partir de
+`deploy.sh` crea `.env` a partir de
 `.env.example` la primera vez (puedes editar usuario/clave/puertos ahí).
 
 Qué hace por dentro:
 
 1. `docker compose up -d --build --wait` — levanta `db` (postgres:16) y `app`
-   (Next.js). La app espera a que Postgres esté *healthy*.
+   (Next.js). En modo `dev` monta el código local y corre `npm run dev`; en modo
+   `prod` construye la imagen y corre `npm start`. La app espera a que Postgres
+   esté *healthy*.
 2. El esquema (`db/schema.sql`) se crea en el primer arranque del volumen y
    también lo asegura el seed (`CREATE TABLE IF NOT EXISTS`).
 3. `npm run seed` vuelca el catálogo + actividades de demo. Es **idempotente**:
@@ -82,6 +84,5 @@ npm run dev      # http://localhost:3000
 npm run build    # build de producción
 ```
 
-> La fecha de corte de la demo está fijada al **19 may 2026** para que los
-> escenarios (vencidas, cumplidas en/fuera de plazo) se mantengan coherentes.
-> Ver `lib/data.ts`.
+> Las fechas de demo se calculan respecto a la fecha actual de Galápagos
+> (`Pacific/Galapagos`). Ver `lib/data.ts`.

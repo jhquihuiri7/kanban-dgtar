@@ -8,25 +8,27 @@ CREATE TABLE IF NOT EXISTS funcionarios (
   email   text NOT NULL DEFAULT '',
   cargo   text NOT NULL DEFAULT '',
   unidad  text NOT NULL,
-  activo  boolean NOT NULL DEFAULT true,
   color   text NOT NULL DEFAULT ''
 );
 
+ALTER TABLE funcionarios DROP COLUMN IF EXISTS activo;
+
 CREATE TABLE IF NOT EXISTS competencias (
   id        text PRIMARY KEY,
-  codigo    text NOT NULL,
   nombre    text NOT NULL,
-  articulo  text NOT NULL DEFAULT '',
-  unidad    text NOT NULL,
-  activo    boolean NOT NULL DEFAULT true
+  unidad    text NOT NULL
 );
+
+ALTER TABLE competencias DROP COLUMN IF EXISTS codigo;
+ALTER TABLE competencias DROP COLUMN IF EXISTS articulo;
+ALTER TABLE competencias DROP COLUMN IF EXISTS activo;
 
 CREATE TABLE IF NOT EXISTS actividades (
   id                  text PRIMARY KEY,
   titulo              text NOT NULL,
   descripcion         text NOT NULL DEFAULT '',
-  funcionario_id      text REFERENCES funcionarios(id),
-  competencia_id      text REFERENCES competencias(id),
+  funcionario_id      text REFERENCES funcionarios(id) ON DELETE CASCADE,
+  competencia_id      text REFERENCES competencias(id) ON DELETE CASCADE,
   estado              text NOT NULL,
   fecha_creacion      text NOT NULL,
   plazo_dias          integer NOT NULL DEFAULT 0,
@@ -35,3 +37,48 @@ CREATE TABLE IF NOT EXISTS actividades (
   observaciones       text NOT NULL DEFAULT '',
   orden               integer NOT NULL DEFAULT 0
 );
+
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM pg_constraint
+    WHERE conrelid = 'actividades'::regclass
+      AND conname = 'actividades_funcionario_id_fkey'
+      AND confdeltype <> 'c'
+  ) THEN
+    ALTER TABLE actividades DROP CONSTRAINT actividades_funcionario_id_fkey;
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_constraint
+    WHERE conrelid = 'actividades'::regclass
+      AND conname = 'actividades_funcionario_id_fkey'
+  ) THEN
+    ALTER TABLE actividades
+      ADD CONSTRAINT actividades_funcionario_id_fkey
+      FOREIGN KEY (funcionario_id) REFERENCES funcionarios(id) ON DELETE CASCADE;
+  END IF;
+
+  IF EXISTS (
+    SELECT 1
+    FROM pg_constraint
+    WHERE conrelid = 'actividades'::regclass
+      AND conname = 'actividades_competencia_id_fkey'
+      AND confdeltype <> 'c'
+  ) THEN
+    ALTER TABLE actividades DROP CONSTRAINT actividades_competencia_id_fkey;
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_constraint
+    WHERE conrelid = 'actividades'::regclass
+      AND conname = 'actividades_competencia_id_fkey'
+  ) THEN
+    ALTER TABLE actividades
+      ADD CONSTRAINT actividades_competencia_id_fkey
+      FOREIGN KEY (competencia_id) REFERENCES competencias(id) ON DELETE CASCADE;
+  END IF;
+END $$;

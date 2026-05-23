@@ -2,11 +2,37 @@
 # Levanta el Kanban DGTAR en local: PostgreSQL + app Next.js en Docker, y
 # siembra los datos de demo la primera vez.
 #
-#   ./deploy.sh            arranca todo y siembra si la base está vacía
-#   ./deploy.sh --force    re-siembra (reescribe los datos de demo)
-#   ./deploy.sh --down     detiene y elimina los contenedores
+#   ./deploy.sh dev            arranca con hot reload
+#   ./deploy.sh prod           arranca producción en APP_PORT (8001 por defecto)
+#   ./deploy.sh --force        producción + re-siembra datos demo
+#   ./deploy.sh --down         detiene y elimina los contenedores
 set -euo pipefail
 cd "$(dirname "$0")"
+
+MODE="prod"
+SEED_ARGS=()
+
+for arg in "$@"; do
+  case "$arg" in
+    dev|--dev)
+      MODE="dev"
+      ;;
+    prod|--prod)
+      MODE="prod"
+      ;;
+    --force)
+      SEED_ARGS+=("$arg")
+      ;;
+    --down)
+      MODE="down"
+      ;;
+    *)
+      echo "✗ Opción no reconocida: $arg" >&2
+      echo "  Uso: ./deploy.sh [dev|prod] [--force] | ./deploy.sh --down" >&2
+      exit 1
+      ;;
+  esac
+done
 
 # ── Detección de Docker / Compose ──────────────────────────────────────
 if ! command -v docker >/dev/null 2>&1; then
@@ -23,9 +49,9 @@ else
 fi
 
 # ── Apagado ────────────────────────────────────────────────────────────
-if [ "${1:-}" = "--down" ]; then
+if [ "$MODE" = "down" ]; then
   echo "→ Deteniendo contenedores…"
-  $DC down
+  $DC -f docker-compose.yml -f docker-compose.dev.yml down
   echo "✓ Detenido. (El volumen 'pgdata' se conserva; usa '$DC down -v' para borrar los datos.)"
   exit 0
 fi
@@ -36,19 +62,29 @@ if [ ! -f .env ]; then
   cp .env.example .env
 fi
 
+if [ "$MODE" = "prod" ]; then
+  COMPOSE_FILES="-f docker-compose.yml"
+  DEFAULT_APP_PORT="8001"
+  export APP_PORT="${APP_PORT:-8001}"
+  echo "→ Construyendo imagen de producción y levantando contenedores…"
+else
+  COMPOSE_FILES="-f docker-compose.yml -f docker-compose.dev.yml"
+  DEFAULT_APP_PORT="3000"
+  export APP_PORT="${APP_PORT:-3000}"
+  echo "→ Levantando desarrollo con hot reload…"
+fi
+RUN_APP_PORT="${APP_PORT:-$DEFAULT_APP_PORT}"
+
 # ── Build + arranque (espera a que Postgres esté healthy) ──────────────
-echo "→ Construyendo imágenes y levantando contenedores…"
-$DC up -d --build --wait
+$DC $COMPOSE_FILES up -d --build --wait
 
 # ── Seed ───────────────────────────────────────────────────────────────
 echo "→ Sembrando datos…"
-$DC exec -T app npm run seed -- "$@"
-
-APP_PORT="$(grep -E '^APP_PORT=' .env | cut -d= -f2)"
-APP_PORT="${APP_PORT:-3000}"
+$DC $COMPOSE_FILES exec -T app npm run seed -- "${SEED_ARGS[@]}"
 
 echo ""
 echo "✓ Listo."
-echo "  App:       http://localhost:${APP_PORT}"
-echo "  Logs:      $DC logs -f app"
+echo "  Modo:      $MODE"
+echo "  App:       http://localhost:${RUN_APP_PORT}"
+echo "  Logs:      $DC $COMPOSE_FILES logs -f app"
 echo "  Detener:   ./deploy.sh --down"

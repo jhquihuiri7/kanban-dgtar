@@ -16,6 +16,7 @@ export interface DbData {
 
 // A single pool is reused across requests / hot reloads.
 let pool: Pool | null = null;
+let schemaPromise: Promise<void> | null = null;
 
 export function getPool(): Pool {
   if (!pool) {
@@ -39,7 +40,6 @@ function mapFuncionario(r: Row): Funcionario {
     email: r.email as string,
     cargo: r.cargo as string,
     unidad: r.unidad as Unidad,
-    activo: r.activo as boolean,
     color: r.color as string,
   };
 }
@@ -47,11 +47,8 @@ function mapFuncionario(r: Row): Funcionario {
 function mapCompetencia(r: Row): Competencia {
   return {
     id: r.id as string,
-    codigo: r.codigo as string,
     nombre: r.nombre as string,
-    articulo: r.articulo as string,
     unidad: r.unidad as Unidad,
-    activo: r.activo as boolean,
   };
 }
 
@@ -77,13 +74,22 @@ function mapActividad(r: Row): Actividad {
 // Idempotent: runs db/schema.sql (CREATE TABLE IF NOT EXISTS …). Resolved
 // relative to the process working directory (project root / /app in Docker).
 export async function ensureSchema(): Promise<void> {
-  const sql = readFileSync(join(process.cwd(), "db", "schema.sql"), "utf8");
-  await getPool().query(sql);
+  if (!schemaPromise) {
+    schemaPromise = (async () => {
+      const sql = readFileSync(join(process.cwd(), "db", "schema.sql"), "utf8");
+      await getPool().query(sql);
+    })().catch((err) => {
+      schemaPromise = null;
+      throw err;
+    });
+  }
+  await schemaPromise;
 }
 
 /* ── Read / write ───────────────────────────────────────────────────── */
 
 export async function readAll(): Promise<DbData> {
+  await ensureSchema();
   const db = getPool();
   const [f, c, a] = await Promise.all([
     db.query("SELECT * FROM funcionarios ORDER BY id"),
@@ -101,6 +107,7 @@ export async function readAll(): Promise<DbData> {
 // internal tool (tens of rows); last writer wins, so it is not meant for
 // simultaneous editors hitting the same data at once.
 export async function writeAll(data: DbData): Promise<void> {
+  await ensureSchema();
   const client = await getPool().connect();
   try {
     await client.query("BEGIN");
@@ -112,16 +119,16 @@ export async function writeAll(data: DbData): Promise<void> {
 
     for (const f of data.funcionarios) {
       await client.query(
-        `INSERT INTO funcionarios (id, nombre, email, cargo, unidad, activo, color)
-         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-        [f.id, f.nombre, f.email, f.cargo, f.unidad, f.activo, f.color],
+        `INSERT INTO funcionarios (id, nombre, email, cargo, unidad, color)
+         VALUES ($1, $2, $3, $4, $5, $6)`,
+        [f.id, f.nombre, f.email, f.cargo, f.unidad, f.color],
       );
     }
     for (const c of data.competencias) {
       await client.query(
-        `INSERT INTO competencias (id, codigo, nombre, articulo, unidad, activo)
-         VALUES ($1, $2, $3, $4, $5, $6)`,
-        [c.id, c.codigo, c.nombre, c.articulo, c.unidad, c.activo],
+        `INSERT INTO competencias (id, nombre, unidad)
+         VALUES ($1, $2, $3)`,
+        [c.id, c.nombre, c.unidad],
       );
     }
     for (const a of data.actividades) {
@@ -159,6 +166,7 @@ export async function writeAll(data: DbData): Promise<void> {
 
 // Number of funcionarios — used by the seeder to skip re-seeding populated DBs.
 export async function countFuncionarios(): Promise<number> {
+  await ensureSchema();
   const res = await getPool().query("SELECT COUNT(*)::int AS n FROM funcionarios");
   return res.rows[0].n as number;
 }

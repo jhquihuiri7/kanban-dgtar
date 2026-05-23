@@ -20,7 +20,6 @@ import { CatalogsView } from "@/components/catalogs";
 import { NewActivityDialog, type NewActivityInput } from "@/components/new-activity";
 
 type Tab = "kanban" | "stats" | "catalogs";
-type Accent = "violet" | "green" | "blue" | "slate";
 type Density = "standard" | "compact";
 type LoadState = "loading" | "ready" | "error";
 type SyncState = "idle" | "saving" | "saved" | "error";
@@ -28,15 +27,7 @@ type SyncState = "idle" | "saving" | "saved" | "error";
 interface Settings {
   density: Density;
   useAvatars: boolean;
-  moduleAccent: Accent;
 }
-
-const ACCENT_MAP: Record<Accent, string> = {
-  violet: "from-violet-600 to-purple-500",
-  green: "from-emerald-600 to-green-500",
-  blue: "from-blue-600 to-sky-500",
-  slate: "from-slate-700 to-slate-500",
-};
 
 const SYNC_DEBOUNCE_MS = 800;
 
@@ -134,7 +125,6 @@ export default function Page() {
   const [settings, setSettings] = useState<Settings>({
     density: "standard",
     useAvatars: true,
-    moduleAccent: "violet",
   });
   const setTweak = <K extends keyof Settings>(key: K, value: Settings[K]) =>
     setSettings((s) => ({ ...s, [key]: value }));
@@ -178,7 +168,6 @@ export default function Page() {
       <Header
         tab={tab}
         setTab={setTab}
-        accent={settings.moduleAccent}
         settings={settings}
         setTweak={setTweak}
         syncState={syncState}
@@ -223,6 +212,7 @@ export default function Page() {
             competencias={competencias}
             setCompetencias={setCompetencias}
             activities={activities}
+            setActivities={setActivities}
             useAvatars={settings.useAvatars}
           />
         )}
@@ -255,7 +245,6 @@ export default function Page() {
 function Header({
   tab,
   setTab,
-  accent,
   settings,
   setTweak,
   syncState,
@@ -263,7 +252,6 @@ function Header({
 }: {
   tab: Tab;
   setTab: (t: Tab) => void;
-  accent: Accent;
   settings: Settings;
   setTweak: <K extends keyof Settings>(key: K, value: Settings[K]) => void;
   syncState: SyncState;
@@ -274,19 +262,12 @@ function Header({
       <div className="mx-auto flex max-w-[1500px] items-center gap-6 px-6 py-2.5">
         {/* brand */}
         <div className="flex items-center gap-2.5">
-          <div
-            className={cn(
-              "flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br text-white shadow-sm",
-              ACCENT_MAP[accent] || ACCENT_MAP.violet,
-            )}
-          >
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-900 text-white shadow-sm">
             <Icon name="kanban" size={16} />
           </div>
           <div className="hidden sm:block">
             <div className="text-[13px] font-semibold leading-tight text-slate-900">Kanban de Seguimiento</div>
-            <div className="text-[11px] leading-tight text-slate-500">
-              Dirección de Planificación · Plataforma Ambiental
-            </div>
+            <div className="text-[11px] leading-tight text-slate-500">DGTAR</div>
           </div>
         </div>
 
@@ -344,8 +325,7 @@ function TabBtn({
   );
 }
 
-/* Settings popover — surfaces the prototype's "Tweaks" (density / avatares / acento)
-   as real in-app controls. */
+/* Settings popover — view controls for the board. */
 function SettingsMenu({
   settings,
   setTweak,
@@ -381,21 +361,6 @@ function SettingsMenu({
               <span className="text-xs font-medium text-slate-700">Avatares con color</span>
               <Toggle on={settings.useAvatars} onChange={(v) => setTweak("useAvatars", v)} />
             </label>
-          </div>
-
-          <div className="mt-3 text-[10px] font-semibold uppercase tracking-wide text-slate-400">
-            Acento del módulo
-          </div>
-          <div className="mt-2">
-            <Seg
-              value={settings.moduleAccent}
-              options={[
-                { value: "violet", label: "PG" },
-                { value: "green", label: "PMA" },
-                { value: "blue", label: "RGDP" },
-              ]}
-              onChange={(v) => setTweak("moduleAccent", v as Accent)}
-            />
           </div>
         </div>
       )}
@@ -488,29 +453,13 @@ function KanbanScreen({
 
   return (
     <div className="space-y-4">
-      {/* Page header */}
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900 leading-tight">Tablero de Actividades</h1>
-          <div className="mt-1 flex items-center gap-3 text-sm text-slate-500">
-            <span>{activities.length} actividades</span>
-            <span className="h-1 w-1 rounded-full bg-slate-300" />
-            <span>
-              <b className="text-red-600">{counts.vencidas}</b> vencidas
-            </span>
-            <span className="h-1 w-1 rounded-full bg-slate-300" />
-            <span>
-              <b className="text-slate-700">{counts.cumplida || 0}</b> cumplidas
-            </span>
-          </div>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2">
+      <div className="-mx-1 overflow-x-auto px-1">
+        <div className="grid min-w-[720px] grid-cols-4 items-center gap-2">
           <div className="relative">
             <Icon name="search" size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
             <Input
               placeholder="Buscar actividad…"
-              className="pl-8 h-9 w-64"
+              className="pl-8 h-9 w-full"
               value={filters.q}
               onChange={(e) => setFilters({ ...filters, q: e.target.value })}
             />
@@ -518,7 +467,7 @@ function KanbanScreen({
           <Select
             value={filters.funcionario}
             onChange={(e) => setFilters({ ...filters, funcionario: e.target.value })}
-            className="w-44"
+            className="w-full"
           >
             <option value="all">Todos los funcionarios</option>
             {funcionarios.map((f) => (
@@ -530,15 +479,31 @@ function KanbanScreen({
           <Select
             value={filters.competencia}
             onChange={(e) => setFilters({ ...filters, competencia: e.target.value })}
-            className="w-48"
+            className="col-span-2 w-full"
           >
             <option value="all">Todas las competencias</option>
             {competencias.map((c) => (
               <option key={c.id} value={c.id}>
-                {c.codigo} — {c.nombre}
+                {c.nombre} — {c.unidad}
               </option>
             ))}
           </Select>
+        </div>
+      </div>
+
+      {/* Page header */}
+      <div>
+        <h1 className="text-2xl font-bold text-slate-900 leading-tight">Tablero de Actividades</h1>
+        <div className="mt-1 flex items-center gap-3 text-sm text-slate-500">
+          <span>{activities.length} actividades</span>
+          <span className="h-1 w-1 rounded-full bg-slate-300" />
+          <span>
+            <b className="text-red-600">{counts.vencidas}</b> vencidas
+          </span>
+          <span className="h-1 w-1 rounded-full bg-slate-300" />
+          <span>
+            <b className="text-slate-700">{counts.cumplida || 0}</b> cumplidas
+          </span>
         </div>
       </div>
 
@@ -597,6 +562,7 @@ function CatalogsScreen(props: {
   competencias: Competencia[];
   setCompetencias: React.Dispatch<React.SetStateAction<Competencia[]>>;
   activities: Actividad[];
+  setActivities: React.Dispatch<React.SetStateAction<Actividad[]>>;
   useAvatars: boolean;
 }) {
   return (

@@ -8,9 +8,11 @@ WORKDIR /app
 COPY package.json package-lock.json* ./
 RUN npm install
 
-# Código y build de producción.
+# Código y build de producción. En desarrollo docker-compose.dev.yml salta el
+# build para arrancar más rápido y usar hot reload.
 COPY . .
-RUN npm run build
+ARG SKIP_BUILD=false
+RUN if [ "$SKIP_BUILD" != "true" ]; then npm run build; fi
 
 EXPOSE 3000
 CMD ["npm", "start"]

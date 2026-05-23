@@ -2,7 +2,7 @@
 // Plan Galápagos / Consejo de Gobierno Régimen Especial Galápagos
 // All names/activities are illustrative.
 
-export const ZONE_TZ = "America/Guayaquil";
+export const ZONE_TZ = "Pacific/Galapagos";
 
 export type EstadoActividad =
   | "pendiente"
@@ -19,17 +19,13 @@ export interface Funcionario {
   email: string;
   cargo: string;
   unidad: Unidad;
-  activo: boolean;
   color: string;
 }
 
 export interface Competencia {
   id: string;
-  codigo: string;
   nombre: string;
-  articulo: string;
   unidad: Unidad;
-  activo: boolean;
 }
 
 export interface Actividad {
@@ -54,37 +50,58 @@ export interface EstadoDef {
 }
 
 export const FUNCIONARIOS: Funcionario[] = [
-  { id: "u1", nombre: "María Cevallos", email: "mcevallos@cgreg.gob.ec", cargo: "Analista Ambiental", unidad: "PMA", activo: true, color: "#0ea5e9" },
-  { id: "u2", nombre: "Andrés Toro", email: "atoro@cgreg.gob.ec", cargo: "Especialista RGDP", unidad: "RGDP", activo: true, color: "#22c55e" },
-  { id: "u3", nombre: "Lucía Naranjo", email: "lnaranjo@cgreg.gob.ec", cargo: "Coordinadora PG", unidad: "PG", activo: true, color: "#8b5cf6" },
-  { id: "u4", nombre: "Diego Salas", email: "dsalas@cgreg.gob.ec", cargo: "Técnico Geoportal", unidad: "GEO", activo: true, color: "#14b8a6" },
-  { id: "u5", nombre: "Paola Endara", email: "pendara@cgreg.gob.ec", cargo: "Analista Jurídico", unidad: "PG", activo: true, color: "#a855f7" },
-  { id: "u6", nombre: "Jorge Yépez", email: "jyepez@cgreg.gob.ec", cargo: "Inspector PMA", unidad: "PMA", activo: true, color: "#16a34a" },
-  { id: "u7", nombre: "Camila Robalino", email: "crobalino@cgreg.gob.ec", cargo: "Especialista RGDP", unidad: "RGDP", activo: true, color: "#2563eb" },
-  { id: "u8", nombre: "Iván Mosquera", email: "imosquera@cgreg.gob.ec", cargo: "Director de Área", unidad: "DIR", activo: true, color: "#475569" },
+  { id: "u1", nombre: "María Cevallos", email: "mcevallos@cgreg.gob.ec", cargo: "Analista Ambiental", unidad: "PMA", color: "#0ea5e9" },
+  { id: "u2", nombre: "Andrés Toro", email: "atoro@cgreg.gob.ec", cargo: "Especialista RGDP", unidad: "RGDP", color: "#22c55e" },
+  { id: "u3", nombre: "Lucía Naranjo", email: "lnaranjo@cgreg.gob.ec", cargo: "Coordinadora PG", unidad: "PG", color: "#8b5cf6" },
+  { id: "u4", nombre: "Diego Salas", email: "dsalas@cgreg.gob.ec", cargo: "Técnico Geoportal", unidad: "GEO", color: "#14b8a6" },
+  { id: "u5", nombre: "Paola Endara", email: "pendara@cgreg.gob.ec", cargo: "Analista Jurídico", unidad: "PG", color: "#a855f7" },
+  { id: "u6", nombre: "Jorge Yépez", email: "jyepez@cgreg.gob.ec", cargo: "Inspector PMA", unidad: "PMA", color: "#16a34a" },
+  { id: "u7", nombre: "Camila Robalino", email: "crobalino@cgreg.gob.ec", cargo: "Especialista RGDP", unidad: "RGDP", color: "#2563eb" },
+  { id: "u8", nombre: "Iván Mosquera", email: "imosquera@cgreg.gob.ec", cargo: "Director de Área", unidad: "DIR", color: "#475569" },
 ];
 
 export const COMPETENCIAS: Competencia[] = [
-  { id: "c1", codigo: "PG-04", nombre: "Plan Galápagos 2030", articulo: "Art. 4", unidad: "PG", activo: true },
-  { id: "c2", codigo: "PMA-12", nombre: "Permisos Ambientales", articulo: "Art. 12", unidad: "PMA", activo: true },
-  { id: "c3", codigo: "RGDP-7", nombre: "Residuos Sólidos y Peligrosos", articulo: "Art. 7", unidad: "RGDP", activo: true },
-  { id: "c4", codigo: "GEO-02", nombre: "Geoportal y Cartografía", articulo: "Art. 2", unidad: "GEO", activo: true },
-  { id: "c5", codigo: "PG-09", nombre: "Régimen Especial Galápagos", articulo: "Art. 9", unidad: "PG", activo: true },
-  { id: "c6", codigo: "PMA-18", nombre: "Inspecciones y Control", articulo: "Art. 18", unidad: "PMA", activo: true },
-  { id: "c7", codigo: "RGDP-3", nombre: "Calidad de Agua y Vertidos", articulo: "Art. 3", unidad: "RGDP", activo: true },
-  { id: "c8", codigo: "PG-15", nombre: "Áreas Protegidas", articulo: "Art. 15", unidad: "PG", activo: true },
+  { id: "c1", nombre: "Plan Galápagos 2030", unidad: "PG" },
+  { id: "c2", nombre: "Permisos Ambientales", unidad: "PMA" },
+  { id: "c3", nombre: "Residuos Sólidos y Peligrosos", unidad: "RGDP" },
+  { id: "c4", nombre: "Geoportal y Cartografía", unidad: "GEO" },
+  { id: "c5", nombre: "Régimen Especial Galápagos", unidad: "PG" },
+  { id: "c6", nombre: "Inspecciones y Control", unidad: "PMA" },
+  { id: "c7", nombre: "Calidad de Agua y Vertidos", unidad: "RGDP" },
+  { id: "c8", nombre: "Áreas Protegidas", unidad: "PG" },
 ];
 
-// Build dates relative to "today" so the demo is always current
-const TODAY = new Date(2026, 4, 19); // May 19, 2026
+function todayIsoForZone(timeZone: string): string {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date());
+  const get = (type: string) => parts.find((p) => p.type === type)?.value;
+  return `${get("year")}-${get("month")}-${get("day")}`;
+}
+
+function dateFromIso(isoStr: string): Date {
+  const [year, month, day] = isoStr.split("-").map(Number);
+  return new Date(Date.UTC(year, month - 1, day, 12));
+}
+
+export const TODAY_ISO = todayIsoForZone(ZONE_TZ);
+
+// Build demo dates relative to the current Galapagos date.
+const TODAY = dateFromIso(TODAY_ISO);
 
 export function addDays(d: Date | string, n: number): Date {
-  const r = new Date(d);
-  r.setDate(r.getDate() + n);
+  const r = typeof d === "string" ? dateFromIso(d) : new Date(d);
+  r.setUTCDate(r.getUTCDate() + n);
   return r;
 }
 export function iso(d: Date): string {
-  return d.toISOString().slice(0, 10);
+  const year = d.getUTCFullYear();
+  const month = String(d.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(d.getUTCDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
 }
 
 interface RawActividad {
@@ -158,19 +175,19 @@ export const ESTADOS: EstadoDef[] = [
 ];
 
 export function daysBetween(a: string, b: string): number {
-  const ms = new Date(b).getTime() - new Date(a).getTime();
+  const ms = dateFromIso(b).getTime() - dateFromIso(a).getTime();
   return Math.round(ms / 86400000);
 }
 
 export function fmtFecha(isoStr: string | null): string {
   if (!isoStr) return "—";
-  const d = new Date(isoStr + "T12:00:00");
-  return d.toLocaleDateString("es-EC", { day: "2-digit", month: "short" });
+  const d = dateFromIso(isoStr);
+  return d.toLocaleDateString("es-EC", { day: "2-digit", month: "short", timeZone: ZONE_TZ });
 }
 export function fmtFechaLarga(isoStr: string | null): string {
   if (!isoStr) return "—";
-  const d = new Date(isoStr + "T12:00:00");
-  return d.toLocaleDateString("es-EC", { day: "2-digit", month: "long", year: "numeric" });
+  const d = dateFromIso(isoStr);
+  return d.toLocaleDateString("es-EC", { day: "2-digit", month: "long", year: "numeric", timeZone: ZONE_TZ });
 }
 
 export function initials(nombre: string): string {
@@ -200,8 +217,6 @@ export type BadgeVariant =
   | "violet"
   | "slate"
   | "teal";
-
-export const TODAY_ISO = iso(TODAY);
 
 export type PlazoTone = "green" | "amber" | "red" | "slate";
 export type PlazoKind = "ok" | "late" | "overdue" | "today" | "soon" | "normal";

@@ -1,0 +1,19 @@
+services:
+  app:
+    build:
+      context: .
+      args:
+        SKIP_BUILD: "true"
+    command: npm run dev
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-kanban}:${POSTGRES_PASSWORD:-kanban}@db:5432/${POSTGRES_DB:-kanban}
+      NODE_ENV: development
+      WATCHPACK_POLLING: "true"
+    volumes:
+      - .:/app
+      - app_node_modules:/app/node_modules
+      - app_next:/app/.next
+
+volumes:
+  app_node_modules:
+  app_next:

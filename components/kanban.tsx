@@ -76,9 +76,8 @@ function KanbanCard({
         <div className="flex items-start gap-2">
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-1.5">
-              <span className="font-mono text-[10px] text-slate-400">{act.id.toUpperCase()}</span>
               <Badge variant={comp ? unidadTone(comp.unidad) : "slate"} className="!px-1.5 !py-0">
-                {comp ? comp.codigo : "—"}
+                {comp ? comp.unidad : "—"}
               </Badge>
             </div>
             <div

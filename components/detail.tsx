@@ -141,8 +141,7 @@ export function DetailPanel({
         {/* header */}
         <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-200 bg-white/95 px-5 py-3 backdrop-blur">
           <div className="flex items-center gap-2">
-            <span className="font-mono text-xs text-slate-400">{act.id.toUpperCase()}</span>
-            <Badge variant={comp ? unidadTone(comp.unidad) : "slate"}>{comp?.codigo}</Badge>
+            <Badge variant={comp ? unidadTone(comp.unidad) : "slate"}>{comp?.unidad}</Badge>
             <EstadoBadge estado={act.estado} />
           </div>
           <button onClick={onClose} className="rounded-md p-1.5 text-slate-500 hover:bg-slate-100">
@@ -188,9 +187,9 @@ export function DetailPanel({
               <div className="flex items-center justify-between">
                 <div>
                   <div className="text-sm font-medium text-slate-900">{comp?.nombre}</div>
-                  <div className="text-xs text-slate-500">{comp?.articulo} · Estatuto del Régimen Especial</div>
+                  <div className="text-xs text-slate-500">Estatuto del Régimen Especial</div>
                 </div>
-                <Badge variant={unidadTone(comp?.unidad)}>{comp?.codigo}</Badge>
+                <Badge variant={unidadTone(comp?.unidad)}>{comp?.unidad}</Badge>
               </div>
             </div>
           </div>
