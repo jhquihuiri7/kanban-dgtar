@@ -6,8 +6,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint",
-    "seed": "tsx scripts/seed-db.ts"
+    "lint": "next lint"
   },
   "dependencies": {
     "lucide-react": "^0.453.0",
@@ -23,10 +22,8 @@
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",
     "autoprefixer": "^10.4.20",
-    "dotenv": "^16.4.5",
     "postcss": "^8.4.47",
     "tailwindcss": "^3.4.13",
-    "tsx": "^4.19.2",
     "typescript": "^5.5.4"
   }
 }

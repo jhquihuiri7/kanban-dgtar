@@ -5,6 +5,7 @@ import { useMemo, useState } from "react";
 import { Avatar, Badge, Button, Card, CardContent, CardHeader, CardTitle, Icon, Input, Label, Select } from "@/components/ui";
 import { cn } from "@/lib/utils";
 import {
+  UNIDADES,
   unidadTone,
   type Actividad,
   type Competencia,
@@ -12,7 +13,15 @@ import {
   type Unidad,
 } from "@/lib/data";
 
-const UNIDADES: Unidad[] = ["PMA", "RGDP", "PG", "GEO", "DIR"];
+const FUNCIONARIO_COLORS = ["#0ea5e9", "#22c55e", "#8b5cf6", "#14b8a6", "#a855f7", "#16a34a", "#2563eb", "#475569"];
+
+function nextCatalogId(items: { id: string }[], prefix: string): string {
+  const maxNum = items.reduce((max, item) => {
+    const n = Number.parseInt(item.id.replace(/\D/g, ""), 10);
+    return Number.isFinite(n) && n > max ? n : max;
+  }, 0);
+  return `${prefix}${maxNum + 1}`;
+}
 
 function SegBtn({
   active,
@@ -50,6 +59,7 @@ function FuncionariosTable({
   useAvatars: boolean;
 }) {
   const [editing, setEditing] = useState<Funcionario | null>(null);
+  const [creating, setCreating] = useState(false);
 
   const counts = useMemo(() => {
     const m: Record<string, number> = {};
@@ -66,12 +76,25 @@ function FuncionariosTable({
     setFuncionarios((prev) => prev.map((f) => (f.id === next.id ? next : f)));
   }
 
+  function createFuncionario(next: Funcionario) {
+    setFuncionarios((prev) => [...prev, next]);
+  }
+
+  const newFuncionario: Funcionario = {
+    id: nextCatalogId(funcionarios, "u"),
+    nombre: "",
+    email: "",
+    cargo: "",
+    unidad: UNIDADES[0],
+    color: FUNCIONARIO_COLORS[funcionarios.length % FUNCIONARIO_COLORS.length],
+  };
+
   return (
     <>
       <Card>
         <CardHeader className="flex items-center justify-between !pb-2">
           <CardTitle>Funcionarios</CardTitle>
-          <Button variant="default">
+          <Button variant="default" onClick={() => setCreating(true)}>
             <Icon name="plus" size={14} /> Nuevo funcionario
           </Button>
         </CardHeader>
@@ -135,6 +158,7 @@ function FuncionariosTable({
 
       {editing && (
         <FuncionarioDialog
+          title="Editar funcionario"
           funcionario={editing}
           onClose={() => setEditing(null)}
           onSave={(next) => {
@@ -143,15 +167,29 @@ function FuncionariosTable({
           }}
         />
       )}
+
+      {creating && (
+        <FuncionarioDialog
+          title="Nuevo funcionario"
+          funcionario={newFuncionario}
+          onClose={() => setCreating(false)}
+          onSave={(next) => {
+            createFuncionario(next);
+            setCreating(false);
+          }}
+        />
+      )}
     </>
   );
 }
 
 function FuncionarioDialog({
+  title,
   funcionario,
   onClose,
   onSave,
 }: {
+  title: string;
   funcionario: Funcionario;
   onClose: () => void;
   onSave: (funcionario: Funcionario) => void;
@@ -183,8 +221,8 @@ function FuncionarioDialog({
       >
         <div className="flex items-start justify-between">
           <div>
-            <div className="text-base font-semibold text-slate-900">Editar funcionario</div>
-            <div className="text-xs text-slate-500 mt-0.5">Actualiza los datos del catálogo</div>
+            <div className="text-base font-semibold text-slate-900">{title}</div>
+            <div className="text-xs text-slate-500 mt-0.5">Completa los datos del catálogo</div>
           </div>
           <button type="button" onClick={onClose} className="rounded-md p-1.5 text-slate-500 hover:bg-slate-100">
             <Icon name="close" size={16} />
@@ -250,6 +288,7 @@ function CompetenciasTable({
   setActivities: React.Dispatch<React.SetStateAction<Actividad[]>>;
 }) {
   const [editing, setEditing] = useState<Competencia | null>(null);
+  const [creating, setCreating] = useState(false);
 
   const counts = useMemo(() => {
     const m: Record<string, number> = {};
@@ -266,12 +305,22 @@ function CompetenciasTable({
     setCompetencias((prev) => prev.map((c) => (c.id === next.id ? next : c)));
   }
 
+  function createCompetencia(next: Competencia) {
+    setCompetencias((prev) => [...prev, next]);
+  }
+
+  const newCompetencia: Competencia = {
+    id: nextCatalogId(competencias, "c"),
+    nombre: "",
+    unidad: UNIDADES[0],
+  };
+
   return (
     <>
       <Card>
         <CardHeader className="flex items-center justify-between !pb-2">
           <CardTitle>Competencias del Estatuto</CardTitle>
-          <Button variant="default">
+          <Button variant="default" onClick={() => setCreating(true)}>
             <Icon name="plus" size={14} /> Nueva competencia
           </Button>
         </CardHeader>
@@ -326,6 +375,7 @@ function CompetenciasTable({
 
       {editing && (
         <CompetenciaDialog
+          title="Editar competencia"
           competencia={editing}
           onClose={() => setEditing(null)}
           onSave={(next) => {
@@ -334,15 +384,29 @@ function CompetenciasTable({
           }}
         />
       )}
+
+      {creating && (
+        <CompetenciaDialog
+          title="Nueva competencia"
+          competencia={newCompetencia}
+          onClose={() => setCreating(false)}
+          onSave={(next) => {
+            createCompetencia(next);
+            setCreating(false);
+          }}
+        />
+      )}
     </>
   );
 }
 
 function CompetenciaDialog({
+  title,
   competencia,
   onClose,
   onSave,
 }: {
+  title: string;
   competencia: Competencia;
   onClose: () => void;
   onSave: (competencia: Competencia) => void;
@@ -366,8 +430,8 @@ function CompetenciaDialog({
       >
         <div className="flex items-start justify-between">
           <div>
-            <div className="text-base font-semibold text-slate-900">Editar competencia</div>
-            <div className="text-xs text-slate-500 mt-0.5">Actualiza los datos del catálogo</div>
+            <div className="text-base font-semibold text-slate-900">{title}</div>
+            <div className="text-xs text-slate-500 mt-0.5">Completa los datos del catálogo</div>
           </div>
           <button type="button" onClick={onClose} className="rounded-md p-1.5 text-slate-500 hover:bg-slate-100">
             <Icon name="close" size={16} />

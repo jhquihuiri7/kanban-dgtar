@@ -18,12 +18,9 @@
       "mcp__claude_ai_Google_Drive__create_file",
       "Bash(ls \"C:\\\\Users\\\\Jhonatan Quihuiri\\\\.claude\\\\projects\\\\c--Users-Jhonatan-Quihuiri-Documents-kanban-dgtar\\\\memory\\\\\" 2>/dev/null && echo \"---\" && cat \"C:\\\\Users\\\\Jhonatan Quihuiri\\\\.claude\\\\projects\\\\c--Users-Jhonatan-Quihuiri-Documents-kanban-dgtar\\\\memory\\\\MEMORY.md\" 2>/dev/null)",
       "Read(//c/Users/Jhonatan Quihuiri/.claude/projects/c--Users-Jhonatan-Quihuiri-Documents-kanban-dgtar/memory\" 2>/dev/**)",
-      "Bash(rm -f lib/sheets.ts scripts/seed-sheet.ts .env.local.example)",
       "Bash(ls package-lock.json)",
       "Bash(chmod +x deploy.sh)",
-      "Bash(echo \"=== tsc exit: $? ===\")",
-      "Bash(npx tsx *)",
-      "Bash(echo \"tsx loads ok or not \\(expected DB error\\): $?\")"
+      "Bash(echo \"=== tsc exit: $? ===\")"
     ]
   }
 }

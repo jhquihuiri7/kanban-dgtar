@@ -163,10 +163,3 @@ export async function writeAll(data: DbData): Promise<void> {
     client.release();
   }
 }
-
-// Number of funcionarios — used by the seeder to skip re-seeding populated DBs.
-export async function countFuncionarios(): Promise<number> {
-  await ensureSchema();
-  const res = await getPool().query("SELECT COUNT(*)::int AS n FROM funcionarios");
-  return res.rows[0].n as number;
-}

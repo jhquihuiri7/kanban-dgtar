@@ -1,16 +1,13 @@
 #!/usr/bin/env bash
-# Levanta el Kanban DGTAR en local: PostgreSQL + app Next.js en Docker, y
-# siembra los datos de demo la primera vez.
+# Levanta el Kanban DGTAR en local: PostgreSQL + app Next.js en Docker.
 #
 #   ./deploy.sh dev            arranca con hot reload
 #   ./deploy.sh prod           arranca producción en APP_PORT (8001 por defecto)
-#   ./deploy.sh --force        producción + re-siembra datos demo
 #   ./deploy.sh --down         detiene y elimina los contenedores
 set -euo pipefail
 cd "$(dirname "$0")"
 
 MODE="prod"
-SEED_ARGS=()
 
 for arg in "$@"; do
   case "$arg" in
@@ -20,15 +17,12 @@ for arg in "$@"; do
     prod|--prod)
       MODE="prod"
       ;;
-    --force)
-      SEED_ARGS+=("$arg")
-      ;;
     --down)
       MODE="down"
       ;;
     *)
       echo "✗ Opción no reconocida: $arg" >&2
-      echo "  Uso: ./deploy.sh [dev|prod] [--force] | ./deploy.sh --down" >&2
+      echo "  Uso: ./deploy.sh [dev|prod] | ./deploy.sh --down" >&2
       exit 1
       ;;
   esac
@@ -77,10 +71,6 @@ RUN_APP_PORT="${APP_PORT:-$DEFAULT_APP_PORT}"
 
 # ── Build + arranque (espera a que Postgres esté healthy) ──────────────
 $DC $COMPOSE_FILES up -d --build --wait
-
-# ── Seed ───────────────────────────────────────────────────────────────
-echo "→ Sembrando datos…"
-$DC $COMPOSE_FILES exec -T app npm run seed -- "${SEED_ARGS[@]}"
 
 echo ""
 echo "✓ Listo."

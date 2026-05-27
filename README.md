@@ -39,13 +39,12 @@ calcula la fecha de vencimiento a partir del plazo en días.
 
 ## Arranque en local (Docker)
 
-Requiere **Docker** con el plugin `compose`. Un solo comando levanta la base, la
-app y siembra los datos de demo:
+Requiere **Docker** con el plugin `compose`. Un solo comando levanta la base y la
+app:
 
 ```bash
 ./deploy.sh dev        # desarrollo con hot reload: http://localhost:3000
 ./deploy.sh prod       # producción: http://localhost:8001
-./deploy.sh --force    # producción + re-siembra los datos de demo
 ./deploy.sh --down     # detiene y elimina los contenedores
 ```
 
@@ -58,10 +57,8 @@ Qué hace por dentro:
    (Next.js). En modo `dev` monta el código local y corre `npm run dev`; en modo
    `prod` construye la imagen y corre `npm start`. La app espera a que Postgres
    esté *healthy*.
-2. El esquema (`db/schema.sql`) se crea en el primer arranque del volumen y
-   también lo asegura el seed (`CREATE TABLE IF NOT EXISTS`).
-3. `npm run seed` vuelca el catálogo + actividades de demo. Es **idempotente**:
-   no hace nada si ya hay datos; usa `--force` para reescribir.
+2. El esquema (`db/schema.sql`) se asegura automáticamente desde la API cuando
+   la app lee o guarda datos (`CREATE TABLE IF NOT EXISTS`).
 
 ### Arquitectura de datos
 
@@ -79,10 +76,6 @@ Qué hace por dentro:
 npm install
 # Necesitas un PostgreSQL accesible y DATABASE_URL en .env.local
 # (p. ej. apuntando al Postgres dockerizado: postgres://kanban:kanban@localhost:5432/kanban)
-npm run seed     # crea el esquema y siembra (idempotente)
 npm run dev      # http://localhost:3000
 npm run build    # build de producción
 ```
-
-> Las fechas de demo se calculan respecto a la fecha actual de Galápagos
-> (`Pacific/Galapagos`). Ver `lib/data.ts`.

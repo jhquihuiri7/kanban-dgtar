@@ -1,5 +1,4 @@
-# Imagen única para el Kanban DGTAR (Next.js). Incluye devDependencies porque
-# el seed (tsx + TypeScript) corre dentro del contenedor.
+# Imagen única para el Kanban DGTAR (Next.js).
 FROM node:20-alpine
 
 WORKDIR /app

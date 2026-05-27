@@ -194,7 +194,7 @@ export function DetailPanel({
             </div>
           </div>
 
-          {/* Historial demo */}
+          {/* Historial */}
           <div>
             <Label className="mb-2 block uppercase tracking-wide text-slate-500">Historial</Label>
             <ol className="space-y-2.5 text-sm">

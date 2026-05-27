@@ -616,7 +616,7 @@ function LoadingGate({
           <p className="mx-auto mt-1.5 max-w-sm text-xs text-slate-500 break-words">{error}</p>
           <p className="mx-auto mt-2 max-w-sm text-xs text-slate-400">
             Revisa que PostgreSQL esté arriba y que <span className="font-mono">DATABASE_URL</span> sea
-            correcta. Si es la primera vez, ejecuta <span className="font-mono">npm run seed</span>.
+            correcta.
           </p>
           <Button className="mt-4" onClick={onRetry}>
             <Icon name="refresh" size={14} /> Reintentar
