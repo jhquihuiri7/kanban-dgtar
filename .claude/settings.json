@@ -20,7 +20,8 @@
       "Read(//c/Users/Jhonatan Quihuiri/.claude/projects/c--Users-Jhonatan-Quihuiri-Documents-kanban-dgtar/memory\" 2>/dev/**)",
       "Bash(ls package-lock.json)",
       "Bash(chmod +x deploy.sh)",
-      "Bash(echo \"=== tsc exit: $? ===\")"
+      "Bash(echo \"=== tsc exit: $? ===\")",
+      "Bash(npx tsc *)"
     ]
   }
 }
