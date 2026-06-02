@@ -8,12 +8,15 @@ import {
   ESTADOS,
   TODAY_ISO,
   addDays,
+  dateOnly,
   daysBetween,
   fmtFecha,
   fmtFechaLarga,
+  fmtHora,
   iso,
   plazoInfo,
   unidadTone,
+  withHora,
   type Actividad,
   type Competencia,
   type EstadoActividad,
@@ -62,7 +65,10 @@ function PlazoBanner({ act, p }: { act: Actividad; p: PlazoInfo }) {
       </div>
       <div className="flex-1">
         <div className={cn("text-sm font-semibold", s.text)}>{heading}</div>
-        <div className="text-xs text-slate-600">Vencimiento: {fmtFechaLarga(act.fechaVencimiento)}</div>
+        <div className="text-xs text-slate-600">
+          {act.tipo === "reunion" ? "Reunión" : "Vencimiento"}: {fmtFechaLarga(act.fechaVencimiento)}
+          {act.tipo === "reunion" && fmtHora(act.fechaVencimiento) ? ` · ${fmtHora(act.fechaVencimiento)}` : ""}
+        </div>
       </div>
     </div>
   );
@@ -125,6 +131,8 @@ export function DetailPanel({
   const fun = funcionarios.find((f) => f.id === act.funcionarioId);
   const comp = competencias.find((c) => c.id === act.competenciaId);
   const p = plazoInfo(act, TODAY_ISO);
+  const esReunion = act.tipo === "reunion";
+  const hora = fmtHora(act.fechaVencimiento);
 
   function update(patch: Partial<Actividad>) {
     setActivities((prev) => prev.map((a) => (a.id === act!.id ? { ...a, ...patch } : a)));
@@ -141,12 +149,19 @@ export function DetailPanel({
     setEditing(false);
     setDraft(null);
   }
-  // Guarda el borrador. El vencimiento se recalcula desde creación + plazo, y la
-  // fecha de cumplimiento se ajusta según el estado elegido (igual que el tablero).
+  // Guarda el borrador. En asignaciones el vencimiento se recalcula desde
+  // creación + plazo; en reuniones se conserva la fecha+hora elegida (que ya
+  // vive en draft.fechaVencimiento) y el plazo se deriva de ella. La fecha de
+  // cumplimiento se ajusta según el estado elegido (igual que el tablero).
   function saveEdit() {
     if (!draft) return;
-    const plazo = Math.max(0, Number(draft.plazoDias) || 0);
-    const fechaVencimiento = iso(addDays(draft.fechaCreacion, plazo));
+    const esReunion = draft.tipo === "reunion";
+    const plazo = esReunion
+      ? daysBetween(draft.fechaCreacion, draft.fechaVencimiento)
+      : Math.max(0, Number(draft.plazoDias) || 0);
+    const fechaVencimiento = esReunion
+      ? draft.fechaVencimiento
+      : iso(addDays(draft.fechaCreacion, plazo));
     let fechaCumplimiento = draft.fechaCumplimiento;
     if (draft.estado === "cumplida") fechaCumplimiento = fechaCumplimiento ?? TODAY_ISO;
     else fechaCumplimiento = null;
@@ -177,6 +192,11 @@ export function DetailPanel({
         {/* header */}
         <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-200 bg-white/95 px-5 py-3 backdrop-blur">
           <div className="flex items-center gap-2">
+            {esReunion && (
+              <Badge variant="violet">
+                <Icon name="users" size={11} /> Reunión
+              </Badge>
+            )}
             <Badge variant={comp ? unidadTone(comp.unidad) : "slate"}>{comp?.unidad}</Badge>
             <EstadoBadge estado={act.estado} />
           </div>
@@ -218,8 +238,17 @@ export function DetailPanel({
           {/* plazo grid */}
           <div className="grid grid-cols-3 gap-2">
             <MetaCell label="Creada" value={fmtFecha(act.fechaCreacion)} />
-            <MetaCell label="Plazo" value={`${act.plazoDias} días`} />
-            <MetaCell label="Vence" value={fmtFecha(act.fechaVencimiento)} />
+            {esReunion ? (
+              <>
+                <MetaCell label="Fecha" value={fmtFecha(act.fechaVencimiento)} />
+                <MetaCell label="Hora" value={hora || "—"} />
+              </>
+            ) : (
+              <>
+                <MetaCell label="Plazo" value={`${act.plazoDias} días`} />
+                <MetaCell label="Vence" value={fmtFecha(act.fechaVencimiento)} />
+              </>
+            )}
           </div>
 
           {/* plazo banner */}
@@ -365,6 +394,7 @@ function EditForm({
   function set<K extends keyof Actividad>(key: K, value: Actividad[K]) {
     setDraft((d) => (d ? { ...d, [key]: value } : d));
   }
+  const esReunion = draft.tipo === "reunion";
   const vence = iso(addDays(draft.fechaCreacion, Math.max(0, Number(draft.plazoDias) || 0)));
 
   return (
@@ -436,24 +466,51 @@ function EditForm({
             {fmtFechaLarga(draft.fechaCreacion)}
           </div>
         </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="edit-plazo">Plazo (días calendario)</Label>
-          <Input
-            id="edit-plazo"
-            type="number"
-            min={0}
-            max={365}
-            value={draft.plazoDias}
-            onChange={(e) => set("plazoDias", Number(e.target.value))}
-          />
-        </div>
-        <div className="space-y-1.5">
-          <Label>Vence (calculado)</Label>
-          <div className="flex h-9 items-center gap-2 rounded-lg bg-slate-50 px-3 text-sm font-medium text-slate-700 ring-1 ring-foreground/5">
-            <Icon name="calendar" size={14} className="text-slate-400" />
-            {fmtFechaLarga(vence)}
-          </div>
-        </div>
+        {esReunion ? (
+          <>
+            <div className="space-y-1.5">
+              <Label htmlFor="edit-fecha-reunion">Fecha de la reunión</Label>
+              <Input
+                id="edit-fecha-reunion"
+                type="date"
+                value={dateOnly(draft.fechaVencimiento)}
+                onChange={(e) =>
+                  set("fechaVencimiento", withHora(e.target.value, fmtHora(draft.fechaVencimiento) || "09:00"))
+                }
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="edit-hora-reunion">Hora</Label>
+              <Input
+                id="edit-hora-reunion"
+                type="time"
+                value={fmtHora(draft.fechaVencimiento) || "09:00"}
+                onChange={(e) => set("fechaVencimiento", withHora(draft.fechaVencimiento, e.target.value))}
+              />
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="space-y-1.5">
+              <Label htmlFor="edit-plazo">Plazo (días calendario)</Label>
+              <Input
+                id="edit-plazo"
+                type="number"
+                min={0}
+                max={365}
+                value={draft.plazoDias}
+                onChange={(e) => set("plazoDias", Number(e.target.value))}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Vence (calculado)</Label>
+              <div className="flex h-9 items-center gap-2 rounded-lg bg-slate-50 px-3 text-sm font-medium text-slate-700 ring-1 ring-foreground/5">
+                <Icon name="calendar" size={14} className="text-slate-400" />
+                {fmtFechaLarga(vence)}
+              </div>
+            </div>
+          </>
+        )}
       </div>
       <div className="space-y-1.5">
         <Label htmlFor="edit-obs">Observaciones</Label>

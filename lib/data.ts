@@ -7,6 +7,13 @@ export type EstadoActividad =
   | "cumplida"
   | "archivada";
 
+export type TipoActividad = "asignacion" | "reunion";
+
+export const TIPOS: { id: TipoActividad; label: string }[] = [
+  { id: "asignacion", label: "Asignación" },
+  { id: "reunion", label: "Reunión" },
+];
+
 export const UNIDADES = [
   "DGTAR",
   "Gestión Territorial",
@@ -33,6 +40,7 @@ export interface Competencia {
 
 export interface Actividad {
   id: string;
+  tipo: TipoActividad;
   titulo: string;
   descripcion: string;
   funcionarioId: string;
@@ -64,8 +72,28 @@ function todayIsoForZone(timeZone: string): string {
 }
 
 function dateFromIso(isoStr: string): Date {
-  const [year, month, day] = isoStr.split("-").map(Number);
+  // Tolerates an optional "THH:mm" suffix (used by reuniones) — solo la parte
+  // de fecha define el día; la hora se ignora para todo cálculo de plazos.
+  const [datePart] = isoStr.split("T");
+  const [year, month, day] = datePart.split("-").map(Number);
   return new Date(Date.UTC(year, month - 1, day, 12));
+}
+
+/* ── Fecha + hora (reuniones) ───────────────────────────────────────────
+   La hora de una reunión se guarda dentro de fechaVencimiento como
+   "YYYY-MM-DDTHH:mm". Estas funciones la separan para mostrarla/editarla sin
+   tocar el resto de la lógica de fechas (que solo mira la parte de día). */
+
+export function dateOnly(isoStr: string | null): string {
+  return isoStr ? isoStr.split("T")[0] : "";
+}
+export function fmtHora(isoStr: string | null): string {
+  if (!isoStr) return "";
+  const t = isoStr.split("T")[1];
+  return t ? t.slice(0, 5) : "";
+}
+export function withHora(fechaIso: string, hora: string): string {
+  return `${dateOnly(fechaIso)}T${hora}`;
 }
 
 export const TODAY_ISO = todayIsoForZone(ZONE_TZ);

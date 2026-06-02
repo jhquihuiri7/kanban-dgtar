@@ -25,6 +25,7 @@ ALTER TABLE competencias DROP COLUMN IF EXISTS activo;
 
 CREATE TABLE IF NOT EXISTS actividades (
   id                  text PRIMARY KEY,
+  tipo                text NOT NULL DEFAULT 'asignacion',
   titulo              text NOT NULL,
   descripcion         text NOT NULL DEFAULT '',
   funcionario_id      text REFERENCES funcionarios(id) ON DELETE CASCADE,
@@ -37,6 +38,11 @@ CREATE TABLE IF NOT EXISTS actividades (
   observaciones       text NOT NULL DEFAULT '',
   orden               integer NOT NULL DEFAULT 0
 );
+
+-- Upgrade de tablas existentes: 'asignacion' | 'reunion'. Para reuniones la
+-- hora viaja dentro de fecha_vencimiento como "YYYY-MM-DDTHH:mm" (sin columna
+-- nueva).
+ALTER TABLE actividades ADD COLUMN IF NOT EXISTS tipo text NOT NULL DEFAULT 'asignacion';
 
 DO $$
 BEGIN

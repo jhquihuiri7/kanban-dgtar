@@ -6,7 +6,7 @@
 import { readFileSync } from "fs";
 import { join } from "path";
 import { Pool } from "pg";
-import type { Actividad, Competencia, EstadoActividad, Funcionario, Unidad } from "./data";
+import type { Actividad, Competencia, EstadoActividad, Funcionario, TipoActividad, Unidad } from "./data";
 
 export interface DbData {
   funcionarios: Funcionario[];
@@ -55,6 +55,7 @@ function mapCompetencia(r: Row): Competencia {
 function mapActividad(r: Row): Actividad {
   return {
     id: r.id as string,
+    tipo: (r.tipo as TipoActividad) ?? "asignacion",
     titulo: r.titulo as string,
     descripcion: r.descripcion as string,
     funcionarioId: r.funcionario_id as string,
@@ -134,12 +135,13 @@ export async function writeAll(data: DbData): Promise<void> {
     for (const a of data.actividades) {
       await client.query(
         `INSERT INTO actividades
-           (id, titulo, descripcion, funcionario_id, competencia_id, estado,
+           (id, tipo, titulo, descripcion, funcionario_id, competencia_id, estado,
             fecha_creacion, plazo_dias, fecha_vencimiento, fecha_cumplimiento,
             observaciones, orden)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
         [
           a.id,
+          a.tipo ?? "asignacion",
           a.titulo,
           a.descripcion,
           a.funcionarioId,

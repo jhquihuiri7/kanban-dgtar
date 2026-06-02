@@ -14,12 +14,14 @@ import {
   type Funcionario,
 } from "@/lib/data";
 import { KanbanBoard, type Filters } from "@/components/kanban";
+import { CalendarView } from "@/components/calendar";
 import { DetailPanel } from "@/components/detail";
 import { StatsView } from "@/components/stats";
 import { CatalogsView } from "@/components/catalogs";
 import { NewActivityDialog, type NewActivityInput } from "@/components/new-activity";
 
 type Tab = "kanban" | "stats" | "catalogs";
+type BoardView = "columns" | "week" | "month";
 type Density = "standard" | "compact";
 type LoadState = "loading" | "ready" | "error";
 type SyncState = "idle" | "saving" | "saved" | "error";
@@ -442,6 +444,8 @@ function KanbanScreen({
   onOpen: (id: string) => void;
   onAdd: (estado: EstadoActividad) => void;
 }) {
+  const [view, setView] = useState<BoardView>("columns");
+
   const counts = useMemo(() => {
     const m: Record<string, number> = {};
     for (const a of activities) m[a.estado] = (m[a.estado] || 0) + 1;
@@ -492,32 +496,57 @@ function KanbanScreen({
       </div>
 
       {/* Page header */}
-      <div>
-        <h1 className="text-2xl font-bold text-slate-900 leading-tight">Tablero de Actividades</h1>
-        <div className="mt-1 flex items-center gap-3 text-sm text-slate-500">
-          <span>{activities.length} actividades</span>
-          <span className="h-1 w-1 rounded-full bg-slate-300" />
-          <span>
-            <b className="text-red-600">{counts.vencidas}</b> vencidas
-          </span>
-          <span className="h-1 w-1 rounded-full bg-slate-300" />
-          <span>
-            <b className="text-slate-700">{counts.cumplida || 0}</b> cumplidas
-          </span>
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900 leading-tight">Tablero de Actividades</h1>
+          <div className="mt-1 flex items-center gap-3 text-sm text-slate-500">
+            <span>{activities.length} actividades</span>
+            <span className="h-1 w-1 rounded-full bg-slate-300" />
+            <span>
+              <b className="text-red-600">{counts.vencidas}</b> vencidas
+            </span>
+            <span className="h-1 w-1 rounded-full bg-slate-300" />
+            <span>
+              <b className="text-slate-700">{counts.cumplida || 0}</b> cumplidas
+            </span>
+          </div>
+        </div>
+        <div className="w-64 shrink-0">
+          <Seg
+            value={view}
+            options={[
+              { value: "columns", label: "Columnas" },
+              { value: "week", label: "Semana" },
+              { value: "month", label: "Mes" },
+            ]}
+            onChange={(v) => setView(v as BoardView)}
+          />
         </div>
       </div>
 
-      <KanbanBoard
-        activities={activities}
-        setActivities={setActivities}
-        funcionarios={funcionarios}
-        competencias={competencias}
-        useAvatars={useAvatars}
-        density={density}
-        onOpen={onOpen}
-        onAdd={onAdd}
-        filters={filters}
-      />
+      {view === "columns" ? (
+        <KanbanBoard
+          activities={activities}
+          setActivities={setActivities}
+          funcionarios={funcionarios}
+          competencias={competencias}
+          useAvatars={useAvatars}
+          density={density}
+          onOpen={onOpen}
+          onAdd={onAdd}
+          filters={filters}
+        />
+      ) : (
+        <CalendarView
+          mode={view}
+          activities={activities}
+          funcionarios={funcionarios}
+          competencias={competencias}
+          useAvatars={useAvatars}
+          filters={filters}
+          onOpen={onOpen}
+        />
+      )}
     </div>
   );
 }

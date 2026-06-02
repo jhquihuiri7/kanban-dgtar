@@ -9,6 +9,7 @@ import {
   TODAY_ISO,
   daysBetween,
   fmtFecha,
+  fmtHora,
   plazoInfo,
   unidadTone,
   type Actividad,
@@ -22,6 +23,16 @@ interface Filters {
   funcionario: string;
   competencia: string;
   q: string;
+}
+
+/* Shared activity filter used by both the board and the calendar views. */
+export function filterActivities(activities: Actividad[], filters: Filters): Actividad[] {
+  return activities.filter((a) => {
+    if (filters.funcionario !== "all" && a.funcionarioId !== filters.funcionario) return false;
+    if (filters.competencia !== "all" && a.competenciaId !== filters.competencia) return false;
+    if (filters.q && !a.titulo.toLowerCase().includes(filters.q.toLowerCase())) return false;
+    return true;
+  });
 }
 
 interface DragState {
@@ -75,7 +86,12 @@ function KanbanCard({
       <div className={cn("pl-3", compact ? "pr-2.5 py-2" : "pr-3 py-2.5")}>
         <div className="flex items-start gap-2">
           <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-1.5">
+            <div className="flex flex-wrap items-center gap-1.5">
+              {act.tipo === "reunion" && (
+                <Badge variant="violet" className="!px-1.5 !py-0">
+                  <Icon name="users" size={10} /> Reunión
+                </Badge>
+              )}
               <Badge variant={comp ? unidadTone(comp.unidad) : "slate"} className="!px-1.5 !py-0">
                 {comp ? comp.unidad : "—"}
               </Badge>
@@ -95,8 +111,13 @@ function KanbanCard({
         {!compact && (
           <div className="mt-2 flex items-center justify-between text-[11px] text-slate-500">
             <div className="flex items-center gap-1">
-              <Icon name="calendar" size={12} />
-              <span>{fmtFecha(act.fechaVencimiento)}</span>
+              <Icon name={act.tipo === "reunion" ? "clock" : "calendar"} size={12} />
+              <span>
+                {fmtFecha(act.fechaVencimiento)}
+                {act.tipo === "reunion" && fmtHora(act.fechaVencimiento)
+                  ? ` · ${fmtHora(act.fechaVencimiento)}`
+                  : ""}
+              </span>
             </div>
             <Badge variant={p.tone}>
               {p.kind === "overdue" || p.kind === "today" ? (
@@ -248,14 +269,7 @@ export function KanbanBoard({
 }) {
   const [dragState, setDragState] = useState<DragState>({ id: null, over: null });
 
-  const filtered = useMemo(() => {
-    return activities.filter((a) => {
-      if (filters.funcionario !== "all" && a.funcionarioId !== filters.funcionario) return false;
-      if (filters.competencia !== "all" && a.competenciaId !== filters.competencia) return false;
-      if (filters.q && !a.titulo.toLowerCase().includes(filters.q.toLowerCase())) return false;
-      return true;
-    });
-  }, [activities, filters]);
+  const filtered = useMemo(() => filterActivities(activities, filters), [activities, filters]);
 
   function handleDrop(targetEstado: EstadoActividad) {
     if (!dragState.id) return;
