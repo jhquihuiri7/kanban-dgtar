@@ -36,6 +36,8 @@ CREATE TABLE IF NOT EXISTS actividades (
   fecha_vencimiento   text NOT NULL,
   fecha_cumplimiento  text,
   observaciones       text NOT NULL DEFAULT '',
+  acciones_pendientes text NOT NULL DEFAULT '',
+  resultados_alcanzados text NOT NULL DEFAULT '',
   orden               integer NOT NULL DEFAULT 0
 );
 
@@ -43,6 +45,10 @@ CREATE TABLE IF NOT EXISTS actividades (
 -- hora viaja dentro de fecha_vencimiento como "YYYY-MM-DDTHH:mm" (sin columna
 -- nueva).
 ALTER TABLE actividades ADD COLUMN IF NOT EXISTS tipo text NOT NULL DEFAULT 'asignacion';
+
+-- Campos opcionales de seguimiento (texto libre).
+ALTER TABLE actividades ADD COLUMN IF NOT EXISTS acciones_pendientes text NOT NULL DEFAULT '';
+ALTER TABLE actividades ADD COLUMN IF NOT EXISTS resultados_alcanzados text NOT NULL DEFAULT '';
 
 DO $$
 BEGIN

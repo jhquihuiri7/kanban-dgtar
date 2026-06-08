@@ -19,6 +19,7 @@ import { DetailPanel } from "@/components/detail";
 import { StatsView } from "@/components/stats";
 import { CatalogsView } from "@/components/catalogs";
 import { NewActivityDialog, type NewActivityInput } from "@/components/new-activity";
+import { ExportDialog } from "@/components/export";
 
 type Tab = "kanban" | "stats" | "catalogs";
 type BoardView = "columns" | "week" | "month";
@@ -148,6 +149,7 @@ export default function Page() {
   const [openActivityId, setOpenActivityId] = useState<string | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [dialogDefaultEstado, setDialogDefaultEstado] = useState<EstadoActividad>("pendiente");
+  const [exportOpen, setExportOpen] = useState(false);
 
   const [filters, setFilters] = useState<Filters>({ funcionario: "all", competencia: "all", q: "" });
 
@@ -173,6 +175,7 @@ export default function Page() {
         settings={settings}
         setTweak={setTweak}
         syncState={syncState}
+        onExport={() => setExportOpen(true)}
         onNew={() => {
           setDialogDefaultEstado("pendiente");
           setDialogOpen(true);
@@ -240,6 +243,14 @@ export default function Page() {
         competencias={competencias}
         defaultEstado={dialogDefaultEstado}
       />
+
+      <ExportDialog
+        open={exportOpen}
+        onClose={() => setExportOpen(false)}
+        activities={activities}
+        funcionarios={funcionarios}
+        competencias={competencias}
+      />
     </div>
   );
 }
@@ -250,6 +261,7 @@ function Header({
   settings,
   setTweak,
   syncState,
+  onExport,
   onNew,
 }: {
   tab: Tab;
@@ -257,6 +269,7 @@ function Header({
   settings: Settings;
   setTweak: <K extends keyof Settings>(key: K, value: Settings[K]) => void;
   syncState: SyncState;
+  onExport: () => void;
   onNew: () => void;
 }) {
   return (
@@ -294,6 +307,9 @@ function Header({
           </div>
           <div className="h-5 w-px bg-slate-200 hidden md:block" />
           <SettingsMenu settings={settings} setTweak={setTweak} />
+          <Button variant="outline" onClick={onExport}>
+            <Icon name="download" size={14} /> Exportar
+          </Button>
           <Button onClick={onNew}>
             <Icon name="plus" size={14} /> Nueva actividad
           </Button>
@@ -571,9 +587,6 @@ function StatsScreen({
             Métricas generales y cumplimiento por funcionario · corte al {fmtFechaLarga(TODAY_ISO)}
           </div>
         </div>
-        <Button variant="outline">
-          <Icon name="download" size={14} /> Exportar
-        </Button>
       </div>
       <StatsView
         activities={activities}

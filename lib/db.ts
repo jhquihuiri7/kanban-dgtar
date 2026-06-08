@@ -66,6 +66,8 @@ function mapActividad(r: Row): Actividad {
     fechaVencimiento: r.fecha_vencimiento as string,
     fechaCumplimiento: (r.fecha_cumplimiento as string | null) ?? null,
     observaciones: r.observaciones as string,
+    accionesPendientes: (r.acciones_pendientes as string) ?? "",
+    resultadosAlcanzados: (r.resultados_alcanzados as string) ?? "",
     orden: r.orden as number,
   };
 }
@@ -137,8 +139,8 @@ export async function writeAll(data: DbData): Promise<void> {
         `INSERT INTO actividades
            (id, tipo, titulo, descripcion, funcionario_id, competencia_id, estado,
             fecha_creacion, plazo_dias, fecha_vencimiento, fecha_cumplimiento,
-            observaciones, orden)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
+            observaciones, acciones_pendientes, resultados_alcanzados, orden)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)`,
         [
           a.id,
           a.tipo ?? "asignacion",
@@ -152,6 +154,8 @@ export async function writeAll(data: DbData): Promise<void> {
           a.fechaVencimiento,
           a.fechaCumplimiento,
           a.observaciones,
+          a.accionesPendientes ?? "",
+          a.resultadosAlcanzados ?? "",
           a.orden,
         ],
       );

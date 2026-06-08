@@ -40,6 +40,20 @@ function MetaCell({ label, value }: { label: string; value: string }) {
   );
 }
 
+// Campo de texto en modo lectura: caja bloqueada con el mismo estilo que el
+// bloque de Competencia. Para editarlo se usa el botón Editar del panel.
+function ReadOnlyField({ label, value }: { label: string; value: string }) {
+  const text = value?.trim();
+  return (
+    <div>
+      <Label className="mb-1.5 block uppercase tracking-wide text-slate-500">{label}</Label>
+      <div className="whitespace-pre-wrap rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
+        {text || <span className="text-slate-400">—</span>}
+      </div>
+    </div>
+  );
+}
+
 function PlazoBanner({ act, p }: { act: Actividad; p: PlazoInfo }) {
   const map: Record<PlazoTone, { bg: string; ring: string; text: string; icon: IconName }> = {
     green: { bg: "bg-green-50", ring: "ring-green-200", text: "text-green-700", icon: "check" },
@@ -175,6 +189,9 @@ export function DetailPanel({
       plazoDias: plazo,
       fechaVencimiento,
       fechaCumplimiento,
+      observaciones: draft.observaciones.trim(),
+      accionesPendientes: draft.accionesPendientes.trim(),
+      resultadosAlcanzados: draft.resultadosAlcanzados.trim(),
     });
     setEditing(false);
     setDraft(null);
@@ -309,16 +326,13 @@ export function DetailPanel({
             </ol>
           </div>
 
-          {/* observaciones */}
-          <div>
-            <Label className="mb-1.5 block uppercase tracking-wide text-slate-500">Observaciones</Label>
-            <Textarea
-              rows={3}
-              placeholder="Comentario interno…"
-              value={act.observaciones || ""}
-              onChange={(e) => update({ observaciones: e.target.value })}
-            />
-          </div>
+          {/* observaciones / seguimiento (solo lectura — editar desde el botón Editar) */}
+          <ReadOnlyField label="Observaciones" value={act.observaciones} />
+          <ReadOnlyField
+            label="Acciones pendientes y actividades programadas"
+            value={act.accionesPendientes}
+          />
+          <ReadOnlyField label="Resultados alcanzados" value={act.resultadosAlcanzados} />
           </>
           )}
         </div>
@@ -519,6 +533,24 @@ function EditForm({
           rows={3}
           value={draft.observaciones || ""}
           onChange={(e) => set("observaciones", e.target.value)}
+        />
+      </div>
+      <div className="space-y-1.5">
+        <Label htmlFor="edit-acciones">Acciones pendientes y actividades programadas</Label>
+        <Textarea
+          id="edit-acciones"
+          rows={3}
+          value={draft.accionesPendientes || ""}
+          onChange={(e) => set("accionesPendientes", e.target.value)}
+        />
+      </div>
+      <div className="space-y-1.5">
+        <Label htmlFor="edit-resultados">Resultados alcanzados</Label>
+        <Textarea
+          id="edit-resultados"
+          rows={3}
+          value={draft.resultadosAlcanzados || ""}
+          onChange={(e) => set("resultadosAlcanzados", e.target.value)}
         />
       </div>
     </div>

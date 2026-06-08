@@ -51,6 +51,8 @@ export interface Actividad {
   fechaVencimiento: string;
   fechaCumplimiento: string | null;
   observaciones: string;
+  accionesPendientes: string;
+  resultadosAlcanzados: string;
   orden: number;
 }
 

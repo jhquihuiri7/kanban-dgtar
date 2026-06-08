@@ -41,6 +41,8 @@ export function NewActivityDialog({
   const [tipo, setTipo] = useState<TipoActividad>("asignacion");
   const [titulo, setTitulo] = useState("");
   const [descripcion, setDescripcion] = useState("");
+  const [accionesPendientes, setAccionesPendientes] = useState("");
+  const [resultadosAlcanzados, setResultadosAlcanzados] = useState("");
   const [funcionarioId, setFuncionarioId] = useState(funcionariosDisponibles[0]?.id || "");
   const [competenciaId, setCompetenciaId] = useState(competenciasDisponibles[0]?.id || "");
   const [plazoDias, setPlazoDias] = useState<number | string>(7);
@@ -52,6 +54,8 @@ export function NewActivityDialog({
       setTipo("asignacion");
       setTitulo("");
       setDescripcion("");
+      setAccionesPendientes("");
+      setResultadosAlcanzados("");
       setFuncionarioId(funcionarios[0]?.id || "");
       setCompetenciaId(competencias[0]?.id || "");
       setPlazoDias(7);
@@ -86,6 +90,8 @@ export function NewActivityDialog({
       fechaVencimiento: vence,
       fechaCumplimiento: null,
       observaciones: "",
+      accionesPendientes: accionesPendientes.trim(),
+      resultadosAlcanzados: resultadosAlcanzados.trim(),
     });
     onClose();
   }
@@ -225,6 +231,26 @@ export function NewActivityDialog({
                   </div>
                 </>
               )}
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="acciones">Acciones pendientes y actividades programadas</Label>
+              <Textarea
+                id="acciones"
+                rows={3}
+                placeholder="Próximos pasos, tareas programadas…"
+                value={accionesPendientes}
+                onChange={(e) => setAccionesPendientes(e.target.value)}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="resultados">Resultados alcanzados</Label>
+              <Textarea
+                id="resultados"
+                rows={3}
+                placeholder="Logros, entregables completados…"
+                value={resultadosAlcanzados}
+                onChange={(e) => setResultadosAlcanzados(e.target.value)}
+              />
             </div>
           </div>
         )}

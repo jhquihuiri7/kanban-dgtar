@@ -1,0 +1,266 @@
+"use client";
+
+import * as React from "react";
+import { useEffect, useMemo, useState } from "react";
+import { Button, Icon, Input, Label } from "@/components/ui";
+import {
+  ESTADOS,
+  TIPOS,
+  TODAY_ISO,
+  dateOnly,
+  fmtHora,
+  type Actividad,
+  type Competencia,
+  type Funcionario,
+} from "@/lib/data";
+
+// Columnas del CSV (todos los campos). El orden aquí define el orden en el
+// archivo. Las reuniones llevan la hora dentro de fechaVencimiento, por eso se
+// separa en su propia columna.
+const COLUMNS = [
+  "ID",
+  "Tipo",
+  "Título",
+  "Descripción",
+  "Funcionario",
+  "Unidad funcionario",
+  "Competencia",
+  "Unidad competencia",
+  "Estado",
+  "Fecha creación",
+  "Plazo (días)",
+  "Fecha vencimiento",
+  "Hora reunión",
+  "Fecha cumplimiento",
+  "Observaciones",
+  "Acciones pendientes y actividades programadas",
+  "Resultados alcanzados",
+] as const;
+
+const tipoLabel = (id: string) => TIPOS.find((t) => t.id === id)?.label ?? id;
+const estadoLabel = (id: string) => ESTADOS.find((e) => e.id === id)?.label ?? id;
+
+// Fechas en el CSV: día/mes/año. Recibe "YYYY-MM-DD" (o vacío) y devuelve
+// "DD/MM/YYYY" sin construir Date para evitar desfases de zona horaria.
+function fechaDMA(isoDate: string): string {
+  if (!isoDate) return "";
+  const [y, m, d] = isoDate.split("-");
+  return y && m && d ? `${d}/${m}/${y}` : isoDate;
+}
+
+// El estado interno sigue siendo ISO ("YYYY-MM-DD"); estas funciones convierten
+// hacia/desde el texto "DD/MM/YYYY" que se muestra al usuario.
+function isoToDma(iso: string): string {
+  return fechaDMA(iso);
+}
+function dmaToIso(dma: string): string | null {
+  const m = dma.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (!m) return null;
+  const [, d, mo, y] = m;
+  const day = Number(d);
+  const month = Number(mo);
+  if (month < 1 || month > 12 || day < 1 || day > 31) return null;
+  return `${y}-${mo}-${d}`;
+}
+// Inserta las barras a medida que se escribe: "08062026" → "08/06/2026".
+function maskDma(raw: string): string {
+  const digits = raw.replace(/\D/g, "").slice(0, 8);
+  return [digits.slice(0, 2), digits.slice(2, 4), digits.slice(4, 8)]
+    .filter(Boolean)
+    .join("/");
+}
+
+// Campo de fecha en formato día/mes/año (texto). Reemplaza al input nativo
+// type="date", cuyo formato visible depende del idioma del navegador y no se
+// puede fijar. Mantiene el valor hacia afuera en ISO.
+function DateFieldDMA({
+  id,
+  value,
+  onChange,
+}: {
+  id: string;
+  value: string;
+  onChange: (iso: string) => void;
+}) {
+  const [text, setText] = useState(isoToDma(value));
+  useEffect(() => {
+    setText(isoToDma(value));
+  }, [value]);
+  return (
+    <Input
+      id={id}
+      inputMode="numeric"
+      placeholder="dd/mm/aaaa"
+      value={text}
+      onChange={(e) => {
+        const masked = maskDma(e.target.value);
+        setText(masked);
+        const iso = dmaToIso(masked);
+        if (iso) onChange(iso);
+        else if (masked === "") onChange("");
+      }}
+    />
+  );
+}
+
+// Excel en español usa ';' como separador. Se antepone BOM para que los
+// acentos se lean en UTF-8. Cada celda se entrecomilla y las comillas internas
+// se duplican (formato CSV estándar).
+function csvCell(value: string): string {
+  return `"${value.replace(/"/g, '""')}"`;
+}
+
+function buildCsv(
+  rows: Actividad[],
+  funcionarios: Funcionario[],
+  competencias: Competencia[],
+): string {
+  const funById = new Map(funcionarios.map((f) => [f.id, f]));
+  const compById = new Map(competencias.map((c) => [c.id, c]));
+
+  const lines = [COLUMNS.map(csvCell).join(";")];
+  for (const a of rows) {
+    const fun = funById.get(a.funcionarioId);
+    const comp = compById.get(a.competenciaId);
+    const cells = [
+      a.id,
+      tipoLabel(a.tipo),
+      a.titulo,
+      a.descripcion,
+      fun?.nombre ?? "",
+      fun?.unidad ?? "",
+      comp?.nombre ?? "",
+      comp?.unidad ?? "",
+      estadoLabel(a.estado),
+      fechaDMA(a.fechaCreacion),
+      String(a.plazoDias),
+      fechaDMA(dateOnly(a.fechaVencimiento)),
+      a.tipo === "reunion" ? fmtHora(a.fechaVencimiento) : "",
+      fechaDMA(a.fechaCumplimiento ?? ""),
+      a.observaciones ?? "",
+      a.accionesPendientes ?? "",
+      a.resultadosAlcanzados ?? "",
+    ];
+    lines.push(cells.map((c) => csvCell(String(c ?? ""))).join(";"));
+  }
+  return "﻿" + lines.join("\r\n");
+}
+
+function downloadCsv(filename: string, content: string) {
+  const blob = new Blob([content], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+export function ExportDialog({
+  open,
+  onClose,
+  activities,
+  funcionarios,
+  competencias,
+}: {
+  open: boolean;
+  onClose: () => void;
+  activities: Actividad[];
+  funcionarios: Funcionario[];
+  competencias: Competencia[];
+}) {
+  const [desde, setDesde] = useState("");
+  const [hasta, setHasta] = useState("");
+
+  useEffect(() => {
+    if (open) {
+      // Por defecto: primer día del mes actual hasta hoy.
+      setDesde(TODAY_ISO.slice(0, 8) + "01");
+      setHasta(TODAY_ISO);
+    }
+  }, [open]);
+
+  // Filtra por la parte de fecha del vencimiento (las reuniones traen hora).
+  // La comparación lexicográfica de "YYYY-MM-DD" equivale a la cronológica.
+  const seleccionadas = useMemo(() => {
+    if (!desde || !hasta) return [];
+    const [a, b] = desde <= hasta ? [desde, hasta] : [hasta, desde];
+    return activities
+      .filter((act) => {
+        const venc = dateOnly(act.fechaVencimiento);
+        return venc >= a && venc <= b;
+      })
+      .sort((x, y) => dateOnly(x.fechaVencimiento).localeCompare(dateOnly(y.fechaVencimiento)));
+  }, [activities, desde, hasta]);
+
+  if (!open) return null;
+
+  const rangoInvalido = !desde || !hasta;
+  const sinResultados = !rangoInvalido && seleccionadas.length === 0;
+
+  function exportar() {
+    if (rangoInvalido || seleccionadas.length === 0) return;
+    const [a, b] = desde <= hasta ? [desde, hasta] : [hasta, desde];
+    const csv = buildCsv(seleccionadas, funcionarios, competencias);
+    downloadCsv(`actividades_${a}_a_${b}.csv`, csv);
+    onClose();
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-slate-900/30 backdrop-blur-[2px]" onClick={onClose} />
+      <div className="relative z-10 w-full max-w-md rounded-xl bg-white p-5 ring-1 ring-foreground/10 shadow-xl">
+        <div className="flex items-start justify-between">
+          <div>
+            <div className="text-base font-semibold text-slate-900">Exportar actividades</div>
+            <div className="mt-0.5 text-xs text-slate-500">
+              Filtra por <b>fecha de vencimiento</b> y descarga un archivo CSV (Excel).
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-md p-1.5 text-slate-500 hover:bg-slate-100"
+          >
+            <Icon name="close" size={16} />
+          </button>
+        </div>
+
+        <div className="mt-4 grid grid-cols-2 gap-3">
+          <div className="space-y-1.5">
+            <Label htmlFor="export-desde">Desde</Label>
+            <DateFieldDMA id="export-desde" value={desde} onChange={setDesde} />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="export-hasta">Hasta</Label>
+            <DateFieldDMA id="export-hasta" value={hasta} onChange={setHasta} />
+          </div>
+        </div>
+
+        <div className="mt-4 flex items-center gap-2 rounded-lg bg-slate-50 p-3 text-sm ring-1 ring-foreground/5">
+          <Icon name="calendar" size={14} className="text-slate-400" />
+          {rangoInvalido ? (
+            <span className="text-slate-500">Selecciona ambas fechas.</span>
+          ) : sinResultados ? (
+            <span className="text-amber-700">No hay actividades que venzan en ese rango.</span>
+          ) : (
+            <span className="text-slate-700">
+              <b>{seleccionadas.length}</b> actividad(es) en el rango.
+            </span>
+          )}
+        </div>
+
+        <div className="mt-5 flex items-center justify-end gap-2">
+          <Button variant="outline" onClick={onClose}>
+            Cancelar
+          </Button>
+          <Button onClick={exportar} disabled={rangoInvalido || sinResultados}>
+            <Icon name="download" size={14} /> Exportar CSV
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
