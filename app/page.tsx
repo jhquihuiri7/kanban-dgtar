@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Button, Icon, Input, Select, useClickAway, type IconName } from "@/components/ui";
-import { cn } from "@/lib/utils";
+import { cn, createId } from "@/lib/utils";
 import {
   TODAY_ISO,
   daysBetween,
@@ -20,8 +20,10 @@ import { StatsView } from "@/components/stats";
 import { CatalogsView } from "@/components/catalogs";
 import { NewActivityDialog, type NewActivityInput } from "@/components/new-activity";
 import { ExportDialog } from "@/components/export";
+import { UsersView } from "@/components/users";
+import type { AuthUser } from "@/lib/auth-token";
 
-type Tab = "kanban" | "stats" | "catalogs";
+type Tab = "kanban" | "stats" | "catalogs" | "users";
 type BoardView = "columns" | "week" | "month";
 type Density = "standard" | "compact";
 type LoadState = "loading" | "ready" | "error";
@@ -45,6 +47,7 @@ function useServerSync({
   setFuncionarios,
   setCompetencias,
   setActivities,
+  setCurrentUser,
 }: {
   funcionarios: Funcionario[];
   competencias: Competencia[];
@@ -52,6 +55,7 @@ function useServerSync({
   setFuncionarios: React.Dispatch<React.SetStateAction<Funcionario[]>>;
   setCompetencias: React.Dispatch<React.SetStateAction<Competencia[]>>;
   setActivities: React.Dispatch<React.SetStateAction<Actividad[]>>;
+  setCurrentUser: React.Dispatch<React.SetStateAction<AuthUser | null>>;
 }) {
   const [loadState, setLoadState] = useState<LoadState>("loading");
   const [loadError, setLoadError] = useState("");
@@ -69,14 +73,17 @@ function useServerSync({
     setLoadError("");
     (async () => {
       try {
-        const res = await fetch("/api/data");
-        const json = await res.json();
-        if (!res.ok) throw new Error(json?.error || res.statusText);
+        const [meRes, dataRes] = await Promise.all([fetch("/api/auth/me"), fetch("/api/data")]);
+        const meJson = await meRes.json();
+        const dataJson = await dataRes.json();
+        if (!meRes.ok) throw new Error(meJson?.error || meRes.statusText);
+        if (!dataRes.ok) throw new Error(dataJson?.error || dataRes.statusText);
         if (cancelled) return;
         skipNextSyncRef.current = true;
-        setFuncionarios(json.funcionarios ?? []);
-        setCompetencias(json.competencias ?? []);
-        setActivities(json.actividades ?? []);
+        setCurrentUser(meJson.user ?? null);
+        setFuncionarios(dataJson.funcionarios ?? []);
+        setCompetencias(dataJson.competencias ?? []);
+        setActivities(dataJson.actividades ?? []);
         setLoadState("ready");
       } catch (err) {
         if (cancelled) return;
@@ -136,6 +143,7 @@ export default function Page() {
   const [funcionarios, setFuncionarios] = useState<Funcionario[]>([]);
   const [competencias, setCompetencias] = useState<Competencia[]>([]);
   const [activities, setActivities] = useState<Actividad[]>([]);
+  const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
 
   const { loadState, loadError, syncState, retry } = useServerSync({
     funcionarios,
@@ -144,6 +152,7 @@ export default function Page() {
     setFuncionarios,
     setCompetencias,
     setActivities,
+    setCurrentUser,
   });
 
   const [openActivityId, setOpenActivityId] = useState<string | null>(null);
@@ -153,17 +162,19 @@ export default function Page() {
 
   const [filters, setFilters] = useState<Filters>({ funcionario: "all", competencia: "all", q: "" });
 
+  const isAdmin = currentUser?.role === "admin";
+
+  useEffect(() => {
+    if (!isAdmin && (tab === "catalogs" || tab === "users")) setTab("kanban");
+  }, [isAdmin, tab]);
+
   function createActivity(partial: NewActivityInput) {
-    const maxNum = activities.reduce((m, a) => {
-      const n = parseInt(a.id.replace(/\D/g, ""), 10);
-      return Number.isFinite(n) && n > m ? n : m;
-    }, 0);
-    const id = "a" + (maxNum + 1).toString().padStart(3, "0");
+    const id = createId("a");
     const next: Actividad = { id, orden: activities.length, ...partial };
     setActivities([next, ...activities]);
   }
 
-  if (loadState !== "ready") {
+  if (loadState !== "ready" || !currentUser) {
     return <LoadingGate state={loadState} error={loadError} onRetry={retry} />;
   }
 
@@ -175,6 +186,8 @@ export default function Page() {
         settings={settings}
         setTweak={setTweak}
         syncState={syncState}
+        currentUser={currentUser}
+        isAdmin={isAdmin}
         onExport={() => setExportOpen(true)}
         onNew={() => {
           setDialogDefaultEstado("pendiente");
@@ -193,6 +206,7 @@ export default function Page() {
             setFilters={setFilters}
             density={settings.density}
             useAvatars={settings.useAvatars}
+            isAdmin={isAdmin}
             onOpen={(id) => setOpenActivityId(id)}
             onAdd={(estado) => {
               setDialogDefaultEstado(estado);
@@ -210,7 +224,7 @@ export default function Page() {
           />
         )}
 
-        {tab === "catalogs" && (
+        {isAdmin && tab === "catalogs" && (
           <CatalogsScreen
             funcionarios={funcionarios}
             setFuncionarios={setFuncionarios}
@@ -219,6 +233,13 @@ export default function Page() {
             activities={activities}
             setActivities={setActivities}
             useAvatars={settings.useAvatars}
+          />
+        )}
+
+        {isAdmin && tab === "users" && (
+          <UsersScreen
+            funcionarios={funcionarios}
+            currentUser={currentUser}
           />
         )}
       </main>
@@ -231,6 +252,7 @@ export default function Page() {
           funcionarios={funcionarios}
           competencias={competencias}
           useAvatars={settings.useAvatars}
+          isAdmin={isAdmin}
           onClose={() => setOpenActivityId(null)}
         />
       )}
@@ -242,6 +264,8 @@ export default function Page() {
         funcionarios={funcionarios}
         competencias={competencias}
         defaultEstado={dialogDefaultEstado}
+        currentUser={currentUser}
+        isAdmin={isAdmin}
       />
 
       <ExportDialog
@@ -261,6 +285,8 @@ function Header({
   settings,
   setTweak,
   syncState,
+  currentUser,
+  isAdmin,
   onExport,
   onNew,
 }: {
@@ -269,21 +295,46 @@ function Header({
   settings: Settings;
   setTweak: <K extends keyof Settings>(key: K, value: Settings[K]) => void;
   syncState: SyncState;
+  currentUser: AuthUser;
+  isAdmin: boolean;
   onExport: () => void;
   onNew: () => void;
 }) {
   return (
     <header className="sticky top-0 z-30 border-b border-slate-200 bg-slate-50/85 backdrop-blur">
       <div className="mx-auto flex max-w-[1500px] items-center gap-6 px-6 py-2.5">
-        {/* brand */}
-        <div className="flex items-center gap-2.5">
+        {/* user session */}
+        <div className="flex min-w-0 items-center gap-2.5">
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-900 text-white shadow-sm">
             <Icon name="kanban" size={16} />
           </div>
-          <div className="hidden sm:block">
-            <div className="text-[13px] font-semibold leading-tight text-slate-900">Kanban de Seguimiento</div>
-            <div className="text-[11px] leading-tight text-slate-500">DGTAR</div>
+          <div className="hidden min-w-0 max-w-[220px] sm:block">
+            <div className="truncate text-[13px] font-semibold leading-tight text-slate-900">
+              {currentUser.email}
+            </div>
+            <div className="text-[11px] uppercase leading-tight text-slate-500">{currentUser.role}</div>
           </div>
+          <form action="/api/auth/logout" method="post" className="inline-flex">
+            <Button
+              type="submit"
+              variant="outline"
+              size="sm"
+              className="hidden md:inline-flex"
+              title="Cerrar sesión"
+            >
+              <Icon name="logout" size={13} />
+              Cerrar sesión
+            </Button>
+            <Button
+              type="submit"
+              variant="ghost"
+              size="icon"
+              className="md:hidden"
+              title="Cerrar sesión"
+            >
+              <Icon name="logout" size={14} />
+            </Button>
+          </form>
         </div>
 
         {/* tabs */}
@@ -294,9 +345,16 @@ function Header({
           <TabBtn active={tab === "stats"} onClick={() => setTab("stats")}>
             <Icon name="chart" size={14} /> Estadísticas
           </TabBtn>
-          <TabBtn active={tab === "catalogs"} onClick={() => setTab("catalogs")}>
-            <Icon name="list" size={14} /> Catálogos
-          </TabBtn>
+          {isAdmin && (
+            <>
+              <TabBtn active={tab === "catalogs"} onClick={() => setTab("catalogs")}>
+                <Icon name="list" size={14} /> Catálogos
+              </TabBtn>
+              <TabBtn active={tab === "users"} onClick={() => setTab("users")}>
+                <Icon name="users" size={14} /> Usuarios
+              </TabBtn>
+            </>
+          )}
         </nav>
 
         <div className="ml-auto flex items-center gap-2">
@@ -446,6 +504,7 @@ function KanbanScreen({
   setFilters,
   density,
   useAvatars,
+  isAdmin,
   onOpen,
   onAdd,
 }: {
@@ -457,6 +516,7 @@ function KanbanScreen({
   setFilters: React.Dispatch<React.SetStateAction<Filters>>;
   density: Density;
   useAvatars: boolean;
+  isAdmin: boolean;
   onOpen: (id: string) => void;
   onAdd: (estado: EstadoActividad) => void;
 }) {
@@ -548,6 +608,7 @@ function KanbanScreen({
           competencias={competencias}
           useAvatars={useAvatars}
           density={density}
+          canManage={isAdmin}
           onOpen={onOpen}
           onAdd={onAdd}
           filters={filters}
@@ -616,6 +677,26 @@ function CatalogsScreen(props: {
         </div>
       </div>
       <CatalogsView {...props} />
+    </div>
+  );
+}
+
+function UsersScreen({
+  funcionarios,
+  currentUser,
+}: {
+  funcionarios: Funcionario[];
+  currentUser: AuthUser;
+}) {
+  return (
+    <div className="space-y-4">
+      <div>
+        <h1 className="text-2xl font-bold text-slate-900 leading-tight">Usuarios</h1>
+        <div className="mt-1 text-sm text-slate-500">
+          Crea accesos, asigna roles y vincula cada usuario con su funcionario.
+        </div>
+      </div>
+      <UsersView funcionarios={funcionarios} currentUser={currentUser} />
     </div>
   );
 }

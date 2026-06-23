@@ -24,6 +24,7 @@ services:
     environment:
       # Dentro de la red de compose el host de la base es "db".
       DATABASE_URL: postgres://${POSTGRES_USER:-kanban}:${POSTGRES_PASSWORD:-kanban}@db:5432/${POSTGRES_DB:-kanban}
+      AUTH_SECRET: ${AUTH_SECRET:-change-this-secret-in-production}
       NODE_ENV: production
     ports:
       - "${APP_PORT:-3000}:3000"

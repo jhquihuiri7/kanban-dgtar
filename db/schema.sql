@@ -41,6 +41,42 @@ CREATE TABLE IF NOT EXISTS actividades (
   orden               integer NOT NULL DEFAULT 0
 );
 
+CREATE TABLE IF NOT EXISTS usuarios (
+  id                  text PRIMARY KEY,
+  email               text NOT NULL UNIQUE,
+  nombre              text NOT NULL DEFAULT '',
+  password_hash       text NOT NULL,
+  rol                 text NOT NULL,
+  funcionario_id      text REFERENCES funcionarios(id) ON DELETE SET NULL,
+  reset_token_hash    text,
+  reset_expires_at    text,
+  created_at          text NOT NULL,
+  updated_at          text NOT NULL
+);
+
+ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS nombre text NOT NULL DEFAULT '';
+ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS rol text NOT NULL DEFAULT 'user';
+ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS funcionario_id text REFERENCES funcionarios(id) ON DELETE SET NULL;
+ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS reset_token_hash text;
+ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS reset_expires_at text;
+ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS created_at text NOT NULL DEFAULT '';
+ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS updated_at text NOT NULL DEFAULT '';
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_constraint
+    WHERE conrelid = 'usuarios'::regclass
+      AND conname = 'usuarios_rol_check'
+  ) THEN
+    ALTER TABLE usuarios
+      ADD CONSTRAINT usuarios_rol_check CHECK (rol IN ('admin', 'user'));
+  END IF;
+END $$;
+
+CREATE INDEX IF NOT EXISTS usuarios_funcionario_id_idx ON usuarios(funcionario_id);
+
 -- Upgrade de tablas existentes: 'asignacion' | 'reunion'. Para reuniones la
 -- hora viaja dentro de fecha_vencimiento como "YYYY-MM-DDTHH:mm" (sin columna
 -- nueva).

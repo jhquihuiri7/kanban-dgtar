@@ -126,6 +126,7 @@ export function DetailPanel({
   funcionarios,
   competencias,
   useAvatars,
+  isAdmin,
   onClose,
 }: {
   activityId: string;
@@ -134,6 +135,7 @@ export function DetailPanel({
   funcionarios: Funcionario[];
   competencias: Competencia[];
   useAvatars: boolean;
+  isAdmin: boolean;
   onClose: () => void;
 }) {
   const [editing, setEditing] = useState(false);
@@ -169,6 +171,18 @@ export function DetailPanel({
   // cumplimiento se ajusta según el estado elegido (igual que el tablero).
   function saveEdit() {
     if (!draft) return;
+    if (!isAdmin) {
+      update({
+        titulo: draft.titulo.trim() || act!.titulo,
+        descripcion: draft.descripcion.trim(),
+        observaciones: draft.observaciones.trim(),
+        accionesPendientes: draft.accionesPendientes.trim(),
+        resultadosAlcanzados: draft.resultadosAlcanzados.trim(),
+      });
+      setEditing(false);
+      setDraft(null);
+      return;
+    }
     const esReunion = draft.tipo === "reunion";
     const plazo = esReunion
       ? daysBetween(draft.fechaCreacion, draft.fechaVencimiento)
@@ -229,6 +243,7 @@ export function DetailPanel({
               setDraft={setDraft}
               funcionarios={funcionarios}
               competencias={competencias}
+              isAdmin={isAdmin}
             />
           ) : (
           <>
@@ -354,26 +369,30 @@ export function DetailPanel({
                 <Button variant="ghost" onClick={onClose}>
                   Cerrar
                 </Button>
-                <Button
-                  variant="ghost"
-                  className="text-red-600 hover:bg-red-50"
-                  onClick={() => setConfirmDelete(true)}
-                >
-                  <Icon name="trash" size={14} /> Eliminar
-                </Button>
+                {isAdmin && (
+                  <Button
+                    variant="ghost"
+                    className="text-red-600 hover:bg-red-50"
+                    onClick={() => setConfirmDelete(true)}
+                  >
+                    <Icon name="trash" size={14} /> Eliminar
+                  </Button>
+                )}
               </div>
               <div className="flex items-center gap-2">
                 <Button variant="outline" onClick={startEdit}>
                   <Icon name="edit" size={14} /> Editar
                 </Button>
-                {act.estado !== "cumplida" ? (
-                  <Button onClick={marcarCumplida}>
-                    <Icon name="check" size={14} /> Marcar cumplida
-                  </Button>
-                ) : (
-                  <Button variant="outline" onClick={() => update({ estado: "en_revision", fechaCumplimiento: null })}>
-                    Reabrir
-                  </Button>
+                {isAdmin && (
+                  act.estado !== "cumplida" ? (
+                    <Button onClick={marcarCumplida}>
+                      <Icon name="check" size={14} /> Marcar cumplida
+                    </Button>
+                  ) : (
+                    <Button variant="outline" onClick={() => update({ estado: "en_revision", fechaCumplimiento: null })}>
+                      Reabrir
+                    </Button>
+                  )
                 )}
               </div>
             </>
@@ -399,17 +418,70 @@ function EditForm({
   setDraft,
   funcionarios,
   competencias,
+  isAdmin,
 }: {
   draft: Actividad;
   setDraft: React.Dispatch<React.SetStateAction<Actividad | null>>;
   funcionarios: Funcionario[];
   competencias: Competencia[];
+  isAdmin: boolean;
 }) {
   function set<K extends keyof Actividad>(key: K, value: Actividad[K]) {
     setDraft((d) => (d ? { ...d, [key]: value } : d));
   }
   const esReunion = draft.tipo === "reunion";
   const vence = iso(addDays(draft.fechaCreacion, Math.max(0, Number(draft.plazoDias) || 0)));
+
+  if (!isAdmin) {
+    return (
+      <div className="space-y-3">
+        <div className="space-y-1.5">
+          <Label htmlFor="edit-titulo">Título</Label>
+          <Input
+            id="edit-titulo"
+            value={draft.titulo}
+            onChange={(e) => set("titulo", e.target.value)}
+          />
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="edit-desc">Descripción</Label>
+          <Textarea
+            id="edit-desc"
+            rows={3}
+            value={draft.descripcion}
+            onChange={(e) => set("descripcion", e.target.value)}
+          />
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="edit-obs">Observaciones</Label>
+          <Textarea
+            id="edit-obs"
+            rows={3}
+            value={draft.observaciones || ""}
+            onChange={(e) => set("observaciones", e.target.value)}
+          />
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="edit-acciones">Acciones pendientes y actividades programadas</Label>
+          <Textarea
+            id="edit-acciones"
+            rows={3}
+            value={draft.accionesPendientes || ""}
+            onChange={(e) => set("accionesPendientes", e.target.value)}
+          />
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="edit-resultados">Resultados alcanzados</Label>
+          <Textarea
+            id="edit-resultados"
+            rows={3}
+            value={draft.resultadosAlcanzados || ""}
+            onChange={(e) => set("resultadosAlcanzados", e.target.value)}
+          />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-3">

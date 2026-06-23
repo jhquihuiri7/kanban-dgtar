@@ -17,6 +17,7 @@ import {
   type Funcionario,
   type TipoActividad,
 } from "@/lib/data";
+import type { AuthUser } from "@/lib/auth-token";
 
 export type NewActivityInput = Omit<Actividad, "id" | "orden">;
 
@@ -27,6 +28,8 @@ export function NewActivityDialog({
   funcionarios,
   competencias,
   defaultEstado = "pendiente",
+  currentUser,
+  isAdmin,
 }: {
   open: boolean;
   onClose: () => void;
@@ -34,6 +37,8 @@ export function NewActivityDialog({
   funcionarios: Funcionario[];
   competencias: Competencia[];
   defaultEstado?: EstadoActividad;
+  currentUser: AuthUser;
+  isAdmin: boolean;
 }) {
   const funcionariosDisponibles = funcionarios;
   const competenciasDisponibles = competencias;
@@ -56,7 +61,7 @@ export function NewActivityDialog({
       setDescripcion("");
       setAccionesPendientes("");
       setResultadosAlcanzados("");
-      setFuncionarioId(funcionarios[0]?.id || "");
+      setFuncionarioId(isAdmin ? funcionarios[0]?.id || "" : currentUser.funcionarioId || "");
       setCompetenciaId(competencias[0]?.id || "");
       setPlazoDias(7);
       setFechaReunion(TODAY_ISO);
@@ -67,26 +72,32 @@ export function NewActivityDialog({
 
   if (!open) return null;
 
-  const esReunion = tipo === "reunion";
-  const catalogosVacios = funcionariosDisponibles.length === 0 || competenciasDisponibles.length === 0;
+  const effectiveTipo = isAdmin ? tipo : "asignacion";
+  const effectiveEstado = isAdmin ? defaultEstado : "pendiente";
+  const esReunion = effectiveTipo === "reunion";
+  const currentFuncionario = funcionariosDisponibles.find((f) => f.id === currentUser.funcionarioId);
+  const catalogosVacios = isAdmin
+    ? funcionariosDisponibles.length === 0 || competenciasDisponibles.length === 0
+    : !currentUser.funcionarioId || competenciasDisponibles.length === 0;
   // Asignación: vence = hoy + plazo. Reunión: la fecha+hora elegidas se guardan
   // juntas en fechaVencimiento ("YYYY-MM-DDTHH:mm").
-  const vence = esReunion ? `${fechaReunion}T${horaReunion}` : iso(addDays(TODAY_ISO, Number(plazoDias) || 0));
-  const estadoDef = ESTADOS.find((e) => e.id === defaultEstado);
+  const plazo = isAdmin ? Number(plazoDias) || 0 : 7;
+  const vence = esReunion ? `${fechaReunion}T${horaReunion}` : iso(addDays(TODAY_ISO, plazo));
+  const estadoDef = ESTADOS.find((e) => e.id === effectiveEstado);
 
   function submit(e: React.FormEvent) {
     e.preventDefault();
     if (!titulo.trim() || catalogosVacios) return;
     if (esReunion && (!fechaReunion || !horaReunion)) return;
     onCreate({
-      tipo,
+      tipo: effectiveTipo,
       titulo: titulo.trim(),
       descripcion: descripcion.trim(),
-      funcionarioId,
+      funcionarioId: isAdmin ? funcionarioId : currentUser.funcionarioId || "",
       competenciaId,
-      estado: defaultEstado,
+      estado: effectiveEstado,
       fechaCreacion: TODAY_ISO,
-      plazoDias: esReunion ? daysBetween(TODAY_ISO, fechaReunion) : Number(plazoDias) || 0,
+      plazoDias: esReunion ? daysBetween(TODAY_ISO, fechaReunion) : plazo,
       fechaVencimiento: vence,
       fechaCumplimiento: null,
       observaciones: "",
@@ -132,21 +143,23 @@ export function NewActivityDialog({
             </div>
             <p className="mx-auto mt-1 max-w-sm text-xs text-slate-500">
               Necesitas al menos un funcionario y una competencia para crear
-              actividades. Revísalos en la pestaña <b>Catálogos</b>.
+              actividades. {isAdmin ? "Revísalos en la pestaña Catálogos." : "Tu usuario debe estar vinculado a un funcionario."}
             </p>
           </div>
         ) : (
           <div className="mt-4 space-y-3">
-            <div className="space-y-1.5">
-              <Label htmlFor="tipo">Tipo</Label>
-              <Select id="tipo" value={tipo} onChange={(e) => setTipo(e.target.value as TipoActividad)}>
-                {TIPOS.map((t) => (
-                  <option key={t.id} value={t.id}>
-                    {t.label}
-                  </option>
-                ))}
-              </Select>
-            </div>
+            {isAdmin && (
+              <div className="space-y-1.5">
+                <Label htmlFor="tipo">Tipo</Label>
+                <Select id="tipo" value={tipo} onChange={(e) => setTipo(e.target.value as TipoActividad)}>
+                  {TIPOS.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.label}
+                    </option>
+                  ))}
+                </Select>
+              </div>
+            )}
             <div className="space-y-1.5">
               <Label htmlFor="titulo">Título</Label>
               <Input
@@ -168,16 +181,25 @@ export function NewActivityDialog({
               />
             </div>
             <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label htmlFor="resp">Funcionario responsable</Label>
-                <Select id="resp" value={funcionarioId} onChange={(e) => setFuncionarioId(e.target.value)}>
-                  {funcionariosDisponibles.map((f) => (
-                    <option key={f.id} value={f.id}>
-                      {f.nombre} — {f.unidad}
-                    </option>
-                  ))}
-                </Select>
-              </div>
+              {isAdmin ? (
+                <div className="space-y-1.5">
+                  <Label htmlFor="resp">Funcionario responsable</Label>
+                  <Select id="resp" value={funcionarioId} onChange={(e) => setFuncionarioId(e.target.value)}>
+                    {funcionariosDisponibles.map((f) => (
+                      <option key={f.id} value={f.id}>
+                        {f.nombre} — {f.unidad}
+                      </option>
+                    ))}
+                  </Select>
+                </div>
+              ) : (
+                <div className="space-y-1.5">
+                  <Label>Funcionario responsable</Label>
+                  <div className="flex h-9 items-center rounded-lg bg-slate-50 px-3 text-sm font-medium text-slate-700 ring-1 ring-foreground/5">
+                    {currentFuncionario?.nombre || currentUser.email}
+                  </div>
+                </div>
+              )}
               <div className="space-y-1.5">
                 <Label htmlFor="comp">Competencia</Label>
                 <Select id="comp" value={competenciaId} onChange={(e) => setCompetenciaId(e.target.value)}>
@@ -188,7 +210,7 @@ export function NewActivityDialog({
                   ))}
                 </Select>
               </div>
-              {esReunion ? (
+              {isAdmin && esReunion ? (
                 <>
                   <div className="space-y-1.5">
                     <Label htmlFor="fecha-reunion">Fecha de la reunión</Label>
@@ -209,7 +231,7 @@ export function NewActivityDialog({
                     />
                   </div>
                 </>
-              ) : (
+              ) : isAdmin ? (
                 <>
                   <div className="space-y-1.5">
                     <Label htmlFor="plazo">Plazo (días calendario)</Label>
@@ -230,7 +252,7 @@ export function NewActivityDialog({
                     </div>
                   </div>
                 </>
-              )}
+              ) : null}
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="acciones">Acciones pendientes y actividades programadas</Label>

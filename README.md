@@ -4,10 +4,11 @@ Tablero Kanban para el seguimiento de actividades de la Dirección de Planificac
 y Gestión Ambiental (Plan Galápagos / Régimen Especial). App **Next.js (App Router)**
 con TypeScript y Tailwind, recreación fiel del prototipo de diseño.
 
-Plataforma **abierta, sin login**. Los datos (funcionarios, competencias y
-actividades) se almacenan en **PostgreSQL**, que es la fuente de verdad: la app
-los lee al cargar y guarda automáticamente cada cambio (crear/mover/editar)
-mediante una capa de API Routes. Todo corre **dockerizado** (app + base).
+Plataforma con **login por email y contraseña** y roles `admin` / `user`. Los
+datos (funcionarios, competencias, actividades y usuarios) se almacenan en
+**PostgreSQL**, que es la fuente de verdad: la app los lee al cargar y guarda
+automáticamente cada cambio permitido mediante una capa de API Routes. Todo
+corre **dockerizado** (app + base).
 
 ## Vistas
 
@@ -63,12 +64,37 @@ Qué hace por dentro:
 ### Arquitectura de datos
 
 - **PostgreSQL** es la fuente de verdad. Tres tablas: `funcionarios`,
-  `competencias`, `actividades` (ver `db/schema.sql`).
+  `competencias`, `actividades` y `usuarios` (ver `db/schema.sql`).
 - `lib/db.ts` — capa server-only (`pg`) con `readAll` / `writeAll` (transacción).
 - `app/api/data/route.ts` — `GET` lee todo, `PUT` reescribe todo.
 - La app guarda el documento completo (debounce ~0.8 s) ante cualquier cambio.
   El último en escribir gana, así que no está pensada para edición simultánea de
   varias personas a la vez.
+
+### Autenticación y usuarios
+
+La app requiere login con email y contraseña. Hay dos roles:
+
+- **admin** — ve todo, administra catálogos, usuarios, actividades, estados y fechas.
+- **user** — queda vinculado a un funcionario; solo ve sus actividades. Puede crear
+  actividades propias y editar campos de texto, pero no fechas, estado, funcionario
+  responsable ni catálogos.
+
+Para crear el primer usuario admin:
+
+```bash
+npm run create -- admin admin@dgtar.local "ClaveSegura123"
+```
+
+Para crear un usuario vinculado a un funcionario:
+
+```bash
+npm run create -- user persona@dgtar.local "ClaveSegura123" funcionario_id "Nombre visible"
+```
+
+El login incluye recuperación de contraseña. Sin servidor de correo configurado,
+la app genera un enlace de recuperación desde la pantalla de login y también lo
+registra en logs del servidor.
 
 ## Desarrollo sin Docker
 

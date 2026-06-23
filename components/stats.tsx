@@ -183,11 +183,13 @@ export function StatsView({
     color: { slate: "#94a3b8", blue: "#2563eb", amber: "#f59e0b", green: "#22c55e" }[e.accent],
   }));
 
-  const compData = s.porCompetencia.slice(0, 6).map((x) => ({
+  const compData = s.porCompetencia.filter((x) => x.total > 0).slice(0, 6).map((x) => ({
+    id: x.c.id,
     name: x.c.nombre,
     full: x.c.nombre,
     total: x.total,
   }));
+  const maxCompetenciaTotal = Math.max(...compData.map((x) => x.total), 1);
 
   const buckets = [
     { name: "Vencidas", value: activities.filter((a) => a.estado !== "cumplida" && daysBetween(TODAY_ISO, a.fechaVencimiento) < 0).length, color: "#ef4444" },
@@ -358,17 +360,39 @@ export function StatsView({
           <CardTitle>Competencias con más actividades</CardTitle>
         </CardHeader>
         <CardContent>
-          <div style={{ height: 220 }}>
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart layout="vertical" data={compData} margin={{ top: 8, right: 16, left: 8, bottom: 4 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" horizontal={false} />
-                <XAxis type="number" tick={{ fontSize: 11, fill: "#64748b" }} axisLine={false} tickLine={false} allowDecimals={false} />
-                <YAxis type="category" dataKey="name" tick={{ fontSize: 11, fill: "#0f172a" }} axisLine={false} tickLine={false} width={150} />
-                <Tooltip contentStyle={tooltipStyle} formatter={(v, _n, item: { payload?: { full?: string } }) => [v, item?.payload?.full]} />
-                <Bar dataKey="total" radius={[0, 6, 6, 0]} fill="#7c3aed" />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
+          {compData.length > 0 ? (
+            <div className="space-y-3 pt-1">
+              {compData.map((item) => {
+                const pct = Math.max(4, Math.round((item.total / maxCompetenciaTotal) * 100));
+                return (
+                  <div
+                    key={item.id}
+                    className="grid gap-2 sm:grid-cols-[minmax(180px,320px)_minmax(0,1fr)] sm:items-center"
+                  >
+                    <div
+                      className="line-clamp-2 text-xs font-medium leading-snug text-slate-800"
+                      title={item.full}
+                    >
+                      {item.name}
+                    </div>
+                    <div className="flex min-w-0 items-center gap-2">
+                      <div className="h-6 flex-1 overflow-hidden rounded-md bg-slate-100">
+                        <div
+                          className="h-full rounded-md bg-violet-600"
+                          style={{ width: `${pct}%` }}
+                        />
+                      </div>
+                      <span className="w-8 shrink-0 text-right text-xs font-semibold tabular-nums text-slate-700">
+                        {item.total}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="py-8 text-center text-sm text-slate-400">Sin actividades registradas</div>
+          )}
         </CardContent>
       </Card>
     </div>

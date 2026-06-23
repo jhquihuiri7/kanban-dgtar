@@ -7,6 +7,7 @@ services:
     command: npm run dev
     environment:
       DATABASE_URL: postgres://${POSTGRES_USER:-kanban}:${POSTGRES_PASSWORD:-kanban}@db:5432/${POSTGRES_DB:-kanban}
+      AUTH_SECRET: ${AUTH_SECRET:-change-this-secret-in-production}
       NODE_ENV: development
       WATCHPACK_POLLING: "true"
     volumes:

@@ -32,6 +32,7 @@ import {
   CheckCircle2,
   Loader2,
   RefreshCw,
+  LogOut,
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -303,7 +304,8 @@ export type IconName =
   | "inbox"
   | "checkCircle"
   | "loader"
-  | "refresh";
+  | "refresh"
+  | "logout";
 
 const ICONS: Record<IconName, LucideIcon> = {
   kanban: Kanban,
@@ -336,6 +338,7 @@ const ICONS: Record<IconName, LucideIcon> = {
   checkCircle: CheckCircle2,
   loader: Loader2,
   refresh: RefreshCw,
+  logout: LogOut,
 };
 
 export function Icon({

@@ -50,6 +50,7 @@ function KanbanCard({
   onDragStart,
   onDragEnd,
   isDragging,
+  canMove,
 }: {
   act: Actividad;
   fun?: Funcionario;
@@ -60,6 +61,7 @@ function KanbanCard({
   onDragStart: (e: React.DragEvent) => void;
   onDragEnd: () => void;
   isDragging: boolean;
+  canMove: boolean;
 }) {
   const p = plazoInfo(act, TODAY_ISO);
   const compact = density === "compact";
@@ -73,8 +75,11 @@ function KanbanCard({
 
   return (
     <div
-      draggable
-      onDragStart={onDragStart}
+      draggable={canMove}
+      onDragStart={(e) => {
+        if (!canMove) return;
+        onDragStart(e);
+      }}
       onDragEnd={onDragEnd}
       onClick={onOpen}
       className={cn(
@@ -158,6 +163,7 @@ function KanbanColumn({
   onColumnDragOver,
   onColumnDrop,
   onAdd,
+  canManage,
 }: {
   estado: EstadoDef;
   actividades: Actividad[];
@@ -172,6 +178,7 @@ function KanbanColumn({
   onColumnDragOver: (over: string) => void;
   onColumnDrop: (estado: EstadoActividad) => void;
   onAdd: (estado: EstadoActividad) => void;
+  canManage: boolean;
 }) {
   const items = actividades
     .filter((a) => a.estado === estado.id)
@@ -204,13 +211,15 @@ function KanbanColumn({
             {items.length}
           </span>
         </div>
-        <button
-          onClick={() => onAdd(estado.id)}
-          className="rounded-md p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
-          title="Nueva actividad"
-        >
-          <Icon name="plus" size={14} />
-        </button>
+        {canManage && (
+          <button
+            onClick={() => onAdd(estado.id)}
+            className="rounded-md p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+            title="Nueva actividad"
+          >
+            <Icon name="plus" size={14} />
+          </button>
+        )}
       </div>
       <div
         className={cn(
@@ -228,6 +237,7 @@ function KanbanColumn({
             density={density}
             onOpen={() => onOpen(act.id)}
             isDragging={dragState.id === act.id}
+            canMove={canManage}
             onDragStart={(e) => {
               e.dataTransfer.effectAllowed = "move";
               e.dataTransfer.setData("text/plain", act.id);
@@ -256,6 +266,7 @@ export function KanbanBoard({
   onOpen,
   onAdd,
   filters,
+  canManage,
 }: {
   activities: Actividad[];
   setActivities: React.Dispatch<React.SetStateAction<Actividad[]>>;
@@ -266,12 +277,14 @@ export function KanbanBoard({
   onOpen: (id: string) => void;
   onAdd: (estado: EstadoActividad) => void;
   filters: Filters;
+  canManage: boolean;
 }) {
   const [dragState, setDragState] = useState<DragState>({ id: null, over: null });
 
   const filtered = useMemo(() => filterActivities(activities, filters), [activities, filters]);
 
   function handleDrop(targetEstado: EstadoActividad) {
+    if (!canManage) return;
     if (!dragState.id) return;
     setActivities((prev) =>
       prev.map((a) => {
@@ -304,6 +317,7 @@ export function KanbanBoard({
           onCardDragEnd={() => setDragState({ id: null, over: null })}
           onColumnDragOver={(over) => setDragState((s) => (s.id ? { ...s, over } : s))}
           onColumnDrop={handleDrop}
+          canManage={canManage}
         />
       ))}
     </div>
