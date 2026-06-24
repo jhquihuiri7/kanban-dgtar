@@ -41,6 +41,12 @@ CREATE TABLE IF NOT EXISTS actividades (
   orden               integer NOT NULL DEFAULT 0
 );
 
+CREATE TABLE IF NOT EXISTS actividad_participantes (
+  actividad_id   text NOT NULL REFERENCES actividades(id) ON DELETE CASCADE,
+  funcionario_id text NOT NULL REFERENCES funcionarios(id) ON DELETE CASCADE,
+  PRIMARY KEY (actividad_id, funcionario_id)
+);
+
 CREATE TABLE IF NOT EXISTS usuarios (
   id                  text PRIMARY KEY,
   email               text NOT NULL UNIQUE,
@@ -76,6 +82,17 @@ BEGIN
 END $$;
 
 CREATE INDEX IF NOT EXISTS usuarios_funcionario_id_idx ON usuarios(funcionario_id);
+CREATE INDEX IF NOT EXISTS actividad_participantes_funcionario_id_idx ON actividad_participantes(funcionario_id);
+
+-- Reparación conservadora para usuarios que pudieron quedar desvinculados por
+-- una sincronización anterior de catálogos: solo religa usuarios normales sin
+-- funcionario cuando el correo coincide exactamente con un funcionario.
+UPDATE usuarios u
+SET funcionario_id = f.id
+FROM funcionarios f
+WHERE u.rol <> 'admin'
+  AND u.funcionario_id IS NULL
+  AND lower(u.email) = lower(f.email);
 
 -- Upgrade de tablas existentes: 'asignacion' | 'reunion'. Para reuniones la
 -- hora viaja dentro de fecha_vencimiento como "YYYY-MM-DDTHH:mm" (sin columna

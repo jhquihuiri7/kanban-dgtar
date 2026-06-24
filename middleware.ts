@@ -11,6 +11,7 @@ const PUBLIC_API = new Set([
 function isPublicAsset(pathname: string): boolean {
   return (
     pathname.startsWith("/_next") ||
+    pathname.startsWith("/imgs/") ||
     pathname.startsWith("/favicon") ||
     pathname === "/robots.txt" ||
     pathname === "/sitemap.xml"

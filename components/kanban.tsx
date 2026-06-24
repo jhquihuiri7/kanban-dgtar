@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils";
 import {
   ESTADOS,
   TODAY_ISO,
-  daysBetween,
+  actividadIncludesFuncionario,
   fmtFecha,
   fmtHora,
   plazoInfo,
@@ -28,11 +28,37 @@ interface Filters {
 /* Shared activity filter used by both the board and the calendar views. */
 export function filterActivities(activities: Actividad[], filters: Filters): Actividad[] {
   return activities.filter((a) => {
-    if (filters.funcionario !== "all" && a.funcionarioId !== filters.funcionario) return false;
+    if (filters.funcionario !== "all" && !actividadIncludesFuncionario(a, filters.funcionario)) return false;
     if (filters.competencia !== "all" && a.competenciaId !== filters.competencia) return false;
     if (filters.q && !a.titulo.toLowerCase().includes(filters.q.toLowerCase())) return false;
     return true;
   });
+}
+
+function compareFallback(a: Actividad, b: Actividad): number {
+  const byOrden = a.orden - b.orden;
+  if (byOrden !== 0) return byOrden;
+  return a.id.localeCompare(b.id);
+}
+
+function compareUrgentFirst(a: Actividad, b: Actividad): number {
+  const byVencimiento = a.fechaVencimiento.localeCompare(b.fechaVencimiento);
+  if (byVencimiento !== 0) return byVencimiento;
+  return compareFallback(a, b);
+}
+
+function compareCompletedFirst(a: Actividad, b: Actividad): number {
+  const byCumplimiento = (b.fechaCumplimiento ?? "").localeCompare(a.fechaCumplimiento ?? "");
+  if (byCumplimiento !== 0) return byCumplimiento;
+
+  const byVencimiento = b.fechaVencimiento.localeCompare(a.fechaVencimiento);
+  if (byVencimiento !== 0) return byVencimiento;
+
+  return compareFallback(a, b);
+}
+
+function compareColumnActivities(estado: EstadoActividad) {
+  return estado === "cumplida" ? compareCompletedFirst : compareUrgentFirst;
 }
 
 interface DragState {
@@ -65,6 +91,7 @@ function KanbanCard({
 }) {
   const p = plazoInfo(act, TODAY_ISO);
   const compact = density === "compact";
+  const participantesCount = act.tipo === "reunion" ? (act.participantesIds ?? []).length : 0;
 
   const stripe = {
     green: "bg-green-500",
@@ -110,7 +137,14 @@ function KanbanCard({
               {act.titulo}
             </div>
           </div>
-          <Avatar funcionario={fun} useAvatars={useAvatars} size={compact ? 22 : 26} />
+          <div className="flex shrink-0 items-center gap-1">
+            <Avatar funcionario={fun} useAvatars={useAvatars} size={compact ? 22 : 26} />
+            {participantesCount > 0 && (
+              <span className="rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold text-slate-600 ring-1 ring-foreground/10">
+                +{participantesCount}
+              </span>
+            )}
+          </div>
         </div>
 
         {!compact && (
@@ -182,7 +216,7 @@ function KanbanColumn({
 }) {
   const items = actividades
     .filter((a) => a.estado === estado.id)
-    .sort((a, b) => a.orden - b.orden);
+    .sort(compareColumnActivities(estado.id));
   const isOver = dragState.over === estado.id;
   const accentDot = {
     slate: "bg-slate-400",

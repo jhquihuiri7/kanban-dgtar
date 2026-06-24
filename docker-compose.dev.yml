@@ -8,6 +8,7 @@ services:
     environment:
       DATABASE_URL: postgres://${POSTGRES_USER:-kanban}:${POSTGRES_PASSWORD:-kanban}@db:5432/${POSTGRES_DB:-kanban}
       AUTH_SECRET: ${AUTH_SECRET:-change-this-secret-in-production}
+      AUTH_COOKIE_SECURE: "false"
       NODE_ENV: development
       WATCHPACK_POLLING: "true"
     volumes:

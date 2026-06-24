@@ -8,7 +8,7 @@ Plataforma con **login por email y contraseña** y roles `admin` / `user`. Los
 datos (funcionarios, competencias, actividades y usuarios) se almacenan en
 **PostgreSQL**, que es la fuente de verdad: la app los lee al cargar y guarda
 automáticamente cada cambio permitido mediante una capa de API Routes. Todo
-corre **dockerizado** (app + base).
+corre **dockerizado** (app + base de datos).
 
 ## Vistas
 
@@ -55,11 +55,13 @@ app:
 Qué hace por dentro:
 
 1. `docker compose up -d --build --wait` — levanta `db` (postgres:16) y `app`
-   (Next.js). En modo `dev` monta el código local y corre `npm run dev`; en modo
-   `prod` construye la imagen y corre `npm start`. La app espera a que Postgres
-   esté *healthy*.
+   (Next.js). En modo `dev` monta el código local y corre `npm run dev`; en
+   modo `prod` construye la imagen y corre `npm start`. La app espera a que
+   Postgres esté *healthy*.
 2. El esquema (`db/schema.sql`) se asegura automáticamente desde la API cuando
    la app lee o guarda datos (`CREATE TABLE IF NOT EXISTS`).
+
+En producción, la app queda publicada localmente en `http://localhost:8001`.
 
 ### Arquitectura de datos
 

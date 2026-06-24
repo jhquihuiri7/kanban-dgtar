@@ -44,6 +44,7 @@ export interface Actividad {
   titulo: string;
   descripcion: string;
   funcionarioId: string;
+  participantesIds: string[];
   competenciaId: string;
   estado: EstadoActividad;
   fechaCreacion: string;
@@ -142,6 +143,20 @@ export function initials(nombre: string): string {
     .map((p) => p[0])
     .join("")
     .toUpperCase();
+}
+
+export function actividadFuncionarioIds(act: Pick<Actividad, "tipo" | "funcionarioId" | "participantesIds">): string[] {
+  const ids = [act.funcionarioId];
+  if (act.tipo === "reunion") ids.push(...(act.participantesIds ?? []));
+  return Array.from(new Set(ids.filter(Boolean)));
+}
+
+export function actividadIncludesFuncionario(
+  act: Pick<Actividad, "tipo" | "funcionarioId" | "participantesIds">,
+  funcionarioId: string | null | undefined,
+): boolean {
+  if (!funcionarioId) return false;
+  return actividadFuncionarioIds(act).includes(funcionarioId);
 }
 
 export function unidadTone(u: string | undefined): BadgeVariant {

@@ -4,6 +4,8 @@
 # La app y la API corren en el mismo servicio Next.js:
 #   App: http://localhost:${APP_PORT}
 #   API: http://localhost:${APP_PORT}/api
+# En producción, la app queda publicada en:
+#   http://localhost:${APP_PORT}
 set -euo pipefail
 
 cd "$(dirname "$0")"
@@ -18,7 +20,7 @@ usage() {
 Uso: ./deploy.sh {dev|up|prod|down|update|update-dev|rebuild|rebuild-dev|logs|dev-logs|migrate|restart|ps|shell|db-shell|create-user} [servicio|args]
 
   dev            Levanta en modo desarrollo (puerto 3000, hot reload)
-  up, prod       Levanta en modo producción (APP_PORT de .env, 8001 por defecto)
+  up, prod       Levanta en modo producción (APP_PORT 8001 por defecto)
   down           Detiene todos los servicios
   update         Reconstruye e inicia producción con el código actual
   update-dev     Reconstruye e inicia desarrollo con el código actual
@@ -87,11 +89,11 @@ PROD_FILES=(-f docker-compose.yml)
 DEV_FILES=(-f docker-compose.yml -f docker-compose.dev.yml)
 
 dc_prod() {
-  "${COMPOSE[@]}" "${PROD_FILES[@]}" "$@"
+  COMPOSE_PROFILES="" "${COMPOSE[@]}" "${PROD_FILES[@]}" "$@"
 }
 
 dc_dev() {
-  "${COMPOSE[@]}" "${DEV_FILES[@]}" "$@"
+  COMPOSE_PROFILES="" "${COMPOSE[@]}" "${DEV_FILES[@]}" "$@"
 }
 
 print_access() {

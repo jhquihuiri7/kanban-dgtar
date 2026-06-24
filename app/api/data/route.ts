@@ -7,7 +7,14 @@
 import { NextResponse } from "next/server";
 import { readAll, writeAll, type DbData } from "@/lib/db";
 import { requireUser } from "@/lib/auth-server";
-import { TODAY_ISO, addDays, iso, type Actividad } from "@/lib/data";
+import {
+  TODAY_ISO,
+  actividadFuncionarioIds,
+  actividadIncludesFuncionario,
+  addDays,
+  iso,
+  type Actividad,
+} from "@/lib/data";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -63,10 +70,16 @@ function statusForError(err: unknown): number {
 
 function filterForUser(data: DbData, user: { role: string; funcionarioId: string | null }): DbData {
   if (user.role === "admin") return data;
+  const actividades = data.actividades.filter((a) => actividadIncludesFuncionario(a, user.funcionarioId));
+  const funcionarioIds = new Set<string>();
+  if (user.funcionarioId) funcionarioIds.add(user.funcionarioId);
+  for (const actividad of actividades) {
+    for (const id of actividadFuncionarioIds(actividad)) funcionarioIds.add(id);
+  }
   return {
-    funcionarios: data.funcionarios.filter((f) => f.id === user.funcionarioId),
+    funcionarios: data.funcionarios.filter((f) => funcionarioIds.has(f.id)),
     competencias: data.competencias,
-    actividades: data.actividades.filter((a) => a.funcionarioId === user.funcionarioId),
+    actividades,
   };
 }
 
@@ -78,7 +91,7 @@ function mergeUserWrite(current: DbData, posted: Actividad[], funcionarioId: str
   const competenciaIds = new Set(current.competencias.map((c) => c.id));
 
   const nextExistingOwn = current.actividades
-    .filter((a) => a.funcionarioId === funcionarioId)
+    .filter((a) => actividadIncludesFuncionario(a, funcionarioId))
     .map((activity) => {
       const draft = postedById.get(activity.id);
       return draft ? applyUserTextPatch(activity, draft) : activity;
@@ -100,7 +113,7 @@ function mergeUserWrite(current: DbData, posted: Actividad[], funcionarioId: str
     funcionarios: current.funcionarios,
     competencias: current.competencias,
     actividades: [
-      ...current.actividades.filter((a) => a.funcionarioId !== funcionarioId),
+      ...current.actividades.filter((a) => !actividadIncludesFuncionario(a, funcionarioId)),
       ...nextExistingOwn,
       ...newOwn,
     ],
@@ -131,6 +144,7 @@ function sanitizeNewUserActivity(
     titulo,
     descripcion: cleanText(draft.descripcion),
     funcionarioId,
+    participantesIds: [],
     competenciaId,
     estado: "pendiente",
     fechaCreacion: TODAY_ISO,

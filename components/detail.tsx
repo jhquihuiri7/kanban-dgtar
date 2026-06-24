@@ -54,6 +54,14 @@ function ReadOnlyField({ label, value }: { label: string; value: string }) {
   );
 }
 
+function toggleId(ids: string[], id: string): string[] {
+  return ids.includes(id) ? ids.filter((item) => item !== id) : [...ids, id];
+}
+
+function cleanParticipantes(ids: string[], responsableId: string): string[] {
+  return Array.from(new Set(ids.filter((id) => id && id !== responsableId)));
+}
+
 function PlazoBanner({ act, p }: { act: Actividad; p: PlazoInfo }) {
   const map: Record<PlazoTone, { bg: string; ring: string; text: string; icon: IconName }> = {
     green: { bg: "bg-green-50", ring: "ring-green-200", text: "text-green-700", icon: "check" },
@@ -145,6 +153,9 @@ export function DetailPanel({
   const act = activities.find((a) => a.id === activityId);
   if (!act) return null;
   const fun = funcionarios.find((f) => f.id === act.funcionarioId);
+  const participantes = (act.participantesIds ?? [])
+    .map((id) => funcionarios.find((f) => f.id === id))
+    .filter((f): f is Funcionario => Boolean(f));
   const comp = competencias.find((c) => c.id === act.competenciaId);
   const p = plazoInfo(act, TODAY_ISO);
   const esReunion = act.tipo === "reunion";
@@ -197,6 +208,7 @@ export function DetailPanel({
       titulo: draft.titulo.trim() || act!.titulo,
       descripcion: draft.descripcion.trim(),
       funcionarioId: draft.funcionarioId,
+      participantesIds: esReunion ? cleanParticipantes(draft.participantesIds ?? [], draft.funcionarioId) : [],
       competenciaId: draft.competenciaId,
       estado: draft.estado,
       fechaCreacion: draft.fechaCreacion,
@@ -266,6 +278,29 @@ export function DetailPanel({
             </div>
             <Badge variant={unidadTone(fun?.unidad)}>{fun?.unidad}</Badge>
           </div>
+
+          {esReunion && (
+            <div>
+              <Label className="mb-1.5 block uppercase tracking-wide text-slate-500">Participantes</Label>
+              <div className="rounded-lg border border-slate-200 p-3">
+                {participantes.length > 0 ? (
+                  <div className="flex flex-wrap gap-2">
+                    {participantes.map((f) => (
+                      <div
+                        key={f.id}
+                        className="inline-flex max-w-full items-center gap-2 rounded-md bg-slate-50 px-2.5 py-1.5 ring-1 ring-foreground/5"
+                      >
+                        <Avatar funcionario={f} useAvatars={useAvatars} size={22} />
+                        <span className="truncate text-sm font-medium text-slate-800">{f.nombre}</span>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-sm text-slate-400">Sin participantes adicionales</div>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* plazo grid */}
           <div className="grid grid-cols-3 gap-2">
@@ -508,7 +543,18 @@ function EditForm({
           <Select
             id="edit-resp"
             value={draft.funcionarioId}
-            onChange={(e) => set("funcionarioId", e.target.value)}
+            onChange={(e) => {
+              const responsableId = e.target.value;
+              setDraft((d) =>
+                d
+                  ? {
+                      ...d,
+                      funcionarioId: responsableId,
+                      participantesIds: (d.participantesIds ?? []).filter((id) => id !== responsableId),
+                    }
+                  : d,
+              );
+            }}
           >
             {funcionarios.map((f) => (
               <option key={f.id} value={f.id}>
@@ -598,6 +644,48 @@ function EditForm({
           </>
         )}
       </div>
+      {esReunion && (
+        <div className="space-y-1.5">
+          <Label>Participantes</Label>
+          <div className="max-h-44 overflow-y-auto rounded-lg border border-slate-200 bg-white p-2">
+            {funcionarios.filter((f) => f.id !== draft.funcionarioId).length > 0 ? (
+              <div className="space-y-1">
+                {funcionarios
+                  .filter((f) => f.id !== draft.funcionarioId)
+                  .map((f) => (
+                    <label
+                      key={f.id}
+                      className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-sm text-slate-700 hover:bg-slate-50"
+                    >
+                      <input
+                        type="checkbox"
+                        className="h-4 w-4 rounded border-slate-300 text-slate-900 focus:ring-slate-900/20"
+                        checked={(draft.participantesIds ?? []).includes(f.id)}
+                        onChange={() =>
+                          setDraft((d) =>
+                            d
+                              ? {
+                                  ...d,
+                                  participantesIds: cleanParticipantes(
+                                    toggleId(d.participantesIds ?? [], f.id),
+                                    d.funcionarioId,
+                                  ),
+                                }
+                              : d,
+                          )
+                        }
+                      />
+                      <span className="min-w-0 flex-1 truncate">{f.nombre}</span>
+                      <span className="shrink-0 text-xs text-slate-400">{f.unidad}</span>
+                    </label>
+                  ))}
+              </div>
+            ) : (
+              <div className="px-2 py-3 text-sm text-slate-400">Sin participantes adicionales</div>
+            )}
+          </div>
+        </div>
+      )}
       <div className="space-y-1.5">
         <Label htmlFor="edit-obs">Observaciones</Label>
         <Textarea

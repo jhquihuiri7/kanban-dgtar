@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import * as React from "react";
 import { useEffect, useState } from "react";
 import { Button, Icon, Input, Label } from "@/components/ui";
@@ -96,119 +97,198 @@ export default function LoginPage() {
     }
   }
 
+  const heading = {
+    login: {
+      title: "Inicia sesión en tu cuenta",
+      description: "Ingresa tus credenciales para acceder al tablero.",
+    },
+    forgot: {
+      title: "Recupera tu contraseña",
+      description: "Ingresa tu correo para generar un enlace de recuperación.",
+    },
+    reset: {
+      title: "Actualiza tu contraseña",
+      description: "Define una nueva contraseña para continuar.",
+    },
+  }[mode];
+
   return (
-    <main className="flex min-h-screen items-center justify-center bg-slate-50 px-4 text-slate-900">
-      <div className="w-full max-w-sm rounded-xl bg-white p-6 shadow-xl ring-1 ring-foreground/10">
-        <div className="mb-5 flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-slate-900 text-white">
-            <Icon name="kanban" size={18} />
-          </div>
-          <div>
-            <h1 className="text-base font-semibold leading-tight">Kanban de Seguimiento</h1>
-            <p className="text-xs text-slate-500">DGTAR</p>
-          </div>
+    <main className="grid min-h-svh bg-white text-slate-950 lg:grid-cols-2">
+      <section className="flex min-h-svh flex-col gap-4 p-6 md:p-10">
+        <div className="flex justify-center gap-2 md:justify-start">
+          <a href="/" className="flex items-center gap-2 font-medium">
+            <div className="flex size-6 items-center justify-center rounded-md bg-slate-900 text-white">
+              <Icon name="kanban" size={14} />
+            </div>
+            Kanban DGTAR
+          </a>
         </div>
 
-        {mode === "login" && (
-          <form className="space-y-3" onSubmit={submitLogin}>
-            <div className="space-y-1.5">
-              <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
-                type="email"
-                autoFocus
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                autoComplete="email"
-              />
+        <div className="flex flex-1 items-center justify-center">
+          <div className="flex w-full max-w-xs flex-col gap-6">
+            <div className="flex flex-col items-center gap-1 text-center">
+              <h1 className="text-2xl font-bold">{heading.title}</h1>
+              <p className="text-sm text-slate-500">{heading.description}</p>
             </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="password">Contraseña</Label>
-              <Input
-                id="password"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                autoComplete="current-password"
-              />
-            </div>
-            <Button className="w-full" type="submit" disabled={loading || !email || !password}>
-              {loading ? <Icon name="loader" size={14} className="animate-spin" /> : <Icon name="check" size={14} />}
-              Iniciar sesión
-            </Button>
-            <button
-              type="button"
-              className="w-full text-center text-xs font-medium text-slate-500 hover:text-slate-900"
-              onClick={() => {
-                setMode("forgot");
-                setError("");
-                setMessage("");
-              }}
-            >
-              Recuperar contraseña
-            </button>
-          </form>
-        )}
 
-        {mode === "forgot" && (
-          <form className="space-y-3" onSubmit={requestReset}>
-            <div className="space-y-1.5">
-              <Label htmlFor="forgot-email">Email</Label>
-              <Input
-                id="forgot-email"
-                type="email"
-                autoFocus
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                autoComplete="email"
-              />
-            </div>
-            <Button className="w-full" type="submit" disabled={loading || !email}>
-              {loading ? <Icon name="loader" size={14} className="animate-spin" /> : <Icon name="refresh" size={14} />}
-              Generar enlace
-            </Button>
-            <Button type="button" variant="ghost" className="w-full" onClick={() => setMode("login")}>
-              Volver al login
-            </Button>
-          </form>
-        )}
+            {mode === "login" && (
+              <form className="flex flex-col gap-5" onSubmit={submitLogin}>
+                <div className="flex flex-col gap-2">
+                  <Label className="text-sm font-medium text-slate-900" htmlFor="email">
+                    Correo electrónico
+                  </Label>
+                  <Input
+                    id="email"
+                    type="email"
+                    autoFocus
+                    placeholder="usuario@ejemplo.com"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    autoComplete="username"
+                    required
+                    className="h-8 bg-transparent px-2.5"
+                  />
+                </div>
 
-        {mode === "reset" && (
-          <form className="space-y-3" onSubmit={submitReset}>
-            <div className="space-y-1.5">
-              <Label htmlFor="new-password">Nueva contraseña</Label>
-              <Input
-                id="new-password"
-                type="password"
-                autoFocus
-                value={newPassword}
-                onChange={(e) => setNewPassword(e.target.value)}
-                autoComplete="new-password"
-              />
-            </div>
-            <Button className="w-full" type="submit" disabled={loading || newPassword.length < 8}>
-              {loading ? <Icon name="loader" size={14} className="animate-spin" /> : <Icon name="check" size={14} />}
-              Actualizar contraseña
-            </Button>
-          </form>
-        )}
+                <div className="flex flex-col gap-2">
+                  <div className="flex items-center">
+                    <Label className="text-sm font-medium text-slate-900" htmlFor="password">
+                      Contraseña
+                    </Label>
+                    <button
+                      type="button"
+                      className="ml-auto text-sm underline-offset-4 hover:underline"
+                      onClick={() => {
+                        setMode("forgot");
+                        setError("");
+                        setMessage("");
+                      }}
+                    >
+                      ¿Olvidaste tu contraseña?
+                    </button>
+                  </div>
+                  <Input
+                    id="password"
+                    type="password"
+                    placeholder="Ingresa tu contraseña"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    autoComplete="current-password"
+                    required
+                    className="h-8 bg-transparent px-2.5"
+                  />
+                </div>
 
-        {error && (
-          <div className="mt-4 rounded-lg bg-red-50 p-3 text-xs font-medium text-red-700 ring-1 ring-red-200">
-            {error}
-          </div>
-        )}
-        {message && (
-          <div className="mt-4 rounded-lg bg-green-50 p-3 text-xs font-medium text-green-700 ring-1 ring-green-200">
-            {message}
-            {resetUrl && (
-              <a className="mt-2 block underline" href={resetUrl}>
-                Abrir enlace de recuperación
-              </a>
+                {error && (
+                  <div role="alert" className="text-sm font-normal text-red-600">
+                    {error}
+                  </div>
+                )}
+
+                <Button className="w-full" type="submit" disabled={loading || !email || !password} aria-busy={loading}>
+                  {loading && <Icon name="loader" size={14} className="animate-spin" />}
+                  {loading ? "Iniciando sesión..." : "Iniciar sesión"}
+                </Button>
+              </form>
+            )}
+
+            {mode === "forgot" && (
+              <form className="flex flex-col gap-5" onSubmit={requestReset}>
+                <div className="flex flex-col gap-2">
+                  <Label className="text-sm font-medium text-slate-900" htmlFor="forgot-email">
+                    Correo electrónico
+                  </Label>
+                  <Input
+                    id="forgot-email"
+                    type="email"
+                    autoFocus
+                    placeholder="usuario@ejemplo.com"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    autoComplete="username"
+                    required
+                    className="h-8 bg-transparent px-2.5"
+                  />
+                </div>
+
+                {error && (
+                  <div role="alert" className="text-sm font-normal text-red-600">
+                    {error}
+                  </div>
+                )}
+
+                {message && (
+                  <div role="status" className="text-sm font-normal text-green-700">
+                    {message}
+                    {resetUrl && (
+                      <a className="mt-2 block break-all underline underline-offset-4" href={resetUrl}>
+                        Abrir enlace de recuperación
+                      </a>
+                    )}
+                  </div>
+                )}
+
+                <Button className="w-full" type="submit" disabled={loading || !email} aria-busy={loading}>
+                  {loading && <Icon name="loader" size={14} className="animate-spin" />}
+                  {loading ? "Generando enlace..." : "Generar enlace"}
+                </Button>
+                <Button type="button" variant="ghost" className="w-full" onClick={() => setMode("login")}>
+                  Volver al login
+                </Button>
+              </form>
+            )}
+
+            {mode === "reset" && (
+              <form className="flex flex-col gap-5" onSubmit={submitReset}>
+                <div className="flex flex-col gap-2">
+                  <Label className="text-sm font-medium text-slate-900" htmlFor="new-password">
+                    Nueva contraseña
+                  </Label>
+                  <Input
+                    id="new-password"
+                    type="password"
+                    autoFocus
+                    placeholder="Ingresa tu nueva contraseña"
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    autoComplete="new-password"
+                    required
+                    className="h-8 bg-transparent px-2.5"
+                  />
+                </div>
+
+                {error && (
+                  <div role="alert" className="text-sm font-normal text-red-600">
+                    {error}
+                  </div>
+                )}
+
+                {message && (
+                  <div role="status" className="text-sm font-normal text-green-700">
+                    {message}
+                  </div>
+                )}
+
+                <Button className="w-full" type="submit" disabled={loading || newPassword.length < 8} aria-busy={loading}>
+                  {loading && <Icon name="loader" size={14} className="animate-spin" />}
+                  {loading ? "Actualizando contraseña..." : "Actualizar contraseña"}
+                </Button>
+              </form>
             )}
           </div>
-        )}
-      </div>
+        </div>
+      </section>
+
+      <section className="relative hidden bg-slate-100 lg:block">
+        <Image
+          src="/imgs/geo/login.png"
+          alt="Vista aérea costera del geoportal ambiental"
+          fill
+          priority
+          sizes="50vw"
+          className="object-cover"
+        />
+      </section>
     </main>
   );
 }

@@ -19,6 +19,7 @@ import { cn } from "@/lib/utils";
 import {
   ESTADOS,
   TODAY_ISO,
+  actividadIncludesFuncionario,
   daysBetween,
   plazoInfo,
   type Actividad,
@@ -63,7 +64,7 @@ function computeStats(
 
   const porFuncionario: FuncionarioStat[] = funcionarios
     .map((f) => {
-      const mine = activities.filter((a) => a.funcionarioId === f.id);
+      const mine = activities.filter((a) => actividadIncludesFuncionario(a, f.id));
       const total = mine.length;
       const cumplidas = mine.filter((a) => a.estado === "cumplida");
       const enPlazo = cumplidas.filter(
@@ -199,9 +200,10 @@ export function StatsView({
     { name: "8+ días", value: activities.filter((a) => { const d = daysBetween(TODAY_ISO, a.fechaVencimiento); return a.estado !== "cumplida" && d >= 8; }).length, color: "#22c55e" },
   ];
 
-  const enPlazoPct = s.totals.cumplida
-    ? Math.round((s.porFuncionario.reduce((a, x) => a + x.enPlazo, 0) / s.totals.cumplida) * 100)
-    : 0;
+  const cumplidasEnPlazo = activities.filter(
+    (a) => a.estado === "cumplida" && daysBetween(a.fechaCumplimiento ?? TODAY_ISO, a.fechaVencimiento) >= 0,
+  ).length;
+  const enPlazoPct = s.totals.cumplida ? Math.round((cumplidasEnPlazo / s.totals.cumplida) * 100) : 0;
 
   return (
     <div className="space-y-6">

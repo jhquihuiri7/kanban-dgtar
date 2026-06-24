@@ -1,6 +1,7 @@
 services:
   db:
     image: postgres:16-alpine
+    container_name: kanban-db
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-kanban}
@@ -19,18 +20,24 @@ services:
       retries: 12
 
   app:
+    image: kanban-dgtar/app:prod
     build: .
+    container_name: kanban-app
     restart: unless-stopped
     environment:
       # Dentro de la red de compose el host de la base es "db".
       DATABASE_URL: postgres://${POSTGRES_USER:-kanban}:${POSTGRES_PASSWORD:-kanban}@db:5432/${POSTGRES_DB:-kanban}
       AUTH_SECRET: ${AUTH_SECRET:-change-this-secret-in-production}
+      AUTH_COOKIE_SECURE: ${AUTH_COOKIE_SECURE:-false}
       NODE_ENV: production
+      PORT: 3000
+      HOSTNAME: 0.0.0.0
     ports:
-      - "${APP_PORT:-3000}:3000"
+      - "${APP_PORT:-8001}:3000"
     depends_on:
       db:
         condition: service_healthy
+
 
 volumes:
   pgdata:

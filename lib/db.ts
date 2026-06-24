@@ -59,6 +59,7 @@ function mapActividad(r: Row): Actividad {
     titulo: r.titulo as string,
     descripcion: r.descripcion as string,
     funcionarioId: r.funcionario_id as string,
+    participantesIds: [],
     competenciaId: r.competencia_id as string,
     estado: r.estado as EstadoActividad,
     fechaCreacion: r.fecha_creacion as string,
@@ -94,43 +95,84 @@ export async function ensureSchema(): Promise<void> {
 export async function readAll(): Promise<DbData> {
   await ensureSchema();
   const db = getPool();
-  const [f, c, a] = await Promise.all([
+  const [f, c, a, p] = await Promise.all([
     db.query("SELECT * FROM funcionarios ORDER BY id"),
     db.query("SELECT * FROM competencias ORDER BY id"),
     db.query("SELECT * FROM actividades ORDER BY orden, id"),
+    db.query("SELECT actividad_id, funcionario_id FROM actividad_participantes ORDER BY actividad_id, funcionario_id"),
   ]);
+  const participantesByActividad = new Map<string, string[]>();
+  for (const row of p.rows) {
+    const actividadId = row.actividad_id as string;
+    const funcionarioId = row.funcionario_id as string;
+    const ids = participantesByActividad.get(actividadId);
+    if (ids) ids.push(funcionarioId);
+    else participantesByActividad.set(actividadId, [funcionarioId]);
+  }
   return {
     funcionarios: f.rows.map(mapFuncionario),
     competencias: c.rows.map(mapCompetencia),
-    actividades: a.rows.map(mapActividad),
+    actividades: a.rows.map((row) => {
+      const actividad = mapActividad(row);
+      return {
+        ...actividad,
+        participantesIds: participantesByActividad.get(actividad.id) ?? [],
+      };
+    }),
   };
 }
 
-// Full-document overwrite inside a transaction. Fine for a single-team
-// internal tool (tens of rows); last writer wins, so it is not meant for
-// simultaneous editors hitting the same data at once.
+// Full-document write inside a transaction. Activities are rewritten, while
+// catalogs are upserted so existing usuario.funcionario_id links stay intact.
+// Fine for a single-team internal tool (tens of rows); last writer wins, so it
+// is not meant for simultaneous editors hitting the same data at once.
 export async function writeAll(data: DbData): Promise<void> {
   await ensureSchema();
   const client = await getPool().connect();
   try {
     await client.query("BEGIN");
 
-    // Delete children before parents to respect foreign keys.
+    // Activities can be safely rewritten. Do not wholesale-delete funcionarios:
+    // usuarios.funcionario_id uses ON DELETE SET NULL, so deleting and reinserting
+    // the same funcionario would unlink users from their assigned funcionario.
+    await client.query("DELETE FROM actividad_participantes");
     await client.query("DELETE FROM actividades");
-    await client.query("DELETE FROM competencias");
-    await client.query("DELETE FROM funcionarios");
+
+    const funcionarioIds = data.funcionarios.map((f) => f.id);
+    const competenciaIds = data.competencias.map((c) => c.id);
+
+    if (funcionarioIds.length > 0) {
+      await client.query("DELETE FROM funcionarios WHERE NOT (id = ANY($1::text[]))", [funcionarioIds]);
+    } else {
+      await client.query("DELETE FROM funcionarios");
+    }
+
+    if (competenciaIds.length > 0) {
+      await client.query("DELETE FROM competencias WHERE NOT (id = ANY($1::text[]))", [competenciaIds]);
+    } else {
+      await client.query("DELETE FROM competencias");
+    }
 
     for (const f of data.funcionarios) {
       await client.query(
         `INSERT INTO funcionarios (id, nombre, email, cargo, unidad, color)
-         VALUES ($1, $2, $3, $4, $5, $6)`,
+         VALUES ($1, $2, $3, $4, $5, $6)
+         ON CONFLICT (id) DO UPDATE
+           SET nombre = EXCLUDED.nombre,
+               email = EXCLUDED.email,
+               cargo = EXCLUDED.cargo,
+               unidad = EXCLUDED.unidad,
+               color = EXCLUDED.color`,
         [f.id, f.nombre, f.email, f.cargo, f.unidad, f.color],
       );
     }
     for (const c of data.competencias) {
       await client.query(
         `INSERT INTO competencias (id, nombre, unidad)
-         VALUES ($1, $2, $3)`,
+         VALUES ($1, $2, $3)
+         ON CONFLICT (id) DO UPDATE
+           SET nombre = EXCLUDED.nombre,
+               unidad = EXCLUDED.unidad`,
         [c.id, c.nombre, c.unidad],
       );
     }
@@ -159,6 +201,18 @@ export async function writeAll(data: DbData): Promise<void> {
           a.orden,
         ],
       );
+
+      const participantesIds =
+        a.tipo === "reunion"
+          ? Array.from(new Set((a.participantesIds ?? []).filter((id) => id && id !== a.funcionarioId)))
+          : [];
+      for (const funcionarioId of participantesIds) {
+        await client.query(
+          `INSERT INTO actividad_participantes (actividad_id, funcionario_id)
+           VALUES ($1, $2)`,
+          [a.id, funcionarioId],
+        );
+      }
     }
 
     await client.query("COMMIT");

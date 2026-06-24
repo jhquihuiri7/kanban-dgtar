@@ -21,6 +21,14 @@ import type { AuthUser } from "@/lib/auth-token";
 
 export type NewActivityInput = Omit<Actividad, "id" | "orden">;
 
+function toggleId(ids: string[], id: string): string[] {
+  return ids.includes(id) ? ids.filter((item) => item !== id) : [...ids, id];
+}
+
+function cleanParticipantes(ids: string[], responsableId: string): string[] {
+  return Array.from(new Set(ids.filter((id) => id && id !== responsableId)));
+}
+
 export function NewActivityDialog({
   open,
   onClose,
@@ -49,6 +57,7 @@ export function NewActivityDialog({
   const [accionesPendientes, setAccionesPendientes] = useState("");
   const [resultadosAlcanzados, setResultadosAlcanzados] = useState("");
   const [funcionarioId, setFuncionarioId] = useState(funcionariosDisponibles[0]?.id || "");
+  const [participantesIds, setParticipantesIds] = useState<string[]>([]);
   const [competenciaId, setCompetenciaId] = useState(competenciasDisponibles[0]?.id || "");
   const [plazoDias, setPlazoDias] = useState<number | string>(7);
   const [fechaReunion, setFechaReunion] = useState(TODAY_ISO);
@@ -62,6 +71,7 @@ export function NewActivityDialog({
       setAccionesPendientes("");
       setResultadosAlcanzados("");
       setFuncionarioId(isAdmin ? funcionarios[0]?.id || "" : currentUser.funcionarioId || "");
+      setParticipantesIds([]);
       setCompetenciaId(competencias[0]?.id || "");
       setPlazoDias(7);
       setFechaReunion(TODAY_ISO);
@@ -94,6 +104,7 @@ export function NewActivityDialog({
       titulo: titulo.trim(),
       descripcion: descripcion.trim(),
       funcionarioId: isAdmin ? funcionarioId : currentUser.funcionarioId || "",
+      participantesIds: isAdmin && esReunion ? cleanParticipantes(participantesIds, funcionarioId) : [],
       competenciaId,
       estado: effectiveEstado,
       fechaCreacion: TODAY_ISO,
@@ -184,7 +195,14 @@ export function NewActivityDialog({
               {isAdmin ? (
                 <div className="space-y-1.5">
                   <Label htmlFor="resp">Funcionario responsable</Label>
-                  <Select id="resp" value={funcionarioId} onChange={(e) => setFuncionarioId(e.target.value)}>
+                  <Select
+                    id="resp"
+                    value={funcionarioId}
+                    onChange={(e) => {
+                      setFuncionarioId(e.target.value);
+                      setParticipantesIds((ids) => ids.filter((id) => id !== e.target.value));
+                    }}
+                  >
                     {funcionariosDisponibles.map((f) => (
                       <option key={f.id} value={f.id}>
                         {f.nombre} — {f.unidad}
@@ -254,6 +272,36 @@ export function NewActivityDialog({
                 </>
               ) : null}
             </div>
+            {isAdmin && esReunion && (
+              <div className="space-y-1.5">
+                <Label>Participantes</Label>
+                <div className="max-h-36 overflow-y-auto rounded-lg border border-slate-200 bg-white p-2">
+                  {funcionariosDisponibles.filter((f) => f.id !== funcionarioId).length > 0 ? (
+                    <div className="space-y-1">
+                      {funcionariosDisponibles
+                        .filter((f) => f.id !== funcionarioId)
+                        .map((f) => (
+                          <label
+                            key={f.id}
+                            className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-sm text-slate-700 hover:bg-slate-50"
+                          >
+                            <input
+                              type="checkbox"
+                              className="h-4 w-4 rounded border-slate-300 text-slate-900 focus:ring-slate-900/20"
+                              checked={participantesIds.includes(f.id)}
+                              onChange={() => setParticipantesIds((ids) => toggleId(ids, f.id))}
+                            />
+                            <span className="min-w-0 flex-1 truncate">{f.nombre}</span>
+                            <span className="shrink-0 text-xs text-slate-400">{f.unidad}</span>
+                          </label>
+                        ))}
+                    </div>
+                  ) : (
+                    <div className="px-2 py-3 text-sm text-slate-400">Sin participantes adicionales</div>
+                  )}
+                </div>
+              </div>
+            )}
             <div className="space-y-1.5">
               <Label htmlFor="acciones">Acciones pendientes y actividades programadas</Label>
               <Textarea

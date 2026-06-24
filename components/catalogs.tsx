@@ -6,6 +6,7 @@ import { Avatar, Badge, Button, Card, CardContent, CardHeader, CardTitle, Icon, 
 import { cn } from "@/lib/utils";
 import {
   UNIDADES,
+  actividadIncludesFuncionario,
   unidadTone,
   type Actividad,
   type Competencia,
@@ -63,13 +64,22 @@ function FuncionariosTable({
 
   const counts = useMemo(() => {
     const m: Record<string, number> = {};
-    for (const a of activities) m[a.funcionarioId] = (m[a.funcionarioId] || 0) + 1;
+    for (const f of funcionarios) {
+      m[f.id] = activities.filter((a) => actividadIncludesFuncionario(a, f.id)).length;
+    }
     return m;
-  }, [activities]);
+  }, [activities, funcionarios]);
 
   function removeFuncionario(f: Funcionario) {
     setFuncionarios((prev) => prev.filter((item) => item.id !== f.id));
-    setActivities((prev) => prev.filter((item) => item.funcionarioId !== f.id));
+    setActivities((prev) =>
+      prev
+        .filter((item) => item.funcionarioId !== f.id)
+        .map((item) => ({
+          ...item,
+          participantesIds: (item.participantesIds ?? []).filter((id) => id !== f.id),
+        })),
+    );
   }
 
   function updateFuncionario(next: Funcionario) {
