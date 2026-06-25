@@ -8,12 +8,16 @@ import { NextResponse } from "next/server";
 import { readAll, writeAll, type DbData } from "@/lib/db";
 import { requireUser } from "@/lib/auth-server";
 import {
+  ESTADOS,
   TODAY_ISO,
-  actividadFuncionarioIds,
+  TIPOS,
   actividadIncludesFuncionario,
   addDays,
+  daysBetween,
   iso,
   type Actividad,
+  type EstadoActividad,
+  type TipoActividad,
 } from "@/lib/data";
 
 export const runtime = "nodejs";
@@ -71,13 +75,8 @@ function statusForError(err: unknown): number {
 function filterForUser(data: DbData, user: { role: string; funcionarioId: string | null }): DbData {
   if (user.role === "admin") return data;
   const actividades = data.actividades.filter((a) => actividadIncludesFuncionario(a, user.funcionarioId));
-  const funcionarioIds = new Set<string>();
-  if (user.funcionarioId) funcionarioIds.add(user.funcionarioId);
-  for (const actividad of actividades) {
-    for (const id of actividadFuncionarioIds(actividad)) funcionarioIds.add(id);
-  }
   return {
-    funcionarios: data.funcionarios.filter((f) => funcionarioIds.has(f.id)),
+    funcionarios: data.funcionarios,
     competencias: data.competencias,
     actividades,
   };
@@ -89,12 +88,13 @@ function mergeUserWrite(current: DbData, posted: Actividad[], funcionarioId: str
   const currentById = new Map(current.actividades.map((a) => [a.id, a]));
   const postedById = new Map(posted.map((a) => [a.id, a]));
   const competenciaIds = new Set(current.competencias.map((c) => c.id));
+  const funcionarioIds = new Set(current.funcionarios.map((f) => f.id));
 
   const nextExistingOwn = current.actividades
-    .filter((a) => actividadIncludesFuncionario(a, funcionarioId))
-    .map((activity) => {
+    .filter((a) => a.funcionarioId === funcionarioId)
+    .flatMap((activity) => {
       const draft = postedById.get(activity.id);
-      return draft ? applyUserTextPatch(activity, draft) : activity;
+      return draft ? [sanitizeUserActivity(draft, funcionarioId, competenciaIds, funcionarioIds, activity.orden, activity)] : [];
     });
 
   const maxOrden = current.actividades.reduce((max, a) => Math.max(max, a.orden || 0), 0);
@@ -106,51 +106,68 @@ function mergeUserWrite(current: DbData, posted: Actividad[], funcionarioId: str
         ? activity.competenciaId
         : current.competencias[0]?.id;
       if (!competenciaId) throw new Error("No existe una competencia válida para crear la actividad.");
-      return sanitizeNewUserActivity(activity, funcionarioId, competenciaId, nextOrden++);
+      return sanitizeUserActivity(
+        { ...activity, competenciaId },
+        funcionarioId,
+        competenciaIds,
+        funcionarioIds,
+        nextOrden++,
+      );
     });
 
   return {
     funcionarios: current.funcionarios,
     competencias: current.competencias,
     actividades: [
-      ...current.actividades.filter((a) => !actividadIncludesFuncionario(a, funcionarioId)),
+      ...current.actividades.filter((a) => a.funcionarioId !== funcionarioId),
       ...nextExistingOwn,
       ...newOwn,
     ],
   };
 }
 
-function applyUserTextPatch(current: Actividad, draft: Actividad): Actividad {
-  return {
-    ...current,
-    titulo: cleanText(draft.titulo) || current.titulo,
-    descripcion: cleanText(draft.descripcion),
-    observaciones: cleanText(draft.observaciones),
-    accionesPendientes: cleanText(draft.accionesPendientes),
-    resultadosAlcanzados: cleanText(draft.resultadosAlcanzados),
-  };
-}
-
-function sanitizeNewUserActivity(
+function sanitizeUserActivity(
   draft: Actividad,
   funcionarioId: string,
-  competenciaId: string,
+  competenciaIds: Set<string>,
+  funcionarioIds: Set<string>,
   orden: number,
+  current?: Actividad,
 ): Actividad {
-  const titulo = cleanText(draft.titulo) || "Nueva actividad";
+  const tipo = validTipo(draft.tipo, current?.tipo);
+  const estado = validEstado(draft.estado, current?.estado);
+  const fechaCreacion = current?.fechaCreacion || TODAY_ISO;
+  const titulo = cleanText(draft.titulo) || current?.titulo || "Nueva actividad";
+  const competenciaId = competenciaIds.has(draft.competenciaId)
+    ? draft.competenciaId
+    : current?.competenciaId && competenciaIds.has(current.competenciaId)
+      ? current.competenciaId
+      : Array.from(competenciaIds)[0];
+  if (!competenciaId) throw new Error("No existe una competencia válida para crear la actividad.");
+
+  const plazoDias =
+    tipo === "reunion"
+      ? daysBetween(fechaCreacion, sanitizeMeetingDateTime(draft.fechaVencimiento))
+      : clampDays(draft.plazoDias);
+  const fechaVencimiento =
+    tipo === "reunion" ? sanitizeMeetingDateTime(draft.fechaVencimiento) : iso(addDays(fechaCreacion, plazoDias));
+  const fechaCumplimiento =
+    estado === "cumplida" ? cleanDate(draft.fechaCumplimiento) || current?.fechaCumplimiento || TODAY_ISO : null;
+
   return {
     id: draft.id,
-    tipo: "asignacion",
+    tipo,
     titulo,
     descripcion: cleanText(draft.descripcion),
     funcionarioId,
-    participantesIds: [],
+    participantesIds:
+      tipo === "reunion" ? cleanParticipantes(draft.participantesIds, funcionarioId, funcionarioIds) : [],
     competenciaId,
-    estado: "pendiente",
-    fechaCreacion: TODAY_ISO,
-    plazoDias: 7,
-    fechaVencimiento: iso(addDays(TODAY_ISO, 7)),
-    fechaCumplimiento: null,
+    estado,
+    fechaCreacion,
+    plazoDias,
+    fechaVencimiento,
+    fechaCumplimiento,
     observaciones: cleanText(draft.observaciones),
     accionesPendientes: cleanText(draft.accionesPendientes),
     resultadosAlcanzados: cleanText(draft.resultadosAlcanzados),
@@ -160,4 +177,43 @@ function sanitizeNewUserActivity(
 
 function cleanText(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
+}
+
+function validTipo(value: unknown, fallback: TipoActividad = "asignacion"): TipoActividad {
+  return TIPOS.some((tipo) => tipo.id === value) ? (value as TipoActividad) : fallback;
+}
+
+function validEstado(value: unknown, fallback: EstadoActividad = "pendiente"): EstadoActividad {
+  return ESTADOS.some((estado) => estado.id === value) ? (value as EstadoActividad) : fallback;
+}
+
+function clampDays(value: unknown): number {
+  const days = Number(value);
+  if (!Number.isFinite(days)) return 7;
+  return Math.min(365, Math.max(0, Math.round(days)));
+}
+
+function cleanDate(value: unknown): string {
+  if (typeof value !== "string") return "";
+  const date = value.split("T")[0];
+  return /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : "";
+}
+
+function sanitizeMeetingDateTime(value: unknown): string {
+  const raw = typeof value === "string" ? value : "";
+  const [dateRaw, timeRaw] = raw.split("T");
+  const date = cleanDate(dateRaw) || TODAY_ISO;
+  const time = typeof timeRaw === "string" && /^\d{2}:\d{2}/.test(timeRaw) ? timeRaw.slice(0, 5) : "09:00";
+  return `${date}T${time}`;
+}
+
+function cleanParticipantes(value: unknown, responsableId: string, funcionarioIds: Set<string>): string[] {
+  if (!Array.isArray(value)) return [];
+  return Array.from(
+    new Set(
+      value.filter(
+        (id): id is string => typeof id === "string" && id !== responsableId && funcionarioIds.has(id),
+      ),
+    ),
+  );
 }

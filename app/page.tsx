@@ -207,6 +207,7 @@ export default function Page() {
             density={settings.density}
             useAvatars={settings.useAvatars}
             isAdmin={isAdmin}
+            currentUser={currentUser}
             onOpen={(id) => setOpenActivityId(id)}
             onAdd={(estado) => {
               setDialogDefaultEstado(estado);
@@ -253,6 +254,7 @@ export default function Page() {
           competencias={competencias}
           useAvatars={settings.useAvatars}
           isAdmin={isAdmin}
+          currentUser={currentUser}
           onClose={() => setOpenActivityId(null)}
         />
       )}
@@ -505,6 +507,7 @@ function KanbanScreen({
   density,
   useAvatars,
   isAdmin,
+  currentUser,
   onOpen,
   onAdd,
 }: {
@@ -517,6 +520,7 @@ function KanbanScreen({
   density: Density;
   useAvatars: boolean;
   isAdmin: boolean;
+  currentUser: AuthUser;
   onOpen: (id: string) => void;
   onAdd: (estado: EstadoActividad) => void;
 }) {
@@ -608,7 +612,8 @@ function KanbanScreen({
           competencias={competencias}
           useAvatars={useAvatars}
           density={density}
-          canManage={isAdmin}
+          canCreate={isAdmin || Boolean(currentUser.funcionarioId)}
+          canManageActivity={(activity) => isAdmin || activity.funcionarioId === currentUser.funcionarioId}
           onOpen={onOpen}
           onAdd={onAdd}
           filters={filters}

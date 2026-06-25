@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { SESSION_COOKIE, verifySessionToken } from "@/lib/auth-token";
+import { publicUrl } from "@/lib/public-url";
 
 const PUBLIC_API = new Set([
   "/api/auth/login",
@@ -26,14 +27,14 @@ export async function middleware(req: NextRequest) {
   const isLogin = pathname === "/login";
 
   if (isLogin && session) {
-    return NextResponse.redirect(new URL("/", req.url));
+    return NextResponse.redirect(publicUrl(req, "/"));
   }
 
   if (!session && !isLogin) {
     if (pathname.startsWith("/api/")) {
       return NextResponse.json({ error: "No autenticado" }, { status: 401 });
     }
-    const loginUrl = new URL("/login", req.url);
+    const loginUrl = publicUrl(req, "/login");
     loginUrl.searchParams.set("next", pathname + req.nextUrl.search);
     return NextResponse.redirect(loginUrl);
   }

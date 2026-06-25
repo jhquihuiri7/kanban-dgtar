@@ -82,8 +82,8 @@ export function NewActivityDialog({
 
   if (!open) return null;
 
-  const effectiveTipo = isAdmin ? tipo : "asignacion";
-  const effectiveEstado = isAdmin ? defaultEstado : "pendiente";
+  const effectiveTipo = tipo;
+  const effectiveEstado = defaultEstado;
   const esReunion = effectiveTipo === "reunion";
   const currentFuncionario = funcionariosDisponibles.find((f) => f.id === currentUser.funcionarioId);
   const catalogosVacios = isAdmin
@@ -91,7 +91,7 @@ export function NewActivityDialog({
     : !currentUser.funcionarioId || competenciasDisponibles.length === 0;
   // Asignación: vence = hoy + plazo. Reunión: la fecha+hora elegidas se guardan
   // juntas en fechaVencimiento ("YYYY-MM-DDTHH:mm").
-  const plazo = isAdmin ? Number(plazoDias) || 0 : 7;
+  const plazo = Number(plazoDias) || 0;
   const vence = esReunion ? `${fechaReunion}T${horaReunion}` : iso(addDays(TODAY_ISO, plazo));
   const estadoDef = ESTADOS.find((e) => e.id === effectiveEstado);
 
@@ -104,7 +104,7 @@ export function NewActivityDialog({
       titulo: titulo.trim(),
       descripcion: descripcion.trim(),
       funcionarioId: isAdmin ? funcionarioId : currentUser.funcionarioId || "",
-      participantesIds: isAdmin && esReunion ? cleanParticipantes(participantesIds, funcionarioId) : [],
+      participantesIds: esReunion ? cleanParticipantes(participantesIds, funcionarioId) : [],
       competenciaId,
       estado: effectiveEstado,
       fechaCreacion: TODAY_ISO,
@@ -123,9 +123,9 @@ export function NewActivityDialog({
       <div className="absolute inset-0 bg-slate-900/30 backdrop-blur-[2px]" onClick={onClose} />
       <form
         onSubmit={submit}
-        className="relative z-10 w-full max-w-xl rounded-xl bg-white p-5 ring-1 ring-foreground/10 shadow-xl"
+        className="relative z-10 flex max-h-[calc(100dvh-2rem)] w-full max-w-xl flex-col overflow-hidden rounded-xl bg-white ring-1 ring-foreground/10 shadow-xl"
       >
-        <div className="flex items-start justify-between">
+        <div className="flex shrink-0 items-start justify-between border-b border-slate-100 px-5 py-4">
           <div>
             <div className="text-base font-semibold text-slate-900">
               {esReunion ? "Nueva reunión" : "Nueva actividad"}
@@ -144,33 +144,32 @@ export function NewActivityDialog({
           </button>
         </div>
 
-        {catalogosVacios ? (
-          <div className="mt-4 rounded-lg border border-dashed border-slate-300 bg-slate-50 p-6 text-center">
-            <div className="mx-auto mb-2 flex h-9 w-9 items-center justify-center rounded-lg bg-amber-100 text-amber-700">
-              <Icon name="alert" size={18} />
-            </div>
-            <div className="text-sm font-medium text-slate-900">
-              Catálogos incompletos
-            </div>
-            <p className="mx-auto mt-1 max-w-sm text-xs text-slate-500">
-              Necesitas al menos un funcionario y una competencia para crear
-              actividades. {isAdmin ? "Revísalos en la pestaña Catálogos." : "Tu usuario debe estar vinculado a un funcionario."}
-            </p>
-          </div>
-        ) : (
-          <div className="mt-4 space-y-3">
-            {isAdmin && (
-              <div className="space-y-1.5">
-                <Label htmlFor="tipo">Tipo</Label>
-                <Select id="tipo" value={tipo} onChange={(e) => setTipo(e.target.value as TipoActividad)}>
-                  {TIPOS.map((t) => (
-                    <option key={t.id} value={t.id}>
-                      {t.label}
-                    </option>
-                  ))}
-                </Select>
+        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
+          {catalogosVacios ? (
+            <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 p-6 text-center">
+              <div className="mx-auto mb-2 flex h-9 w-9 items-center justify-center rounded-lg bg-amber-100 text-amber-700">
+                <Icon name="alert" size={18} />
               </div>
-            )}
+              <div className="text-sm font-medium text-slate-900">
+                Catálogos incompletos
+              </div>
+              <p className="mx-auto mt-1 max-w-sm text-xs text-slate-500">
+                Necesitas al menos un funcionario y una competencia para crear
+                actividades. {isAdmin ? "Revísalos en la pestaña Catálogos." : "Tu usuario debe estar vinculado a un funcionario."}
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <div className="space-y-1.5">
+              <Label htmlFor="tipo">Tipo</Label>
+              <Select id="tipo" value={tipo} onChange={(e) => setTipo(e.target.value as TipoActividad)}>
+                {TIPOS.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.label}
+                  </option>
+                ))}
+              </Select>
+            </div>
             <div className="space-y-1.5">
               <Label htmlFor="titulo">Título</Label>
               <Input
@@ -185,7 +184,7 @@ export function NewActivityDialog({
               <Label htmlFor="desc">Descripción</Label>
               <Textarea
                 id="desc"
-                rows={3}
+                rows={2}
                 placeholder="Detalles, alcances, archivos relacionados…"
                 value={descripcion}
                 onChange={(e) => setDescripcion(e.target.value)}
@@ -228,7 +227,7 @@ export function NewActivityDialog({
                   ))}
                 </Select>
               </div>
-              {isAdmin && esReunion ? (
+              {esReunion ? (
                 <>
                   <div className="space-y-1.5">
                     <Label htmlFor="fecha-reunion">Fecha de la reunión</Label>
@@ -249,7 +248,7 @@ export function NewActivityDialog({
                     />
                   </div>
                 </>
-              ) : isAdmin ? (
+              ) : (
                 <>
                   <div className="space-y-1.5">
                     <Label htmlFor="plazo">Plazo (días calendario)</Label>
@@ -270,9 +269,9 @@ export function NewActivityDialog({
                     </div>
                   </div>
                 </>
-              ) : null}
+              )}
             </div>
-            {isAdmin && esReunion && (
+            {esReunion && (
               <div className="space-y-1.5">
                 <Label>Participantes</Label>
                 <div className="max-h-36 overflow-y-auto rounded-lg border border-slate-200 bg-white p-2">
@@ -306,7 +305,7 @@ export function NewActivityDialog({
               <Label htmlFor="acciones">Acciones pendientes y actividades programadas</Label>
               <Textarea
                 id="acciones"
-                rows={3}
+                rows={2}
                 placeholder="Próximos pasos, tareas programadas…"
                 value={accionesPendientes}
                 onChange={(e) => setAccionesPendientes(e.target.value)}
@@ -316,16 +315,17 @@ export function NewActivityDialog({
               <Label htmlFor="resultados">Resultados alcanzados</Label>
               <Textarea
                 id="resultados"
-                rows={3}
+                rows={2}
                 placeholder="Logros, entregables completados…"
                 value={resultadosAlcanzados}
                 onChange={(e) => setResultadosAlcanzados(e.target.value)}
               />
             </div>
-          </div>
-        )}
+            </div>
+          )}
+        </div>
 
-        <div className="mt-5 flex items-center justify-end gap-2">
+        <div className="flex shrink-0 items-center justify-end gap-2 border-t border-slate-100 bg-white px-5 py-3">
           <Button type="button" variant="outline" onClick={onClose}>
             Cancelar
           </Button>

@@ -78,9 +78,9 @@ En producción, la app queda publicada localmente en `http://localhost:8001`.
 La app requiere login con email y contraseña. Hay dos roles:
 
 - **admin** — ve todo, administra catálogos, usuarios, actividades, estados y fechas.
-- **user** — queda vinculado a un funcionario; solo ve sus actividades. Puede crear
-  actividades propias y editar campos de texto, pero no fechas, estado, funcionario
-  responsable ni catálogos.
+- **user** — queda vinculado a un funcionario; solo ve sus actividades y reuniones
+  donde participa. Puede crear y administrar actividades propias como asignación
+  o reunión, manteniendo como responsable a su funcionario vinculado.
 
 Para crear el primer usuario admin:
 

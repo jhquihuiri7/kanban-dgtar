@@ -24,6 +24,7 @@ import {
   type PlazoInfo,
   type PlazoTone,
 } from "@/lib/data";
+import type { AuthUser } from "@/lib/auth-token";
 
 export function EstadoBadge({ estado }: { estado: EstadoActividad }) {
   const e = ESTADOS.find((x) => x.id === estado);
@@ -135,6 +136,7 @@ export function DetailPanel({
   competencias,
   useAvatars,
   isAdmin,
+  currentUser,
   onClose,
 }: {
   activityId: string;
@@ -144,6 +146,7 @@ export function DetailPanel({
   competencias: Competencia[];
   useAvatars: boolean;
   isAdmin: boolean;
+  currentUser: AuthUser;
   onClose: () => void;
 }) {
   const [editing, setEditing] = useState(false);
@@ -160,6 +163,7 @@ export function DetailPanel({
   const p = plazoInfo(act, TODAY_ISO);
   const esReunion = act.tipo === "reunion";
   const hora = fmtHora(act.fechaVencimiento);
+  const canManage = isAdmin || act.funcionarioId === currentUser.funcionarioId;
 
   function update(patch: Partial<Actividad>) {
     setActivities((prev) => prev.map((a) => (a.id === act!.id ? { ...a, ...patch } : a)));
@@ -182,19 +186,9 @@ export function DetailPanel({
   // cumplimiento se ajusta según el estado elegido (igual que el tablero).
   function saveEdit() {
     if (!draft) return;
-    if (!isAdmin) {
-      update({
-        titulo: draft.titulo.trim() || act!.titulo,
-        descripcion: draft.descripcion.trim(),
-        observaciones: draft.observaciones.trim(),
-        accionesPendientes: draft.accionesPendientes.trim(),
-        resultadosAlcanzados: draft.resultadosAlcanzados.trim(),
-      });
-      setEditing(false);
-      setDraft(null);
-      return;
-    }
+    if (!canManage) return;
     const esReunion = draft.tipo === "reunion";
+    const responsableId = isAdmin ? draft.funcionarioId : currentUser.funcionarioId || act!.funcionarioId;
     const plazo = esReunion
       ? daysBetween(draft.fechaCreacion, draft.fechaVencimiento)
       : Math.max(0, Number(draft.plazoDias) || 0);
@@ -207,8 +201,8 @@ export function DetailPanel({
     update({
       titulo: draft.titulo.trim() || act!.titulo,
       descripcion: draft.descripcion.trim(),
-      funcionarioId: draft.funcionarioId,
-      participantesIds: esReunion ? cleanParticipantes(draft.participantesIds ?? [], draft.funcionarioId) : [],
+      funcionarioId: responsableId,
+      participantesIds: esReunion ? cleanParticipantes(draft.participantesIds ?? [], responsableId) : [],
       competenciaId: draft.competenciaId,
       estado: draft.estado,
       fechaCreacion: draft.fechaCreacion,
@@ -256,6 +250,7 @@ export function DetailPanel({
               funcionarios={funcionarios}
               competencias={competencias}
               isAdmin={isAdmin}
+              currentUser={currentUser}
             />
           ) : (
           <>
@@ -404,7 +399,7 @@ export function DetailPanel({
                 <Button variant="ghost" onClick={onClose}>
                   Cerrar
                 </Button>
-                {isAdmin && (
+                {canManage && (
                   <Button
                     variant="ghost"
                     className="text-red-600 hover:bg-red-50"
@@ -415,10 +410,12 @@ export function DetailPanel({
                 )}
               </div>
               <div className="flex items-center gap-2">
-                <Button variant="outline" onClick={startEdit}>
-                  <Icon name="edit" size={14} /> Editar
-                </Button>
-                {isAdmin && (
+                {canManage && (
+                  <Button variant="outline" onClick={startEdit}>
+                    <Icon name="edit" size={14} /> Editar
+                  </Button>
+                )}
+                {canManage && (
                   act.estado !== "cumplida" ? (
                     <Button onClick={marcarCumplida}>
                       <Icon name="check" size={14} /> Marcar cumplida
@@ -454,69 +451,21 @@ function EditForm({
   funcionarios,
   competencias,
   isAdmin,
+  currentUser,
 }: {
   draft: Actividad;
   setDraft: React.Dispatch<React.SetStateAction<Actividad | null>>;
   funcionarios: Funcionario[];
   competencias: Competencia[];
   isAdmin: boolean;
+  currentUser: AuthUser;
 }) {
   function set<K extends keyof Actividad>(key: K, value: Actividad[K]) {
     setDraft((d) => (d ? { ...d, [key]: value } : d));
   }
   const esReunion = draft.tipo === "reunion";
   const vence = iso(addDays(draft.fechaCreacion, Math.max(0, Number(draft.plazoDias) || 0)));
-
-  if (!isAdmin) {
-    return (
-      <div className="space-y-3">
-        <div className="space-y-1.5">
-          <Label htmlFor="edit-titulo">Título</Label>
-          <Input
-            id="edit-titulo"
-            value={draft.titulo}
-            onChange={(e) => set("titulo", e.target.value)}
-          />
-        </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="edit-desc">Descripción</Label>
-          <Textarea
-            id="edit-desc"
-            rows={3}
-            value={draft.descripcion}
-            onChange={(e) => set("descripcion", e.target.value)}
-          />
-        </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="edit-obs">Observaciones</Label>
-          <Textarea
-            id="edit-obs"
-            rows={3}
-            value={draft.observaciones || ""}
-            onChange={(e) => set("observaciones", e.target.value)}
-          />
-        </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="edit-acciones">Acciones pendientes y actividades programadas</Label>
-          <Textarea
-            id="edit-acciones"
-            rows={3}
-            value={draft.accionesPendientes || ""}
-            onChange={(e) => set("accionesPendientes", e.target.value)}
-          />
-        </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="edit-resultados">Resultados alcanzados</Label>
-          <Textarea
-            id="edit-resultados"
-            rows={3}
-            value={draft.resultadosAlcanzados || ""}
-            onChange={(e) => set("resultadosAlcanzados", e.target.value)}
-          />
-        </div>
-      </div>
-    );
-  }
+  const currentFuncionario = funcionarios.find((f) => f.id === currentUser.funcionarioId);
 
   return (
     <div className="space-y-3">
@@ -538,31 +487,40 @@ function EditForm({
         />
       </div>
       <div className="grid grid-cols-2 gap-3">
-        <div className="space-y-1.5">
-          <Label htmlFor="edit-resp">Funcionario responsable</Label>
-          <Select
-            id="edit-resp"
-            value={draft.funcionarioId}
-            onChange={(e) => {
-              const responsableId = e.target.value;
-              setDraft((d) =>
-                d
-                  ? {
-                      ...d,
-                      funcionarioId: responsableId,
-                      participantesIds: (d.participantesIds ?? []).filter((id) => id !== responsableId),
-                    }
-                  : d,
-              );
-            }}
-          >
-            {funcionarios.map((f) => (
-              <option key={f.id} value={f.id}>
-                {f.nombre} — {f.unidad}
-              </option>
-            ))}
-          </Select>
-        </div>
+        {isAdmin ? (
+          <div className="space-y-1.5">
+            <Label htmlFor="edit-resp">Funcionario responsable</Label>
+            <Select
+              id="edit-resp"
+              value={draft.funcionarioId}
+              onChange={(e) => {
+                const responsableId = e.target.value;
+                setDraft((d) =>
+                  d
+                    ? {
+                        ...d,
+                        funcionarioId: responsableId,
+                        participantesIds: (d.participantesIds ?? []).filter((id) => id !== responsableId),
+                      }
+                    : d,
+                );
+              }}
+            >
+              {funcionarios.map((f) => (
+                <option key={f.id} value={f.id}>
+                  {f.nombre} — {f.unidad}
+                </option>
+              ))}
+            </Select>
+          </div>
+        ) : (
+          <div className="space-y-1.5">
+            <Label>Funcionario responsable</Label>
+            <div className="flex h-9 items-center rounded-lg bg-slate-50 px-3 text-sm font-medium text-slate-700 ring-1 ring-foreground/5">
+              {currentFuncionario?.nombre || currentUser.email}
+            </div>
+          </div>
+        )}
         <div className="space-y-1.5">
           <Label htmlFor="edit-comp">Competencia</Label>
           <Select
