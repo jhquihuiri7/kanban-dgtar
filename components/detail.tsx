@@ -137,6 +137,7 @@ export function DetailPanel({
   useAvatars,
   isAdmin,
   currentUser,
+  saveNow,
   onClose,
 }: {
   activityId: string;
@@ -147,6 +148,7 @@ export function DetailPanel({
   useAvatars: boolean;
   isAdmin: boolean;
   currentUser: AuthUser;
+  saveNow?: (nextActivities: Actividad[]) => void;
   onClose: () => void;
 }) {
   const [editing, setEditing] = useState(false);
@@ -155,6 +157,7 @@ export function DetailPanel({
 
   const act = activities.find((a) => a.id === activityId);
   if (!act) return null;
+  const currentActivityId = act.id;
   const fun = funcionarios.find((f) => f.id === act.funcionarioId);
   const participantes = (act.participantesIds ?? [])
     .map((id) => funcionarios.find((f) => f.id === id))
@@ -166,7 +169,9 @@ export function DetailPanel({
   const canManage = isAdmin || act.funcionarioId === currentUser.funcionarioId;
 
   function update(patch: Partial<Actividad>) {
-    setActivities((prev) => prev.map((a) => (a.id === act!.id ? { ...a, ...patch } : a)));
+    const nextActivities = activities.map((a) => (a.id === currentActivityId ? { ...a, ...patch } : a));
+    setActivities(nextActivities);
+    saveNow?.(nextActivities);
   }
   function marcarCumplida() {
     update({ estado: "cumplida", fechaCumplimiento: TODAY_ISO });
@@ -218,7 +223,9 @@ export function DetailPanel({
   }
 
   function eliminar() {
-    setActivities((prev) => prev.filter((a) => a.id !== act!.id));
+    const nextActivities = activities.filter((a) => a.id !== act!.id);
+    setActivities(nextActivities);
+    saveNow?.(nextActivities);
     onClose();
   }
 

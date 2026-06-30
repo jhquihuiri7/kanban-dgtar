@@ -98,6 +98,37 @@ El login incluye recuperación de contraseña. Sin servidor de correo configurad
 la app genera un enlace de recuperación desde la pantalla de login y también lo
 registra en logs del servidor.
 
+### Google Calendar
+
+Cada usuario puede vincular su propia cuenta de Google desde el encabezado de la
+app. La integración usa OAuth 2.0 y sincroniza las actividades visibles para ese
+usuario hacia su calendario principal (`primary`):
+
+- usuarios normales: actividades donde son responsables y reuniones donde constan
+  como participantes;
+- admins: todas las actividades visibles para el administrador.
+
+Las asignaciones se crean como eventos de día completo en la fecha de
+vencimiento. Las reuniones se crean con hora y una duración por defecto definida
+en `GOOGLE_DEFAULT_EVENT_DURATION_MINUTES` porque el modelo actual todavía no
+guarda duración por reunión.
+
+Variables necesarias:
+
+```bash
+APP_PUBLIC_URL=http://localhost:3000
+GOOGLE_CLIENT_ID=...
+GOOGLE_CLIENT_SECRET=...
+GOOGLE_REDIRECT_URI=http://localhost:3000/api/google/callback
+GOOGLE_TOKEN_ENCRYPTION_KEY=un-secreto-largo
+GOOGLE_DEFAULT_EVENT_DURATION_MINUTES=60
+```
+
+En Google Cloud crea credenciales OAuth 2.0 de tipo **Web application** y agrega
+`GOOGLE_REDIRECT_URI` como Authorized redirect URI. La app solicita el scope
+`https://www.googleapis.com/auth/calendar.events` para crear, actualizar y borrar
+los eventos que sincroniza en el calendario principal del usuario.
+
 ## Desarrollo sin Docker
 
 ```bash

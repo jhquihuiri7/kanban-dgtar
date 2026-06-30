@@ -112,7 +112,11 @@ export function UsersView({
                         </Badge>
                       </td>
                       <td className="px-2 py-2.5 text-slate-700">
-                        {user.role === "admin" ? "Acceso global" : user.funcionarioNombre || "—"}
+                        {user.role === "admin"
+                          ? user.funcionarioNombre
+                            ? `${user.funcionarioNombre} · acceso global`
+                            : "Acceso global"
+                          : user.funcionarioNombre || "—"}
                       </td>
                       <td className="px-4 py-2.5">
                         <div className="flex justify-end gap-1.5">
@@ -185,10 +189,6 @@ function UserDialog({
   const editingSelf = !creating && user.id === currentUserId;
   const effectiveRole = editingSelf ? "admin" : role;
 
-  React.useEffect(() => {
-    if (effectiveRole === "admin" && funcionarioId) setFuncionarioId("");
-  }, [effectiveRole, funcionarioId]);
-
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
@@ -199,7 +199,7 @@ function UserDialog({
         email,
         nombre,
         role: effectiveRole,
-        funcionarioId: effectiveRole === "admin" ? null : funcionarioId || null,
+        funcionarioId: funcionarioId || null,
         password,
       };
       const res = await fetch("/api/users", {
@@ -257,20 +257,14 @@ function UserDialog({
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="user-funcionario">Funcionario</Label>
-              {effectiveRole === "admin" ? (
-                <div className="flex h-9 items-center rounded-lg bg-slate-50 px-3 text-sm text-slate-500 ring-1 ring-foreground/5">
-                  Acceso global
-                </div>
-              ) : (
-                <Select id="user-funcionario" value={funcionarioId} onChange={(e) => setFuncionarioId(e.target.value)}>
-                  <option value="">Sin vínculo</option>
-                  {funcionarios.map((f) => (
-                    <option key={f.id} value={f.id}>
-                      {f.nombre}
-                    </option>
-                  ))}
-                </Select>
-              )}
+              <Select id="user-funcionario" value={funcionarioId} onChange={(e) => setFuncionarioId(e.target.value)}>
+                <option value="">Sin vínculo</option>
+                {funcionarios.map((f) => (
+                  <option key={f.id} value={f.id}>
+                    {f.nombre}
+                  </option>
+                ))}
+              </Select>
             </div>
           </div>
           <div className="space-y-1.5">

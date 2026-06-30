@@ -81,7 +81,7 @@ function validateUserInput(input: UserInput, creating: boolean) {
     password: input.password || "",
     role: input.role as UserRole,
     nombre: input.nombre || "",
-    funcionarioId: input.role === "admin" ? null : input.funcionarioId || null,
+    funcionarioId: input.funcionarioId || null,
   };
 }
 

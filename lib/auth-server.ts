@@ -135,7 +135,7 @@ export async function createUser(input: {
   const now = new Date().toISOString();
   const id = randomUUID();
   const passwordHash = await hashPassword(input.password);
-  const funcionarioId = input.role === "admin" ? null : input.funcionarioId || null;
+  const funcionarioId = input.funcionarioId || null;
   const result = await getPool().query(
     `INSERT INTO usuarios (id, email, nombre, password_hash, rol, funcionario_id, created_at, updated_at)
      VALUES ($1, $2, $3, $4, $5, $6, $7, $7)
@@ -166,7 +166,7 @@ export async function updateUser(
 ): Promise<ManagedUser> {
   await ensureSchema();
   const now = new Date().toISOString();
-  const funcionarioId = input.role === "admin" ? null : input.funcionarioId || null;
+  const funcionarioId = input.funcionarioId || null;
   if (input.password?.trim()) {
     const passwordHash = await hashPassword(input.password);
     const result = await getPool().query(

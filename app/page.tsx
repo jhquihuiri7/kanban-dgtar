@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Button, Icon, Input, Select, useClickAway, type IconName } from "@/components/ui";
+import { Badge, Button, Icon, Input, Select, useClickAway, type IconName } from "@/components/ui";
 import { cn, createId } from "@/lib/utils";
 import {
   TODAY_ISO,
@@ -28,6 +28,14 @@ type BoardView = "columns" | "week" | "month";
 type Density = "standard" | "compact";
 type LoadState = "loading" | "ready" | "error";
 type SyncState = "idle" | "saving" | "saved" | "error";
+type GoogleBusyState = "status" | "sync" | "disconnect" | null;
+
+interface GoogleStatus {
+  connected: boolean;
+  googleEmail: string | null;
+  lastSyncedAt: string | null;
+  lastError: string | null;
+}
 
 interface Settings {
   density: Density;
@@ -62,9 +70,47 @@ function useServerSync({
   const [syncState, setSyncState] = useState<SyncState>("idle");
   const [reloadKey, setReloadKey] = useState(0);
 
-  // Skip the first change that comes from hydrating state after the load.
-  const skipNextSyncRef = useRef(true);
+  const hydratedPayloadRef = useRef<string | null>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  async function persistPayload(payload: string) {
+    try {
+      const res = await fetch("/api/data", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: payload,
+      });
+      if (!res.ok) {
+        const json = await res.json().catch(() => null);
+        throw new Error(json?.error || res.statusText);
+      }
+      const json = await res.json().catch(() => null);
+      if (json?.googleSync?.failed > 0 || json?.googleSync?.errors?.length > 0) {
+        throw new Error("La app guardó los cambios, pero Google Calendar no se pudo sincronizar.");
+      }
+      setSyncState("saved");
+    } catch (err) {
+      console.error("[sync] PUT /api/data", err);
+      setSyncState("error");
+    }
+  }
+
+  function saveNow(overrides?: {
+    funcionarios?: Funcionario[];
+    competencias?: Competencia[];
+    activities?: Actividad[];
+  }) {
+    if (loadState !== "ready") return;
+    if (timerRef.current) clearTimeout(timerRef.current);
+    const payload = JSON.stringify({
+      funcionarios: overrides?.funcionarios ?? funcionarios,
+      competencias: overrides?.competencias ?? competencias,
+      actividades: overrides?.activities ?? activities,
+    });
+    hydratedPayloadRef.current = payload;
+    setSyncState("saving");
+    void persistPayload(payload);
+  }
 
   // Initial load (and manual retry via reloadKey).
   useEffect(() => {
@@ -79,11 +125,16 @@ function useServerSync({
         if (!meRes.ok) throw new Error(meJson?.error || meRes.statusText);
         if (!dataRes.ok) throw new Error(dataJson?.error || dataRes.statusText);
         if (cancelled) return;
-        skipNextSyncRef.current = true;
+        const nextData = {
+          funcionarios: dataJson.funcionarios ?? [],
+          competencias: dataJson.competencias ?? [],
+          actividades: dataJson.actividades ?? [],
+        };
+        hydratedPayloadRef.current = JSON.stringify(nextData);
         setCurrentUser(meJson.user ?? null);
-        setFuncionarios(dataJson.funcionarios ?? []);
-        setCompetencias(dataJson.competencias ?? []);
-        setActivities(dataJson.actividades ?? []);
+        setFuncionarios(nextData.funcionarios);
+        setCompetencias(nextData.competencias);
+        setActivities(nextData.actividades);
         setLoadState("ready");
       } catch (err) {
         if (cancelled) return;
@@ -100,35 +151,22 @@ function useServerSync({
   // Debounced full-document write on any data change.
   useEffect(() => {
     if (loadState !== "ready") return;
-    if (skipNextSyncRef.current) {
-      skipNextSyncRef.current = false;
+    const payload = JSON.stringify({ funcionarios, competencias, actividades: activities });
+    if (payload === hydratedPayloadRef.current) {
+      hydratedPayloadRef.current = null;
       return;
     }
     setSyncState("saving");
     if (timerRef.current) clearTimeout(timerRef.current);
     timerRef.current = setTimeout(async () => {
-      try {
-        const res = await fetch("/api/data", {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ funcionarios, competencias, actividades: activities }),
-        });
-        if (!res.ok) {
-          const json = await res.json().catch(() => null);
-          throw new Error(json?.error || res.statusText);
-        }
-        setSyncState("saved");
-      } catch (err) {
-        console.error("[sync] PUT /api/data", err);
-        setSyncState("error");
-      }
+      await persistPayload(payload);
     }, SYNC_DEBOUNCE_MS);
     return () => {
       if (timerRef.current) clearTimeout(timerRef.current);
     };
   }, [funcionarios, competencias, activities, loadState]);
 
-  return { loadState, loadError, syncState, retry: () => setReloadKey((k) => k + 1) };
+  return { loadState, loadError, syncState, saveNow, retry: () => setReloadKey((k) => k + 1) };
 }
 
 export default function Page() {
@@ -145,7 +183,7 @@ export default function Page() {
   const [activities, setActivities] = useState<Actividad[]>([]);
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
 
-  const { loadState, loadError, syncState, retry } = useServerSync({
+  const { loadState, loadError, syncState, saveNow, retry } = useServerSync({
     funcionarios,
     competencias,
     activities,
@@ -255,6 +293,7 @@ export default function Page() {
           useAvatars={settings.useAvatars}
           isAdmin={isAdmin}
           currentUser={currentUser}
+          saveNow={(nextActivities) => saveNow({ activities: nextActivities })}
           onClose={() => setOpenActivityId(null)}
         />
       )}
@@ -366,6 +405,7 @@ function Header({
             <span>{fmtFechaLarga(TODAY_ISO)}</span>
           </div>
           <div className="h-5 w-px bg-slate-200 hidden md:block" />
+          <GoogleCalendarControl currentUser={currentUser} />
           <SettingsMenu settings={settings} setTweak={setTweak} />
           <Button variant="outline" onClick={onExport}>
             <Icon name="download" size={14} /> Exportar
@@ -376,6 +416,193 @@ function Header({
         </div>
       </div>
     </header>
+  );
+}
+
+function formatSyncDate(value: string | null): string {
+  if (!value) return "Pendiente";
+  return new Date(value).toLocaleString("es-EC", {
+    day: "2-digit",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function GoogleCalendarControl({ currentUser }: { currentUser: AuthUser }) {
+  const [status, setStatus] = useState<GoogleStatus | null>(null);
+  const [busy, setBusy] = useState<GoogleBusyState>("status");
+  const [open, setOpen] = useState(false);
+  const [error, setError] = useState("");
+  const ref = useRef<HTMLDivElement>(null);
+  useClickAway(ref, () => setOpen(false));
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("google") !== "connected") return;
+
+    setOpen(true);
+    params.delete("google");
+    const query = params.toString();
+    const nextUrl = `${window.location.pathname}${query ? `?${query}` : ""}${window.location.hash}`;
+    window.history.replaceState({}, "", nextUrl);
+  }, []);
+
+  const loadStatus = React.useCallback(async () => {
+    setBusy((state) => state || "status");
+    setError("");
+    try {
+      const res = await fetch("/api/google/status");
+      const json = await res.json();
+      if (!res.ok) throw new Error(json?.error || res.statusText);
+      setStatus(json);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Error desconocido");
+      setStatus({ connected: false, googleEmail: null, lastSyncedAt: null, lastError: null });
+    } finally {
+      setBusy((state) => (state === "status" ? null : state));
+    }
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    setBusy("status");
+    setError("");
+    (async () => {
+      try {
+        const res = await fetch("/api/google/status");
+        const json = await res.json();
+        if (!res.ok) throw new Error(json?.error || res.statusText);
+        if (!cancelled) setStatus(json);
+      } catch (err) {
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : "Error desconocido");
+          setStatus({ connected: false, googleEmail: null, lastSyncedAt: null, lastError: null });
+        }
+      } finally {
+        if (!cancelled) setBusy(null);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [currentUser.id]);
+
+  async function syncNow() {
+    setBusy("sync");
+    setError("");
+    try {
+      const res = await fetch("/api/google/sync", { method: "POST" });
+      const json = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(json?.error || res.statusText);
+      await loadStatus();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Error desconocido");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function disconnect() {
+    if (!window.confirm("¿Desvincular Google Calendar de este usuario?")) return;
+    setBusy("disconnect");
+    setError("");
+    try {
+      const res = await fetch("/api/google/disconnect", { method: "POST" });
+      const json = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(json?.error || res.statusText);
+      setStatus({ connected: false, googleEmail: null, lastSyncedAt: null, lastError: null });
+      setOpen(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Error desconocido");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  if (busy === "status" && !status) {
+    return (
+      <Button variant="outline" size="sm" disabled title="Google Calendar">
+        <Icon name="loader" size={13} className="animate-spin" />
+        <span className="hidden lg:inline">Google</span>
+      </Button>
+    );
+  }
+
+  if (!status?.connected) {
+    return (
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={() => {
+          window.location.href = "/api/google/connect";
+        }}
+        title={error || "Vincular Google Calendar"}
+      >
+        <Icon name="calendar" size={13} />
+        <span className="hidden lg:inline">Vincular Google</span>
+      </Button>
+    );
+  }
+
+  const googleEmail = status.googleEmail || "Cuenta Google";
+  const connectedTitle = status.lastError
+    ? status.lastError
+    : `Google Calendar vinculado a ${googleEmail}`;
+
+  return (
+    <div className="relative" ref={ref}>
+      <Button
+        variant="outline"
+        size="sm"
+        className={cn(
+          "max-w-[270px] justify-start overflow-hidden",
+          status.lastError
+            ? "border-red-200 bg-red-50 text-red-800 hover:bg-red-100"
+            : "border-green-200 bg-green-50 text-green-800 hover:bg-green-100",
+        )}
+        onClick={() => setOpen((value) => !value)}
+        title={connectedTitle}
+        aria-label={connectedTitle}
+      >
+        <Icon name={status.lastError ? "alert" : "checkCircle"} size={13} />
+        <span className="hidden lg:inline">{status.lastError ? "Error Google" : "Vinculado"}</span>
+        <span className="hidden max-w-[155px] truncate xl:inline">{googleEmail}</span>
+      </Button>
+      {open && (
+        <div className="absolute right-0 z-40 mt-2 w-72 rounded-xl bg-white p-3 ring-1 ring-foreground/10 shadow-xl">
+          <div className="flex items-center justify-between gap-2">
+            <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+              Google Calendar
+            </div>
+            <Badge variant={status.lastError ? "red" : "green"}>
+              {status.lastError ? "Error" : "Vinculado"}
+            </Badge>
+          </div>
+          <div className="mt-2 truncate text-sm font-semibold text-slate-900">
+            {googleEmail}
+          </div>
+          <div className="mt-1 text-xs text-slate-500">
+            Ultima sincronizacion: {formatSyncDate(status.lastSyncedAt)}
+          </div>
+          {(status.lastError || error) && (
+            <div className="mt-2 rounded-lg bg-red-50 p-2 text-xs text-red-700 ring-1 ring-red-200">
+              {error || status.lastError}
+            </div>
+          )}
+          <div className="mt-3 flex items-center justify-end gap-2">
+            <Button variant="outline" size="sm" onClick={syncNow} disabled={busy === "sync"}>
+              <Icon name={busy === "sync" ? "loader" : "refresh"} size={13} className={busy === "sync" ? "animate-spin" : ""} />
+              Sincronizar
+            </Button>
+            <Button variant="ghost" size="sm" onClick={disconnect} disabled={busy === "disconnect"}>
+              <Icon name={busy === "disconnect" ? "loader" : "close"} size={13} className={busy === "disconnect" ? "animate-spin" : ""} />
+              Desvincular
+            </Button>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
 

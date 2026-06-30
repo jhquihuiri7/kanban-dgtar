@@ -84,14 +84,70 @@ END $$;
 CREATE INDEX IF NOT EXISTS usuarios_funcionario_id_idx ON usuarios(funcionario_id);
 CREATE INDEX IF NOT EXISTS actividad_participantes_funcionario_id_idx ON actividad_participantes(funcionario_id);
 
+CREATE TABLE IF NOT EXISTS google_accounts (
+  user_id                 text PRIMARY KEY REFERENCES usuarios(id) ON DELETE CASCADE,
+  google_email            text NOT NULL DEFAULT '',
+  google_subject          text NOT NULL DEFAULT '',
+  refresh_token_encrypted text NOT NULL DEFAULT '',
+  scope                   text NOT NULL DEFAULT '',
+  last_synced_at          text,
+  last_error              text NOT NULL DEFAULT '',
+  created_at              text NOT NULL,
+  updated_at              text NOT NULL
+);
+
+ALTER TABLE google_accounts ADD COLUMN IF NOT EXISTS google_email text NOT NULL DEFAULT '';
+ALTER TABLE google_accounts ADD COLUMN IF NOT EXISTS google_subject text NOT NULL DEFAULT '';
+ALTER TABLE google_accounts ADD COLUMN IF NOT EXISTS refresh_token_encrypted text NOT NULL DEFAULT '';
+ALTER TABLE google_accounts ADD COLUMN IF NOT EXISTS scope text NOT NULL DEFAULT '';
+ALTER TABLE google_accounts ADD COLUMN IF NOT EXISTS last_synced_at text;
+ALTER TABLE google_accounts ADD COLUMN IF NOT EXISTS last_error text NOT NULL DEFAULT '';
+ALTER TABLE google_accounts ADD COLUMN IF NOT EXISTS created_at text NOT NULL DEFAULT '';
+ALTER TABLE google_accounts ADD COLUMN IF NOT EXISTS updated_at text NOT NULL DEFAULT '';
+
+CREATE TABLE IF NOT EXISTS google_oauth_states (
+  state      text PRIMARY KEY,
+  user_id    text NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
+  return_to  text NOT NULL DEFAULT '/',
+  expires_at text NOT NULL,
+  created_at text NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS google_oauth_states_user_id_idx ON google_oauth_states(user_id);
+CREATE INDEX IF NOT EXISTS google_oauth_states_expires_at_idx ON google_oauth_states(expires_at);
+
+-- No tiene FK a actividades porque writeAll reescribe esa tabla completa en
+-- cada guardado. La relacion se mantiene por id logico de actividad.
+CREATE TABLE IF NOT EXISTS actividad_google_events (
+  user_id           text NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
+  actividad_id      text NOT NULL,
+  google_event_id   text NOT NULL,
+  calendar_id       text NOT NULL DEFAULT 'primary',
+  last_payload_hash text NOT NULL DEFAULT '',
+  last_synced_at    text,
+  last_error        text NOT NULL DEFAULT '',
+  created_at        text NOT NULL,
+  updated_at        text NOT NULL,
+  PRIMARY KEY (user_id, actividad_id)
+);
+
+ALTER TABLE actividad_google_events ADD COLUMN IF NOT EXISTS google_event_id text NOT NULL DEFAULT '';
+ALTER TABLE actividad_google_events ADD COLUMN IF NOT EXISTS calendar_id text NOT NULL DEFAULT 'primary';
+ALTER TABLE actividad_google_events ADD COLUMN IF NOT EXISTS last_payload_hash text NOT NULL DEFAULT '';
+ALTER TABLE actividad_google_events ADD COLUMN IF NOT EXISTS last_synced_at text;
+ALTER TABLE actividad_google_events ADD COLUMN IF NOT EXISTS last_error text NOT NULL DEFAULT '';
+ALTER TABLE actividad_google_events ADD COLUMN IF NOT EXISTS created_at text NOT NULL DEFAULT '';
+ALTER TABLE actividad_google_events ADD COLUMN IF NOT EXISTS updated_at text NOT NULL DEFAULT '';
+
+CREATE INDEX IF NOT EXISTS actividad_google_events_actividad_id_idx ON actividad_google_events(actividad_id);
+
 -- Reparación conservadora para usuarios que pudieron quedar desvinculados por
--- una sincronización anterior de catálogos: solo religa usuarios normales sin
--- funcionario cuando el correo coincide exactamente con un funcionario.
+-- una sincronización anterior de catálogos: religa usuarios sin funcionario
+-- cuando el correo coincide exactamente con un funcionario.
 UPDATE usuarios u
 SET funcionario_id = f.id
 FROM funcionarios f
-WHERE u.rol <> 'admin'
-  AND u.funcionario_id IS NULL
+WHERE u.funcionario_id IS NULL
   AND lower(u.email) = lower(f.email);
 
 -- Upgrade de tablas existentes: 'asignacion' | 'reunion'. Para reuniones la

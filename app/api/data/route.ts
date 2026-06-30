@@ -7,6 +7,7 @@
 import { NextResponse } from "next/server";
 import { readAll, writeAll, type DbData } from "@/lib/db";
 import { requireUser } from "@/lib/auth-server";
+import { syncGoogleCalendars } from "@/lib/google-calendar";
 import {
   ESTADOS,
   TODAY_ISO,
@@ -44,17 +45,19 @@ export async function PUT(req: Request) {
         { status: 400 },
       );
     }
-    if (user.role === "admin") {
-      await writeAll({
-        funcionarios: body.funcionarios,
-        competencias: body.competencias,
-        actividades: body.actividades,
-      });
-    } else {
-      const current = await readAll();
-      await writeAll(mergeUserWrite(current, body.actividades, user.funcionarioId));
-    }
-    return NextResponse.json({ ok: true });
+    const current = await readAll();
+    const next: DbData =
+      user.role === "admin"
+        ? {
+            funcionarios: body.funcionarios,
+            competencias: body.competencias,
+            actividades: body.actividades,
+          }
+        : mergeUserWrite(current, body.actividades, user.funcionarioId);
+
+    await writeAll(next);
+    const googleSync = await syncGoogleCalendars(current, next);
+    return NextResponse.json({ ok: true, googleSync });
   } catch (err) {
     console.error("[api/data] PUT", err);
     return NextResponse.json({ error: errorMessage(err) }, { status: statusForError(err) });

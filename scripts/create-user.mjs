@@ -11,11 +11,11 @@ loadDotEnv();
 
 const [role, email, password, funcionarioId, ...nameParts] = process.argv.slice(2);
 const nombre = nameParts.join(" ");
-const linkedFuncionarioId = role === "admin" ? null : funcionarioId || null;
+const linkedFuncionarioId = funcionarioId || null;
 
 if (!["admin", "user"].includes(role) || !email || !password || password.length < 8) {
   console.error("Uso:");
-  console.error("  npm run create -- admin admin@dgtar.local \"ClaveSegura123\"");
+  console.error("  npm run create -- admin admin@dgtar.local \"ClaveSegura123\" [funcionario_id] [Nombre visible]");
   console.error("  npm run create -- user user@dgtar.local \"ClaveSegura123\" funcionario_id \"Nombre visible\"");
   process.exit(1);
 }
