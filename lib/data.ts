@@ -14,28 +14,31 @@ export const TIPOS: { id: TipoActividad; label: string }[] = [
   { id: "reunion", label: "Reunión" },
 ];
 
-export const UNIDADES = [
-  "DGTAR",
-  "Gestión Territorial",
-  "Gestión y Saneamiento Ambiental",
-  "Gestión de Riesgos",
-] as const;
+export interface Gestion {
+  id: string;
+  nombre: string;
+  color: string;
+}
 
-export type Unidad = (typeof UNIDADES)[number];
+export interface Entregable {
+  id: string;
+  nombre: string;
+  gestionId: string;
+}
 
 export interface Funcionario {
   id: string;
   nombre: string;
   email: string;
   cargo: string;
-  unidad: Unidad;
+  gestionId: string;
   color: string;
 }
 
 export interface Competencia {
   id: string;
   nombre: string;
-  unidad: Unidad;
+  gestionId: string;
 }
 
 export interface Actividad {
@@ -46,6 +49,7 @@ export interface Actividad {
   funcionarioId: string;
   participantesIds: string[];
   competenciaId: string;
+  entregableId: string | null;
   estado: EstadoActividad;
   fechaCreacion: string;
   plazoDias: number;
@@ -159,15 +163,20 @@ export function actividadIncludesFuncionario(
   return actividadFuncionarioIds(act).includes(funcionarioId);
 }
 
-export function unidadTone(u: string | undefined): BadgeVariant {
-  return (
-    ({
-      DGTAR: "slate",
-      "Gestión Territorial": "blue",
-      "Gestión y Saneamiento Ambiental": "green",
-      "Gestión de Riesgos": "amber",
-    } as Record<string, BadgeVariant>)[u ?? ""] || "slate"
-  );
+// Las gestiones son un catálogo dinámico (el admin las crea/borra), así que
+// el tono de Badge (solo 8 variantes fijas, ver components/ui.tsx) se asigna
+// por posición estable dentro de la lista en vez de por nombre hardcodeado.
+const GESTION_TONE_PALETTE: BadgeVariant[] = ["slate", "blue", "green", "amber", "violet", "teal", "red"];
+
+export function gestionTone(gestionId: string | undefined, gestiones: Gestion[]): BadgeVariant {
+  if (!gestionId) return "slate";
+  const index = gestiones.findIndex((g) => g.id === gestionId);
+  if (index < 0) return "slate";
+  return GESTION_TONE_PALETTE[index % GESTION_TONE_PALETTE.length];
+}
+
+export function gestionNombre(gestionId: string | undefined, gestiones: Gestion[]): string {
+  return gestiones.find((g) => g.id === gestionId)?.nombre ?? "—";
 }
 
 export type BadgeVariant =

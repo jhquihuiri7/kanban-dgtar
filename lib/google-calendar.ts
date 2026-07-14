@@ -7,10 +7,12 @@ import {
   addDays,
   dateOnly,
   fmtHora,
+  gestionNombre,
   iso,
   type Actividad,
   type Competencia,
   type Funcionario,
+  type Gestion,
 } from "@/lib/data";
 
 const GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth";
@@ -252,6 +254,7 @@ function buildDescription(
   activity: Actividad,
   funcionarios: Funcionario[],
   competencias: Competencia[],
+  gestiones: Gestion[],
 ): string {
   const responsable = funcionarios.find((f) => f.id === activity.funcionarioId);
   const participantes = (activity.participantesIds ?? [])
@@ -268,7 +271,7 @@ function buildDescription(
     `Estado: ${estadoLabel(activity.estado)}`,
     responsable ? `Responsable: ${responsable.nombre}` : "",
     participantes ? `Participantes: ${participantes}` : "",
-    competencia ? `Competencia: ${competencia.nombre} (${competencia.unidad})` : "",
+    competencia ? `Competencia: ${competencia.nombre} (${gestionNombre(competencia.gestionId, gestiones)})` : "",
     activity.accionesPendientes ? `Acciones pendientes: ${activity.accionesPendientes}` : "",
     activity.resultadosAlcanzados ? `Resultados alcanzados: ${activity.resultadosAlcanzados}` : "",
     activity.observaciones ? `Observaciones: ${activity.observaciones}` : "",
@@ -281,7 +284,7 @@ function buildGoogleEvent(
   activity: Actividad,
   data: DbData,
 ): Record<string, unknown> {
-  const description = buildDescription(activity, data.funcionarios, data.competencias);
+  const description = buildDescription(activity, data.funcionarios, data.competencias, data.gestiones);
   const sourceUrl = appSourceUrl();
   const base = {
     summary: activity.titulo,
@@ -688,10 +691,11 @@ export async function connectGoogleAccount(req: Request, userId: string, code: s
   );
 
   const data = await readAll();
-  await syncGoogleCalendars({ funcionarios: [], competencias: [], actividades: [] }, data, {
-    userIds: [userId],
-    force: true,
-  });
+  await syncGoogleCalendars(
+    { gestiones: [], funcionarios: [], competencias: [], entregables: [], actividades: [] },
+    data,
+    { userIds: [userId], force: true },
+  );
 }
 
 export async function getGoogleConnectionStatus(userId: string): Promise<GoogleConnectionStatus> {
@@ -759,8 +763,9 @@ export async function syncGoogleCalendars(
 
 export async function syncCurrentUserGoogleCalendar(userId: string): Promise<GoogleSyncSummary> {
   const data = await readAll();
-  return syncGoogleCalendars({ funcionarios: [], competencias: [], actividades: [] }, data, {
-    userIds: [userId],
-    force: true,
-  });
+  return syncGoogleCalendars(
+    { gestiones: [], funcionarios: [], competencias: [], entregables: [], actividades: [] },
+    data,
+    { userIds: [userId], force: true },
+  );
 }

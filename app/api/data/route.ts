@@ -39,9 +39,16 @@ export async function PUT(req: Request) {
   try {
     const user = await requireUser();
     const body = (await req.json()) as Partial<DbData>;
-    if (!body || !Array.isArray(body.funcionarios) || !Array.isArray(body.competencias) || !Array.isArray(body.actividades)) {
+    if (
+      !body ||
+      !Array.isArray(body.gestiones) ||
+      !Array.isArray(body.funcionarios) ||
+      !Array.isArray(body.competencias) ||
+      !Array.isArray(body.entregables) ||
+      !Array.isArray(body.actividades)
+    ) {
       return NextResponse.json(
-        { error: "Cuerpo inválido: se esperan funcionarios, competencias y actividades." },
+        { error: "Cuerpo inválido: se esperan gestiones, funcionarios, competencias, entregables y actividades." },
         { status: 400 },
       );
     }
@@ -49,8 +56,10 @@ export async function PUT(req: Request) {
     const next: DbData =
       user.role === "admin"
         ? {
+            gestiones: body.gestiones,
             funcionarios: body.funcionarios,
             competencias: body.competencias,
+            entregables: body.entregables,
             actividades: body.actividades,
           }
         : mergeUserWrite(current, body.actividades, user.funcionarioId);
@@ -79,8 +88,10 @@ function filterForUser(data: DbData, user: { role: string; funcionarioId: string
   if (user.role === "admin") return data;
   const actividades = data.actividades.filter((a) => actividadIncludesFuncionario(a, user.funcionarioId));
   return {
+    gestiones: data.gestiones,
     funcionarios: data.funcionarios,
     competencias: data.competencias,
+    entregables: data.entregables,
     actividades,
   };
 }
@@ -92,12 +103,15 @@ function mergeUserWrite(current: DbData, posted: Actividad[], funcionarioId: str
   const postedById = new Map(posted.map((a) => [a.id, a]));
   const competenciaIds = new Set(current.competencias.map((c) => c.id));
   const funcionarioIds = new Set(current.funcionarios.map((f) => f.id));
+  const entregableIds = new Set(current.entregables.map((e) => e.id));
 
   const nextExistingOwn = current.actividades
     .filter((a) => a.funcionarioId === funcionarioId)
     .flatMap((activity) => {
       const draft = postedById.get(activity.id);
-      return draft ? [sanitizeUserActivity(draft, funcionarioId, competenciaIds, funcionarioIds, activity.orden, activity)] : [];
+      return draft
+        ? [sanitizeUserActivity(draft, funcionarioId, competenciaIds, funcionarioIds, entregableIds, activity.orden, activity)]
+        : [];
     });
 
   const maxOrden = current.actividades.reduce((max, a) => Math.max(max, a.orden || 0), 0);
@@ -114,13 +128,16 @@ function mergeUserWrite(current: DbData, posted: Actividad[], funcionarioId: str
         funcionarioId,
         competenciaIds,
         funcionarioIds,
+        entregableIds,
         nextOrden++,
       );
     });
 
   return {
+    gestiones: current.gestiones,
     funcionarios: current.funcionarios,
     competencias: current.competencias,
+    entregables: current.entregables,
     actividades: [
       ...current.actividades.filter((a) => a.funcionarioId !== funcionarioId),
       ...nextExistingOwn,
@@ -134,6 +151,7 @@ function sanitizeUserActivity(
   funcionarioId: string,
   competenciaIds: Set<string>,
   funcionarioIds: Set<string>,
+  entregableIds: Set<string>,
   orden: number,
   current?: Actividad,
 ): Actividad {
@@ -147,6 +165,7 @@ function sanitizeUserActivity(
       ? current.competenciaId
       : Array.from(competenciaIds)[0];
   if (!competenciaId) throw new Error("No existe una competencia válida para crear la actividad.");
+  const entregableId = cleanEntregableId(draft.entregableId, entregableIds);
 
   const plazoDias =
     tipo === "reunion"
@@ -166,6 +185,7 @@ function sanitizeUserActivity(
     participantesIds:
       tipo === "reunion" ? cleanParticipantes(draft.participantesIds, funcionarioId, funcionarioIds) : [],
     competenciaId,
+    entregableId,
     estado,
     fechaCreacion,
     plazoDias,
@@ -180,6 +200,12 @@ function sanitizeUserActivity(
 
 function cleanText(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
+}
+
+// A diferencia de competenciaId (obligatorio, con fallback en cascada),
+// entregableId es opcional: null es un valor válido, no hace falta fallback.
+function cleanEntregableId(value: unknown, entregableIds: Set<string>): string | null {
+  return typeof value === "string" && entregableIds.has(value) ? value : null;
 }
 
 function validTipo(value: unknown, fallback: TipoActividad = "asignacion"): TipoActividad {

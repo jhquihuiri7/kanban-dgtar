@@ -71,9 +71,9 @@ export function UsersView({
   return (
     <div className="space-y-4">
       <Card>
-        <CardHeader className="flex items-center justify-between !pb-2">
+        <CardHeader className="flex flex-col items-stretch gap-3 !pb-3 sm:flex-row sm:items-center sm:justify-between sm:gap-0 sm:!pb-2">
           <CardTitle>Usuarios</CardTitle>
-          <Button onClick={() => setCreating(true)}>
+          <Button className="w-full sm:w-auto" onClick={() => setCreating(true)}>
             <Icon name="plus" size={14} /> Nuevo usuario
           </Button>
         </CardHeader>
@@ -89,56 +89,105 @@ export function UsersView({
               Cargando usuarios…
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="text-xs text-slate-500">
-                  <tr className="border-b border-slate-200">
-                    <th className="px-4 py-2 text-left font-medium">Usuario</th>
-                    <th className="px-2 py-2 text-left font-medium">Rol</th>
-                    <th className="px-2 py-2 text-left font-medium">Funcionario vinculado</th>
-                    <th className="px-4 py-2 text-right font-medium">Acciones</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {users.map((user) => (
-                    <tr key={user.id} className="border-b border-slate-100 last:border-0 hover:bg-slate-50/60">
-                      <td className="px-4 py-2.5">
-                        <div className="font-medium text-slate-900">{user.nombre || user.email}</div>
-                        <div className="font-mono text-xs text-slate-500">{user.email}</div>
-                      </td>
-                      <td className="px-2 py-2.5">
-                        <Badge variant={user.role === "admin" ? "blue" : "slate"}>
-                          {user.role === "admin" ? "Admin" : "User"}
-                        </Badge>
-                      </td>
-                      <td className="px-2 py-2.5 text-slate-700">
+            <>
+              <div className="divide-y divide-slate-100 sm:hidden">
+                {users.map((user) => (
+                  <article key={user.id} className="space-y-3 px-4 py-4">
+                    <div className="flex min-w-0 items-start justify-between gap-3">
+                      <div className="min-w-0 flex-1">
+                        <div className="break-words text-sm font-medium text-slate-900">
+                          {user.nombre || user.email}
+                        </div>
+                        <div className="mt-0.5 break-all font-mono text-xs text-slate-500">{user.email}</div>
+                      </div>
+                      <Badge className="shrink-0" variant={user.role === "admin" ? "blue" : "slate"}>
+                        {user.role === "admin" ? "Admin" : "User"}
+                      </Badge>
+                    </div>
+                    <div className="rounded-lg bg-slate-50 p-3 ring-1 ring-foreground/5">
+                      <div className="text-[10px] font-medium uppercase tracking-wide text-slate-400">
+                        Funcionario vinculado
+                      </div>
+                      <div className="mt-1 break-words text-sm text-slate-700">
                         {user.role === "admin"
                           ? user.funcionarioNombre
                             ? `${user.funcionarioNombre} · acceso global`
                             : "Acceso global"
                           : user.funcionarioNombre || "—"}
-                      </td>
-                      <td className="px-4 py-2.5">
-                        <div className="flex justify-end gap-1.5">
-                          <Button variant="outline" size="icon" title="Editar usuario" onClick={() => setEditing(user)}>
-                            <Icon name="edit" size={14} />
-                          </Button>
-                          <Button
-                            variant="destructive"
-                            size="icon"
-                            title="Eliminar usuario"
-                            disabled={user.id === currentUser.id}
-                            onClick={() => remove(user)}
-                          >
-                            <Icon name="trash" size={14} />
-                          </Button>
-                        </div>
-                      </td>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <Button className="w-full" variant="outline" onClick={() => setEditing(user)}>
+                        <Icon name="edit" size={14} /> Editar
+                      </Button>
+                      <Button
+                        className="w-full"
+                        variant="destructive"
+                        disabled={user.id === currentUser.id}
+                        onClick={() => remove(user)}
+                      >
+                        <Icon name="trash" size={14} /> Eliminar
+                      </Button>
+                    </div>
+                  </article>
+                ))}
+              </div>
+              <div className="hidden overflow-x-auto sm:block">
+                <table className="min-w-[680px] w-full text-sm">
+                  <thead className="text-xs text-slate-500">
+                    <tr className="border-b border-slate-200">
+                      <th className="px-4 py-2 text-left font-medium">Usuario</th>
+                      <th className="px-2 py-2 text-left font-medium">Rol</th>
+                      <th className="px-2 py-2 text-left font-medium">Funcionario vinculado</th>
+                      <th className="px-4 py-2 text-right font-medium">Acciones</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody>
+                    {users.map((user) => (
+                      <tr key={user.id} className="border-b border-slate-100 last:border-0 hover:bg-slate-50/60">
+                        <td className="px-4 py-2.5">
+                          <div className="font-medium text-slate-900">{user.nombre || user.email}</div>
+                          <div className="font-mono text-xs text-slate-500">{user.email}</div>
+                        </td>
+                        <td className="px-2 py-2.5">
+                          <Badge variant={user.role === "admin" ? "blue" : "slate"}>
+                            {user.role === "admin" ? "Admin" : "User"}
+                          </Badge>
+                        </td>
+                        <td className="px-2 py-2.5 text-slate-700">
+                          {user.role === "admin"
+                            ? user.funcionarioNombre
+                              ? `${user.funcionarioNombre} · acceso global`
+                              : "Acceso global"
+                            : user.funcionarioNombre || "—"}
+                        </td>
+                        <td className="px-4 py-2.5">
+                          <div className="flex justify-end gap-1.5">
+                            <Button
+                              variant="outline"
+                              size="icon"
+                              title="Editar usuario"
+                              onClick={() => setEditing(user)}
+                            >
+                              <Icon name="edit" size={14} />
+                            </Button>
+                            <Button
+                              variant="destructive"
+                              size="icon"
+                              title="Eliminar usuario"
+                              disabled={user.id === currentUser.id}
+                              onClick={() => remove(user)}
+                            >
+                              <Icon name="trash" size={14} />
+                            </Button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
           )}
         </CardContent>
       </Card>
@@ -218,17 +267,25 @@ function UserDialog({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4">
       <div className="absolute inset-0 bg-slate-900/30 backdrop-blur-[2px]" onClick={onClose} />
-      <form onSubmit={submit} className="relative z-10 w-full max-w-md rounded-xl bg-white p-5 ring-1 ring-foreground/10 shadow-xl">
-        <div className="flex items-start justify-between">
-          <div>
+      <form
+        onSubmit={submit}
+        className="relative z-10 max-h-[calc(100dvh-1rem)] w-full max-w-md overflow-y-auto rounded-xl bg-white p-4 ring-1 ring-foreground/10 shadow-xl sm:max-h-[calc(100dvh-2rem)] sm:p-5"
+      >
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
             <div className="text-base font-semibold text-slate-900">
               {creating ? "Nuevo usuario" : "Editar usuario"}
             </div>
             <div className="mt-0.5 text-xs text-slate-500">Email, rol y funcionario vinculado</div>
           </div>
-          <button type="button" onClick={onClose} className="rounded-md p-1.5 text-slate-500 hover:bg-slate-100">
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Cerrar"
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md text-slate-500 hover:bg-slate-100 sm:h-auto sm:w-auto sm:p-1.5"
+          >
             <Icon name="close" size={16} />
           </button>
         </div>
@@ -242,7 +299,7 @@ function UserDialog({
             <Label htmlFor="user-name">Nombre visible</Label>
             <Input id="user-name" value={nombre} onChange={(e) => setNombre(e.target.value)} />
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="space-y-1.5">
               <Label htmlFor="user-role">Rol</Label>
               <Select
@@ -280,16 +337,20 @@ function UserDialog({
         </div>
 
         {error && (
-          <div className="mt-4 rounded-lg bg-red-50 p-3 text-xs font-medium text-red-700 ring-1 ring-red-200">
+          <div className="mt-4 break-words rounded-lg bg-red-50 p-3 text-xs font-medium text-red-700 ring-1 ring-red-200">
             {error}
           </div>
         )}
 
-        <div className="mt-5 flex justify-end gap-2">
-          <Button type="button" variant="outline" onClick={onClose}>
+        <div className="mt-5 grid grid-cols-2 gap-2 sm:flex sm:justify-end">
+          <Button className="w-full sm:w-auto" type="button" variant="outline" onClick={onClose}>
             Cancelar
           </Button>
-          <Button type="submit" disabled={saving || !email || (creating && password.length < 8)}>
+          <Button
+            className="w-full sm:w-auto"
+            type="submit"
+            disabled={saving || !email || (creating && password.length < 8)}
+          >
             {saving ? <Icon name="loader" size={14} className="animate-spin" /> : <Icon name="check" size={14} />}
             Guardar
           </Button>

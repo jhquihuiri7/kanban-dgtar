@@ -60,7 +60,7 @@ export function Button({
   size?: ButtonSize;
 }) {
   const base =
-    "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900/30 disabled:opacity-50 disabled:pointer-events-none";
+    "inline-flex touch-manipulation items-center justify-center gap-2 whitespace-nowrap rounded-lg text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900/30 disabled:opacity-50 disabled:pointer-events-none";
   const variants: Record<ButtonVariant, string> = {
     default: "bg-slate-900 text-white hover:bg-slate-800",
     outline: "border border-slate-200 bg-white text-slate-900 hover:bg-slate-50",
@@ -70,10 +70,10 @@ export function Button({
     link: "text-slate-900 underline-offset-4 hover:underline",
   };
   const sizes: Record<ButtonSize, string> = {
-    default: "h-8 px-3",
-    sm: "h-7 px-2.5 text-xs",
-    lg: "h-10 px-4",
-    icon: "h-8 w-8",
+    default: "h-11 px-3 sm:h-8",
+    sm: "h-11 px-3 text-sm sm:h-7 sm:px-2.5 sm:text-xs",
+    lg: "h-11 px-4 sm:h-10",
+    icon: "h-11 w-11 sm:h-8 sm:w-8",
   };
   return (
     <button className={cn(base, variants[variant], sizes[size], className)} {...rest}>
@@ -167,7 +167,7 @@ export function Input({
   return (
     <input
       className={cn(
-        "flex h-9 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm placeholder:text-slate-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900/20",
+        "flex h-11 min-w-0 w-full touch-manipulation rounded-lg border border-slate-200 bg-white px-3 py-2 text-base placeholder:text-slate-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900/20 sm:h-9 sm:text-sm",
         className,
       )}
       {...rest}
@@ -181,7 +181,7 @@ export function Textarea({
   return (
     <textarea
       className={cn(
-        "flex w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm placeholder:text-slate-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900/20",
+        "flex min-h-11 min-w-0 w-full touch-manipulation rounded-lg border border-slate-200 bg-white px-3 py-2 text-base placeholder:text-slate-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900/20 sm:min-h-0 sm:text-sm",
         className,
       )}
       {...rest}
@@ -196,7 +196,7 @@ export function Select({
   return (
     <select
       className={cn(
-        "flex h-9 w-full rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900/20",
+        "flex h-11 min-w-0 w-full touch-manipulation rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-base focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900/20 sm:h-9 sm:text-sm",
         className,
       )}
       {...rest}

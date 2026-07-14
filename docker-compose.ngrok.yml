@@ -1,0 +1,35 @@
+services:
+  app:
+    environment:
+      # En modo ngrok la app debe confiar en los headers públicos del túnel,
+      # salvo que definas estas variables con una URL fija.
+      AUTH_COOKIE_SECURE: ${NGROK_AUTH_COOKIE_SECURE:-true}
+      APP_PUBLIC_URL: ${NGROK_APP_PUBLIC_URL:-}
+      GOOGLE_REDIRECT_URI: ${NGROK_GOOGLE_REDIRECT_URI:-}
+
+  ngrok:
+    image: ngrok/ngrok:alpine
+    container_name: kanban-ngrok
+    restart: unless-stopped
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        set -eu
+        target="$${NGROK_TARGET:-http://host.docker.internal:$${APP_PORT:-8001}}"
+        printf '%s\n' 'version: "2"' 'web_addr: 0.0.0.0:4040' > /tmp/ngrok.yml
+        if [ -n "$${NGROK_URL:-}" ]; then
+          exec ngrok http --config /tmp/ngrok.yml "$${target}" --url "$${NGROK_URL}"
+        fi
+        exec ngrok http --config /tmp/ngrok.yml "$${target}"
+    environment:
+      APP_PORT: ${APP_PORT:-8001}
+      NGROK_AUTHTOKEN: ${NGROK_AUTHTOKEN:-}
+      NGROK_TARGET: ${NGROK_TARGET:-}
+      NGROK_URL: ${NGROK_URL:-}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "127.0.0.1:${NGROK_WEB_PORT:-4040}:4040"
+    depends_on:
+      app:
+        condition: service_started

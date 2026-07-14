@@ -10,11 +10,14 @@ import {
   addDays,
   daysBetween,
   fmtFechaLarga,
+  gestionNombre,
   iso,
   type Actividad,
   type Competencia,
+  type Entregable,
   type EstadoActividad,
   type Funcionario,
+  type Gestion,
   type TipoActividad,
 } from "@/lib/data";
 import type { AuthUser } from "@/lib/auth-token";
@@ -33,8 +36,10 @@ export function NewActivityDialog({
   open,
   onClose,
   onCreate,
+  gestiones,
   funcionarios,
   competencias,
+  entregables,
   defaultEstado = "pendiente",
   currentUser,
   isAdmin,
@@ -42,14 +47,15 @@ export function NewActivityDialog({
   open: boolean;
   onClose: () => void;
   onCreate: (input: NewActivityInput) => void;
+  gestiones: Gestion[];
   funcionarios: Funcionario[];
   competencias: Competencia[];
+  entregables: Entregable[];
   defaultEstado?: EstadoActividad;
   currentUser: AuthUser;
   isAdmin: boolean;
 }) {
   const funcionariosDisponibles = funcionarios;
-  const competenciasDisponibles = competencias;
 
   const [tipo, setTipo] = useState<TipoActividad>("asignacion");
   const [titulo, setTitulo] = useState("");
@@ -58,10 +64,15 @@ export function NewActivityDialog({
   const [resultadosAlcanzados, setResultadosAlcanzados] = useState("");
   const [funcionarioId, setFuncionarioId] = useState(funcionariosDisponibles[0]?.id || "");
   const [participantesIds, setParticipantesIds] = useState<string[]>([]);
-  const [competenciaId, setCompetenciaId] = useState(competenciasDisponibles[0]?.id || "");
+  const [gestionId, setGestionId] = useState(gestiones[0]?.id || "");
+  const [competenciaId, setCompetenciaId] = useState("");
+  const [entregableId, setEntregableId] = useState("");
   const [plazoDias, setPlazoDias] = useState<number | string>(7);
   const [fechaReunion, setFechaReunion] = useState(TODAY_ISO);
   const [horaReunion, setHoraReunion] = useState("09:00");
+
+  const competenciasDisponibles = competencias.filter((c) => c.gestionId === gestionId);
+  const entregablesDisponibles = entregables.filter((e) => e.gestionId === gestionId);
 
   useEffect(() => {
     if (open) {
@@ -70,15 +81,33 @@ export function NewActivityDialog({
       setDescripcion("");
       setAccionesPendientes("");
       setResultadosAlcanzados("");
-      setFuncionarioId(isAdmin ? funcionarios[0]?.id || "" : currentUser.funcionarioId || "");
+      const initialFuncionarioId = isAdmin ? funcionarios[0]?.id || "" : currentUser.funcionarioId || "";
+      setFuncionarioId(initialFuncionarioId);
       setParticipantesIds([]);
-      setCompetenciaId(competencias[0]?.id || "");
+      const initialFuncionario = funcionarios.find((f) => f.id === initialFuncionarioId);
+      setGestionId(initialFuncionario?.gestionId || gestiones[0]?.id || "");
       setPlazoDias(7);
       setFechaReunion(TODAY_ISO);
       setHoraReunion("09:00");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
+
+  // Gestión filtra en cascada competencia y entregable: si la selección
+  // actual queda fuera de la gestión activa, se reemplaza por la primera
+  // disponible (o "" si esa gestión no tiene ninguna, como hoy pasa con los
+  // entregables de DGTAR).
+  useEffect(() => {
+    const compForGestion = competencias.filter((c) => c.gestionId === gestionId);
+    if (!compForGestion.some((c) => c.id === competenciaId)) {
+      setCompetenciaId(compForGestion[0]?.id || "");
+    }
+    const entForGestion = entregables.filter((e) => e.gestionId === gestionId);
+    if (!entForGestion.some((e) => e.id === entregableId)) {
+      setEntregableId(entForGestion[0]?.id || "");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gestionId, competencias, entregables]);
 
   if (!open) return null;
 
@@ -87,8 +116,8 @@ export function NewActivityDialog({
   const esReunion = effectiveTipo === "reunion";
   const currentFuncionario = funcionariosDisponibles.find((f) => f.id === currentUser.funcionarioId);
   const catalogosVacios = isAdmin
-    ? funcionariosDisponibles.length === 0 || competenciasDisponibles.length === 0
-    : !currentUser.funcionarioId || competenciasDisponibles.length === 0;
+    ? funcionariosDisponibles.length === 0 || competencias.length === 0
+    : !currentUser.funcionarioId || competencias.length === 0;
   // Asignación: vence = hoy + plazo. Reunión: la fecha+hora elegidas se guardan
   // juntas en fechaVencimiento ("YYYY-MM-DDTHH:mm").
   const plazo = Number(plazoDias) || 0;
@@ -106,6 +135,7 @@ export function NewActivityDialog({
       funcionarioId: isAdmin ? funcionarioId : currentUser.funcionarioId || "",
       participantesIds: esReunion ? cleanParticipantes(participantesIds, funcionarioId) : [],
       competenciaId,
+      entregableId: entregableId || null,
       estado: effectiveEstado,
       fechaCreacion: TODAY_ISO,
       plazoDias: esReunion ? daysBetween(TODAY_ISO, fechaReunion) : plazo,
@@ -119,14 +149,14 @@ export function NewActivityDialog({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4">
       <div className="absolute inset-0 bg-slate-900/30 backdrop-blur-[2px]" onClick={onClose} />
       <form
         onSubmit={submit}
-        className="relative z-10 flex max-h-[calc(100dvh-2rem)] w-full max-w-xl flex-col overflow-hidden rounded-xl bg-white ring-1 ring-foreground/10 shadow-xl"
+        className="relative z-10 flex max-h-[calc(100dvh-1rem)] w-full max-w-xl flex-col overflow-hidden rounded-xl bg-white ring-1 ring-foreground/10 shadow-xl sm:max-h-[calc(100dvh-2rem)]"
       >
-        <div className="flex shrink-0 items-start justify-between border-b border-slate-100 px-5 py-4">
-          <div>
+        <div className="flex shrink-0 items-start justify-between gap-3 border-b border-slate-100 px-3 py-3 sm:px-5 sm:py-4">
+          <div className="min-w-0">
             <div className="text-base font-semibold text-slate-900">
               {esReunion ? "Nueva reunión" : "Nueva actividad"}
             </div>
@@ -138,15 +168,16 @@ export function NewActivityDialog({
           <button
             type="button"
             onClick={onClose}
-            className="rounded-md p-1.5 text-slate-500 hover:bg-slate-100"
+            aria-label="Cerrar"
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md text-slate-500 hover:bg-slate-100 sm:h-auto sm:w-auto sm:p-1.5"
           >
             <Icon name="close" size={16} />
           </button>
         </div>
 
-        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
+        <div className="min-h-0 flex-1 overflow-y-auto px-3 py-3 sm:px-5 sm:py-4">
           {catalogosVacios ? (
-            <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 p-6 text-center">
+            <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 p-4 text-center sm:p-6">
               <div className="mx-auto mb-2 flex h-9 w-9 items-center justify-center rounded-lg bg-amber-100 text-amber-700">
                 <Icon name="alert" size={18} />
               </div>
@@ -190,7 +221,17 @@ export function NewActivityDialog({
                 onChange={(e) => setDescripcion(e.target.value)}
               />
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div className="space-y-1.5">
+                <Label htmlFor="gestion">Gestión</Label>
+                <Select id="gestion" value={gestionId} onChange={(e) => setGestionId(e.target.value)}>
+                  {gestiones.map((g) => (
+                    <option key={g.id} value={g.id}>
+                      {g.nombre}
+                    </option>
+                  ))}
+                </Select>
+              </div>
               {isAdmin ? (
                 <div className="space-y-1.5">
                   <Label htmlFor="resp">Funcionario responsable</Label>
@@ -204,7 +245,7 @@ export function NewActivityDialog({
                   >
                     {funcionariosDisponibles.map((f) => (
                       <option key={f.id} value={f.id}>
-                        {f.nombre} — {f.unidad}
+                        {f.nombre} — {gestionNombre(f.gestionId, gestiones)}
                       </option>
                     ))}
                   </Select>
@@ -212,7 +253,7 @@ export function NewActivityDialog({
               ) : (
                 <div className="space-y-1.5">
                   <Label>Funcionario responsable</Label>
-                  <div className="flex h-9 items-center rounded-lg bg-slate-50 px-3 text-sm font-medium text-slate-700 ring-1 ring-foreground/5">
+                  <div className="flex h-auto min-h-11 items-center break-words rounded-lg bg-slate-50 px-3 py-2 text-sm font-medium text-slate-700 ring-1 ring-foreground/5 sm:h-9 sm:min-h-0 sm:py-0">
                     {currentFuncionario?.nombre || currentUser.email}
                   </div>
                 </div>
@@ -222,10 +263,26 @@ export function NewActivityDialog({
                 <Select id="comp" value={competenciaId} onChange={(e) => setCompetenciaId(e.target.value)}>
                   {competenciasDisponibles.map((c) => (
                     <option key={c.id} value={c.id}>
-                      {c.nombre} — {c.unidad}
+                      {c.nombre}
                     </option>
                   ))}
                 </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="entregable">Entregable (opcional)</Label>
+                {entregablesDisponibles.length > 0 ? (
+                  <Select id="entregable" value={entregableId} onChange={(e) => setEntregableId(e.target.value)}>
+                    {entregablesDisponibles.map((en) => (
+                      <option key={en.id} value={en.id}>
+                        {en.nombre}
+                      </option>
+                    ))}
+                  </Select>
+                ) : (
+                  <div className="flex h-auto min-h-11 items-center rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-400 ring-1 ring-foreground/5 sm:h-9 sm:min-h-0 sm:py-0">
+                    Esta gestión no tiene entregables.
+                  </div>
+                )}
               </div>
               {esReunion ? (
                 <>
@@ -263,9 +320,9 @@ export function NewActivityDialog({
                   </div>
                   <div className="space-y-1.5">
                     <Label>Fecha de vencimiento</Label>
-                    <div className="flex h-9 items-center gap-2 rounded-lg bg-slate-50 px-3 text-sm font-medium text-slate-700 ring-1 ring-foreground/5">
-                      <Icon name="calendar" size={14} className="text-slate-400" />
-                      {fmtFechaLarga(vence)}
+                    <div className="flex h-auto min-h-11 min-w-0 items-center gap-2 rounded-lg bg-slate-50 px-3 py-2 text-sm font-medium text-slate-700 ring-1 ring-foreground/5 sm:h-9 sm:min-h-0 sm:py-0">
+                      <Icon name="calendar" size={14} className="shrink-0 text-slate-400" />
+                      <span className="min-w-0 break-words">{fmtFechaLarga(vence)}</span>
                     </div>
                   </div>
                 </>
@@ -282,16 +339,18 @@ export function NewActivityDialog({
                         .map((f) => (
                           <label
                             key={f.id}
-                            className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-sm text-slate-700 hover:bg-slate-50"
+                            className="flex min-h-11 cursor-pointer items-center gap-2 rounded-md px-2 py-2 text-sm text-slate-700 hover:bg-slate-50 sm:min-h-0 sm:py-1.5"
                           >
                             <input
                               type="checkbox"
-                              className="h-4 w-4 rounded border-slate-300 text-slate-900 focus:ring-slate-900/20"
+                              className="h-5 w-5 shrink-0 rounded border-slate-300 text-slate-900 focus:ring-slate-900/20 sm:h-4 sm:w-4"
                               checked={participantesIds.includes(f.id)}
                               onChange={() => setParticipantesIds((ids) => toggleId(ids, f.id))}
                             />
                             <span className="min-w-0 flex-1 truncate">{f.nombre}</span>
-                            <span className="shrink-0 text-xs text-slate-400">{f.unidad}</span>
+                            <span className="max-w-[42%] shrink-0 truncate text-xs text-slate-400 sm:max-w-none">
+                              {gestionNombre(f.gestionId, gestiones)}
+                            </span>
                           </label>
                         ))}
                     </div>
@@ -325,11 +384,11 @@ export function NewActivityDialog({
           )}
         </div>
 
-        <div className="flex shrink-0 items-center justify-end gap-2 border-t border-slate-100 bg-white px-5 py-3">
-          <Button type="button" variant="outline" onClick={onClose}>
+        <div className="grid shrink-0 grid-cols-2 gap-2 border-t border-slate-100 bg-white px-3 py-3 sm:flex sm:items-center sm:justify-end sm:px-5">
+          <Button className="w-full sm:w-auto" type="button" variant="outline" onClick={onClose}>
             Cancelar
           </Button>
-          <Button type="submit" disabled={catalogosVacios || !titulo.trim()}>
+          <Button className="w-full sm:w-auto" type="submit" disabled={catalogosVacios || !titulo.trim()}>
             <Icon name="plus" size={14} /> {esReunion ? "Crear reunión" : "Crear actividad"}
           </Button>
         </div>

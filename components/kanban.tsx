@@ -10,13 +10,15 @@ import {
   actividadIncludesFuncionario,
   fmtFecha,
   fmtHora,
+  gestionNombre,
+  gestionTone,
   plazoInfo,
-  unidadTone,
   type Actividad,
   type Competencia,
   type EstadoActividad,
   type EstadoDef,
   type Funcionario,
+  type Gestion,
 } from "@/lib/data";
 
 interface Filters {
@@ -70,6 +72,7 @@ function KanbanCard({
   act,
   fun,
   comp,
+  gestiones,
   useAvatars,
   density,
   onOpen,
@@ -81,6 +84,7 @@ function KanbanCard({
   act: Actividad;
   fun?: Funcionario;
   comp?: Competencia;
+  gestiones: Gestion[];
   useAvatars: boolean;
   density: string;
   onOpen: () => void;
@@ -124,8 +128,8 @@ function KanbanCard({
                   <Icon name="users" size={10} /> Reunión
                 </Badge>
               )}
-              <Badge variant={comp ? unidadTone(comp.unidad) : "slate"} className="!px-1.5 !py-0">
-                {comp ? comp.unidad : "—"}
+              <Badge variant={comp ? gestionTone(comp.gestionId, gestiones) : "slate"} className="!px-1.5 !py-0">
+                {comp ? gestionNombre(comp.gestionId, gestiones) : "—"}
               </Badge>
             </div>
             <div
@@ -188,6 +192,7 @@ function KanbanColumn({
   actividades,
   funcionarios,
   competencias,
+  gestiones,
   useAvatars,
   density,
   onOpen,
@@ -204,6 +209,7 @@ function KanbanColumn({
   actividades: Actividad[];
   funcionarios: Funcionario[];
   competencias: Competencia[];
+  gestiones: Gestion[];
   useAvatars: boolean;
   density: string;
   onOpen: (id: string) => void;
@@ -249,9 +255,11 @@ function KanbanColumn({
         </div>
         {canCreate && (
           <button
+            type="button"
             onClick={() => onAdd(estado.id)}
-            className="rounded-md p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+            className="inline-flex h-11 w-11 touch-manipulation items-center justify-center rounded-md text-slate-400 hover:bg-slate-100 hover:text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900/20 sm:h-6 sm:w-6"
             title="Nueva actividad"
+            aria-label={`Nueva actividad en ${estado.label}`}
           >
             <Icon name="plus" size={14} />
           </button>
@@ -269,6 +277,7 @@ function KanbanColumn({
             act={act}
             fun={funcionarios.find((f) => f.id === act.funcionarioId)}
             comp={competencias.find((c) => c.id === act.competenciaId)}
+            gestiones={gestiones}
             useAvatars={useAvatars}
             density={density}
             onOpen={() => onOpen(act.id)}
@@ -297,6 +306,7 @@ export function KanbanBoard({
   setActivities,
   funcionarios,
   competencias,
+  gestiones,
   useAvatars,
   density,
   onOpen,
@@ -309,6 +319,7 @@ export function KanbanBoard({
   setActivities: React.Dispatch<React.SetStateAction<Actividad[]>>;
   funcionarios: Funcionario[];
   competencias: Competencia[];
+  gestiones: Gestion[];
   useAvatars: boolean;
   density: string;
   onOpen: (id: string) => void;
@@ -347,6 +358,7 @@ export function KanbanBoard({
           actividades={filtered}
           funcionarios={funcionarios}
           competencias={competencias}
+          gestiones={gestiones}
           useAvatars={useAvatars}
           density={density}
           onOpen={onOpen}

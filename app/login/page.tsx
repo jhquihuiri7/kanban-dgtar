@@ -114,9 +114,9 @@ export default function LoginPage() {
 
   return (
     <main className="grid min-h-svh bg-white text-slate-950 lg:grid-cols-2">
-      <section className="flex min-h-svh flex-col gap-4 p-6 md:p-10">
+      <section className="flex min-h-svh flex-col gap-3 p-4 sm:gap-4 sm:p-6 md:p-10">
         <div className="flex justify-center gap-2 md:justify-start">
-          <a href="/" className="flex items-center gap-2 font-medium">
+          <a href="/" className="flex min-h-11 touch-manipulation items-center gap-2 font-medium sm:min-h-0">
             <div className="flex size-6 items-center justify-center rounded-md bg-slate-900 text-white">
               <Icon name="kanban" size={14} />
             </div>
@@ -124,15 +124,15 @@ export default function LoginPage() {
           </a>
         </div>
 
-        <div className="flex flex-1 items-center justify-center">
-          <div className="flex w-full max-w-xs flex-col gap-6">
+        <div className="flex flex-1 items-center justify-center py-4 sm:py-0">
+          <div className="flex w-full max-w-xs flex-col gap-5 sm:gap-6">
             <div className="flex flex-col items-center gap-1 text-center">
-              <h1 className="text-2xl font-bold">{heading.title}</h1>
+              <h1 className="text-xl font-bold sm:text-2xl">{heading.title}</h1>
               <p className="text-sm text-slate-500">{heading.description}</p>
             </div>
 
             {mode === "login" && (
-              <form className="flex flex-col gap-5" onSubmit={submitLogin}>
+              <form className="flex flex-col gap-4 sm:gap-5" onSubmit={submitLogin}>
                 <div className="flex flex-col gap-2">
                   <Label className="text-sm font-medium text-slate-900" htmlFor="email">
                     Correo electrónico
@@ -146,18 +146,18 @@ export default function LoginPage() {
                     onChange={(e) => setEmail(e.target.value)}
                     autoComplete="username"
                     required
-                    className="h-8 bg-transparent px-2.5"
+                    className="bg-transparent px-3 sm:!h-8 sm:px-2.5"
                   />
                 </div>
 
                 <div className="flex flex-col gap-2">
-                  <div className="flex items-center">
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
                     <Label className="text-sm font-medium text-slate-900" htmlFor="password">
                       Contraseña
                     </Label>
                     <button
                       type="button"
-                      className="ml-auto text-sm underline-offset-4 hover:underline"
+                      className="ml-auto inline-flex min-h-11 touch-manipulation items-center text-right text-sm underline-offset-4 hover:underline sm:min-h-0"
                       onClick={() => {
                         setMode("forgot");
                         setError("");
@@ -175,7 +175,7 @@ export default function LoginPage() {
                     onChange={(e) => setPassword(e.target.value)}
                     autoComplete="current-password"
                     required
-                    className="h-8 bg-transparent px-2.5"
+                    className="bg-transparent px-3 sm:!h-8 sm:px-2.5"
                   />
                 </div>
 
@@ -193,7 +193,7 @@ export default function LoginPage() {
             )}
 
             {mode === "forgot" && (
-              <form className="flex flex-col gap-5" onSubmit={requestReset}>
+              <form className="flex flex-col gap-4 sm:gap-5" onSubmit={requestReset}>
                 <div className="flex flex-col gap-2">
                   <Label className="text-sm font-medium text-slate-900" htmlFor="forgot-email">
                     Correo electrónico
@@ -207,7 +207,7 @@ export default function LoginPage() {
                     onChange={(e) => setEmail(e.target.value)}
                     autoComplete="username"
                     required
-                    className="h-8 bg-transparent px-2.5"
+                    className="bg-transparent px-3 sm:!h-8 sm:px-2.5"
                   />
                 </div>
 
@@ -239,7 +239,7 @@ export default function LoginPage() {
             )}
 
             {mode === "reset" && (
-              <form className="flex flex-col gap-5" onSubmit={submitReset}>
+              <form className="flex flex-col gap-4 sm:gap-5" onSubmit={submitReset}>
                 <div className="flex flex-col gap-2">
                   <Label className="text-sm font-medium text-slate-900" htmlFor="new-password">
                     Nueva contraseña
@@ -253,7 +253,7 @@ export default function LoginPage() {
                     onChange={(e) => setNewPassword(e.target.value)}
                     autoComplete="new-password"
                     required
-                    className="h-8 bg-transparent px-2.5"
+                    className="bg-transparent px-3 sm:!h-8 sm:px-2.5"
                   />
                 </div>
 

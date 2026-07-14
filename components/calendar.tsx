@@ -12,12 +12,14 @@ import {
   dateOnly,
   fmtFecha,
   fmtHora,
+  gestionNombre,
+  gestionTone,
   iso,
   plazoInfo,
-  unidadTone,
   type Actividad,
   type Competencia,
   type Funcionario,
+  type Gestion,
   type PlazoTone,
 } from "@/lib/data";
 
@@ -72,12 +74,23 @@ function monthLabel(isoStr: string): string {
   return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
+function agendaDayLabel(isoStr: string): string {
+  const label = dateOf(isoStr).toLocaleDateString("es-EC", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    timeZone: ZONE_TZ,
+  });
+  return label.charAt(0).toUpperCase() + label.slice(1);
+}
+
 /* ── shared item used by both views ─────────────────────────────────── */
 
 function CalendarItem({
   act,
   fun,
   comp,
+  gestiones,
   useAvatars,
   onOpen,
   variant,
@@ -85,6 +98,7 @@ function CalendarItem({
   act: Actividad;
   fun?: Funcionario;
   comp?: Competencia;
+  gestiones: Gestion[];
   useAvatars: boolean;
   onOpen: () => void;
   variant: "week" | "month";
@@ -97,7 +111,7 @@ function CalendarItem({
     return (
       <button
         onClick={onOpen}
-        title={`${esReunion && hora ? hora + " · " : ""}${act.titulo}${comp ? " · " + comp.unidad : ""}`}
+        title={`${esReunion && hora ? hora + " · " : ""}${act.titulo}${comp ? " · " + gestionNombre(comp.gestionId, gestiones) : ""}`}
         className="flex w-full items-center gap-1 rounded px-1 py-0.5 text-left text-[10.5px] leading-tight text-slate-700 transition hover:bg-slate-100"
       >
         <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", DOT[p.tone])} />
@@ -113,7 +127,7 @@ function CalendarItem({
     <button
       onClick={onOpen}
       title={act.titulo}
-      className="group relative w-full overflow-hidden rounded-md bg-white text-left ring-1 ring-foreground/10 transition hover:ring-foreground/20 hover:shadow-[0_1px_4px_rgba(15,23,42,0.06)]"
+      className="group relative min-h-11 w-full overflow-hidden rounded-md bg-white text-left ring-1 ring-foreground/10 transition hover:ring-foreground/20 hover:shadow-[0_1px_4px_rgba(15,23,42,0.06)]"
     >
       <span className={cn("absolute left-0 top-0 h-full w-1", STRIPE[p.tone])} />
       <div className="py-1.5 pl-2.5 pr-1.5">
@@ -123,8 +137,8 @@ function CalendarItem({
               <Icon name="users" size={9} /> Reunión
             </Badge>
           )}
-          <Badge variant={comp ? unidadTone(comp.unidad) : "slate"} className="!px-1 !py-0 !text-[9.5px]">
-            {comp ? comp.unidad : "—"}
+          <Badge variant={comp ? gestionTone(comp.gestionId, gestiones) : "slate"} className="!px-1 !py-0 !text-[9.5px]">
+            {comp ? gestionNombre(comp.gestionId, gestiones) : "—"}
           </Badge>
         </div>
         <div className="mt-1 line-clamp-2 text-[11.5px] font-medium leading-snug text-slate-900">
@@ -146,6 +160,88 @@ function CalendarItem({
   );
 }
 
+/* Phone agenda used instead of forcing the 7-column calendar through a
+   320–430 px viewport. The full calendar remains available from sm upward. */
+function MobileAgenda({
+  days,
+  byDay,
+  funcionarios,
+  competencias,
+  gestiones,
+  useAvatars,
+  onOpen,
+  showEmptyDays,
+  emptyMessage,
+}: {
+  days: string[];
+  byDay: Map<string, Actividad[]>;
+  funcionarios: Funcionario[];
+  competencias: Competencia[];
+  gestiones: Gestion[];
+  useAvatars: boolean;
+  onOpen: (id: string) => void;
+  showEmptyDays: boolean;
+  emptyMessage: string;
+}) {
+  const visibleDays = showEmptyDays ? days : days.filter((day) => (byDay.get(day) ?? []).length > 0);
+
+  if (visibleDays.length === 0) {
+    return (
+      <div className="rounded-xl border border-dashed border-slate-200 bg-slate-100/30 px-4 py-8 text-center text-sm text-slate-400 sm:hidden">
+        {emptyMessage}
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3 sm:hidden">
+      {visibleDays.map((day) => {
+        const items = byDay.get(day) ?? [];
+        const isToday = day === TODAY_ISO;
+        return (
+          <section
+            key={day}
+            className={cn(
+              "rounded-xl border p-3",
+              isToday ? "border-slate-300 bg-slate-100/70" : "border-slate-200 bg-white",
+            )}
+          >
+            <div className="mb-2 flex min-h-8 items-center justify-between gap-3">
+              <div className={cn("text-sm font-semibold", isToday ? "text-slate-950" : "text-slate-700")}>
+                {agendaDayLabel(day)}
+                {isToday && <span className="ml-1.5 text-xs font-medium text-slate-500">· Hoy</span>}
+              </div>
+              <span className="shrink-0 rounded-md bg-slate-100 px-2 py-1 text-xs font-semibold tabular-nums text-slate-600">
+                {items.length}
+              </span>
+            </div>
+            {items.length > 0 ? (
+              <div className="space-y-2">
+                {items.map((activity) => (
+                  <CalendarItem
+                    key={activity.id}
+                    act={activity}
+                    fun={funcionarios.find((f) => f.id === activity.funcionarioId)}
+                    comp={competencias.find((c) => c.id === activity.competenciaId)}
+                    gestiones={gestiones}
+                    useAvatars={useAvatars}
+                    onOpen={() => onOpen(activity.id)}
+                    variant="week"
+                  />
+                ))}
+              </div>
+            ) : (
+              <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 px-3 py-3 text-xs text-slate-400">
+                Sin actividades
+              </div>
+            )}
+          </section>
+        );
+      })}
+    </div>
+  );
+}
+
 /* ── Week view ──────────────────────────────────────────────────────── */
 
 function WeekView({
@@ -153,6 +249,7 @@ function WeekView({
   byDay,
   funcionarios,
   competencias,
+  gestiones,
   useAvatars,
   onOpen,
 }: {
@@ -160,6 +257,7 @@ function WeekView({
   byDay: Map<string, Actividad[]>;
   funcionarios: Funcionario[];
   competencias: Competencia[];
+  gestiones: Gestion[];
   useAvatars: boolean;
   onOpen: (id: string) => void;
 }) {
@@ -167,47 +265,61 @@ function WeekView({
   const days = Array.from({ length: 7 }, (_, i) => iso(addDays(start, i)));
 
   return (
-    <div className="-mx-1 overflow-x-auto px-1">
-      <div className="grid min-w-[840px] grid-cols-7 gap-2">
-        {days.map((d) => {
-          const items = byDay.get(d) ?? [];
-          const isToday = d === TODAY_ISO;
-          return (
-            <div key={d} className="flex min-w-0 flex-col">
-              <div
-                className={cn(
-                  "mb-2 flex items-baseline justify-between rounded-lg px-2 py-1.5",
-                  isToday ? "bg-slate-900 text-white" : "bg-slate-100/70 text-slate-600",
-                )}
-              >
-                <span className="text-[11px] font-semibold uppercase tracking-wide">
-                  {DAY_NAMES[(dateOf(d).getUTCDay() + 6) % 7]}
-                </span>
-                <span className={cn("text-sm font-bold", !isToday && "text-slate-800")}>{dayNum(d)}</span>
+    <>
+      <MobileAgenda
+        days={days}
+        byDay={byDay}
+        funcionarios={funcionarios}
+        competencias={competencias}
+        gestiones={gestiones}
+        useAvatars={useAvatars}
+        onOpen={onOpen}
+        showEmptyDays
+        emptyMessage="Sin actividades esta semana"
+      />
+      <div className="-mx-1 hidden overflow-x-auto px-1 sm:block">
+        <div className="grid min-w-[840px] grid-cols-7 gap-2">
+          {days.map((d) => {
+            const items = byDay.get(d) ?? [];
+            const isToday = d === TODAY_ISO;
+            return (
+              <div key={d} className="flex min-w-0 flex-col">
+                <div
+                  className={cn(
+                    "mb-2 flex items-baseline justify-between rounded-lg px-2 py-1.5",
+                    isToday ? "bg-slate-900 text-white" : "bg-slate-100/70 text-slate-600",
+                  )}
+                >
+                  <span className="text-[11px] font-semibold uppercase tracking-wide">
+                    {DAY_NAMES[(dateOf(d).getUTCDay() + 6) % 7]}
+                  </span>
+                  <span className={cn("text-sm font-bold", !isToday && "text-slate-800")}>{dayNum(d)}</span>
+                </div>
+                <div className="flex flex-1 flex-col gap-1.5 rounded-xl border border-dashed border-slate-200/80 bg-slate-100/30 p-1.5">
+                  {items.map((a) => (
+                    <CalendarItem
+                      key={a.id}
+                      act={a}
+                      fun={funcionarios.find((f) => f.id === a.funcionarioId)}
+                      comp={competencias.find((c) => c.id === a.competenciaId)}
+                      gestiones={gestiones}
+                      useAvatars={useAvatars}
+                      onOpen={() => onOpen(a.id)}
+                      variant="week"
+                    />
+                  ))}
+                  {items.length === 0 && (
+                    <div className="flex flex-1 items-center justify-center py-6 text-[11px] text-slate-300">
+                      —
+                    </div>
+                  )}
+                </div>
               </div>
-              <div className="flex flex-1 flex-col gap-1.5 rounded-xl border border-dashed border-slate-200/80 bg-slate-100/30 p-1.5">
-                {items.map((a) => (
-                  <CalendarItem
-                    key={a.id}
-                    act={a}
-                    fun={funcionarios.find((f) => f.id === a.funcionarioId)}
-                    comp={competencias.find((c) => c.id === a.competenciaId)}
-                    useAvatars={useAvatars}
-                    onOpen={() => onOpen(a.id)}
-                    variant="week"
-                  />
-                ))}
-                {items.length === 0 && (
-                  <div className="flex flex-1 items-center justify-center py-6 text-[11px] text-slate-300">
-                    —
-                  </div>
-                )}
-              </div>
-            </div>
-          );
-        })}
+            );
+          })}
+        </div>
       </div>
-    </div>
+    </>
   );
 }
 
@@ -218,6 +330,7 @@ function MonthView({
   byDay,
   competencias,
   funcionarios,
+  gestiones,
   useAvatars,
   onOpen,
 }: {
@@ -225,72 +338,88 @@ function MonthView({
   byDay: Map<string, Actividad[]>;
   competencias: Competencia[];
   funcionarios: Funcionario[];
+  gestiones: Gestion[];
   useAvatars: boolean;
   onOpen: (id: string) => void;
 }) {
   const gridStart = mondayOf(firstOfMonth(refDate));
   const days = Array.from({ length: 42 }, (_, i) => iso(addDays(gridStart, i)));
   const curMonth = monthIndex(refDate);
+  const monthDays = days.filter((day) => monthIndex(day) === curMonth);
 
   return (
-    <div className="-mx-1 overflow-x-auto px-1">
-      <div className="min-w-[840px]">
-        <div className="grid grid-cols-7 gap-px">
-          {DAY_NAMES.map((n) => (
-            <div key={n} className="px-2 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-              {n}
-            </div>
-          ))}
-        </div>
-        <div className="grid grid-cols-7 gap-2">
-          {days.map((d) => {
-            const items = byDay.get(d) ?? [];
-            const inMonth = monthIndex(d) === curMonth;
-            const isToday = d === TODAY_ISO;
-            return (
-              <div
-                key={d}
-                className={cn(
-                  "flex h-28 flex-col rounded-lg border p-1",
-                  inMonth ? "border-slate-200 bg-white" : "border-slate-100 bg-slate-50/50",
-                )}
-              >
-                <div className="flex items-center justify-between px-1">
-                  <span
-                    className={cn(
-                      "flex h-5 min-w-5 items-center justify-center rounded-full px-1 text-[11px] font-semibold",
-                      isToday
-                        ? "bg-slate-900 text-white"
-                        : inMonth
-                          ? "text-slate-700"
-                          : "text-slate-400",
-                    )}
-                  >
-                    {dayNum(d)}
-                  </span>
-                  {items.length > 0 && (
-                    <span className="text-[10px] font-medium text-slate-400">{items.length}</span>
-                  )}
-                </div>
-                <div className="mt-0.5 flex-1 space-y-0.5 overflow-y-auto pr-0.5">
-                  {items.map((a) => (
-                    <CalendarItem
-                      key={a.id}
-                      act={a}
-                      fun={funcionarios.find((f) => f.id === a.funcionarioId)}
-                      comp={competencias.find((c) => c.id === a.competenciaId)}
-                      useAvatars={useAvatars}
-                      onOpen={() => onOpen(a.id)}
-                      variant="month"
-                    />
-                  ))}
-                </div>
+    <>
+      <MobileAgenda
+        days={monthDays}
+        byDay={byDay}
+        funcionarios={funcionarios}
+        competencias={competencias}
+        gestiones={gestiones}
+        useAvatars={useAvatars}
+        onOpen={onOpen}
+        showEmptyDays={false}
+        emptyMessage="Sin actividades este mes"
+      />
+      <div className="-mx-1 hidden overflow-x-auto px-1 sm:block">
+        <div className="min-w-[840px]">
+          <div className="grid grid-cols-7 gap-px">
+            {DAY_NAMES.map((n) => (
+              <div key={n} className="px-2 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                {n}
               </div>
-            );
-          })}
+            ))}
+          </div>
+          <div className="grid grid-cols-7 gap-2">
+            {days.map((d) => {
+              const items = byDay.get(d) ?? [];
+              const inMonth = monthIndex(d) === curMonth;
+              const isToday = d === TODAY_ISO;
+              return (
+                <div
+                  key={d}
+                  className={cn(
+                    "flex h-28 flex-col rounded-lg border p-1",
+                    inMonth ? "border-slate-200 bg-white" : "border-slate-100 bg-slate-50/50",
+                  )}
+                >
+                  <div className="flex items-center justify-between px-1">
+                    <span
+                      className={cn(
+                        "flex h-5 min-w-5 items-center justify-center rounded-full px-1 text-[11px] font-semibold",
+                        isToday
+                          ? "bg-slate-900 text-white"
+                          : inMonth
+                            ? "text-slate-700"
+                            : "text-slate-400",
+                      )}
+                    >
+                      {dayNum(d)}
+                    </span>
+                    {items.length > 0 && (
+                      <span className="text-[10px] font-medium text-slate-400">{items.length}</span>
+                    )}
+                  </div>
+                  <div className="mt-0.5 flex-1 space-y-0.5 overflow-y-auto pr-0.5">
+                    {items.map((a) => (
+                      <CalendarItem
+                        key={a.id}
+                        act={a}
+                        fun={funcionarios.find((f) => f.id === a.funcionarioId)}
+                        comp={competencias.find((c) => c.id === a.competenciaId)}
+                        gestiones={gestiones}
+                        useAvatars={useAvatars}
+                        onOpen={() => onOpen(a.id)}
+                        variant="month"
+                      />
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         </div>
       </div>
-    </div>
+    </>
   );
 }
 
@@ -304,7 +433,7 @@ function Legend() {
     { tone: "green", label: "Cumplida en plazo" },
   ];
   return (
-    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-slate-500">
+    <div className="grid grid-cols-2 gap-x-3 gap-y-2 text-[11px] text-slate-500 sm:flex sm:flex-wrap sm:items-center sm:gap-y-1">
       {items.map((i) => (
         <span key={i.tone} className="inline-flex items-center gap-1.5">
           <span className={cn("h-2 w-2 rounded-full", DOT[i.tone])} />
@@ -322,6 +451,7 @@ export function CalendarView({
   activities,
   funcionarios,
   competencias,
+  gestiones,
   useAvatars,
   filters,
   onOpen,
@@ -330,6 +460,7 @@ export function CalendarView({
   activities: Actividad[];
   funcionarios: Funcionario[];
   competencias: Competencia[];
+  gestiones: Gestion[];
   useAvatars: boolean;
   filters: Filters;
   onOpen: (id: string) => void;
@@ -360,19 +491,40 @@ export function CalendarView({
     setRefDate((r) => (mode === "month" ? shiftMonth(r, delta) : iso(addDays(r, delta * 7))));
 
   return (
-    <div className="space-y-3">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="icon" onClick={() => step(-1)} title="Anterior">
+    <div className="space-y-4 sm:space-y-3">
+      <div className="flex flex-col items-stretch gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+        <div className="grid grid-cols-[2.75rem_minmax(0,1fr)_2.75rem] items-center gap-2 sm:flex">
+          <div className="col-span-3 text-center text-sm font-semibold text-slate-800 sm:order-last sm:col-auto sm:ml-1 sm:text-left">
+            {label}
+          </div>
+          <Button
+            variant="outline"
+            size="icon"
+            className="h-11 w-11 sm:h-8 sm:w-8"
+            onClick={() => step(-1)}
+            title="Anterior"
+            aria-label="Periodo anterior"
+          >
             <Icon name="arrow" size={14} className="rotate-180" />
           </Button>
-          <Button variant="outline" size="sm" onClick={() => setRefDate(TODAY_ISO)}>
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-11 w-full sm:h-7 sm:w-auto"
+            onClick={() => setRefDate(TODAY_ISO)}
+          >
             Hoy
           </Button>
-          <Button variant="outline" size="icon" onClick={() => step(1)} title="Siguiente">
+          <Button
+            variant="outline"
+            size="icon"
+            className="h-11 w-11 sm:h-8 sm:w-8"
+            onClick={() => step(1)}
+            title="Siguiente"
+            aria-label="Periodo siguiente"
+          >
             <Icon name="arrow" size={14} />
           </Button>
-          <div className="ml-1 text-sm font-semibold text-slate-800">{label}</div>
         </div>
         <Legend />
       </div>
@@ -383,6 +535,7 @@ export function CalendarView({
           byDay={byDay}
           funcionarios={funcionarios}
           competencias={competencias}
+          gestiones={gestiones}
           useAvatars={useAvatars}
           onOpen={onOpen}
         />
@@ -392,6 +545,7 @@ export function CalendarView({
           byDay={byDay}
           funcionarios={funcionarios}
           competencias={competencias}
+          gestiones={gestiones}
           useAvatars={useAvatars}
           onOpen={onOpen}
         />

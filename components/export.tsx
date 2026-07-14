@@ -11,7 +11,9 @@ import {
   fmtHora,
   type Actividad,
   type Competencia,
+  type Entregable,
   type Funcionario,
+  type Gestion,
 } from "@/lib/data";
 
 // Columnas del CSV (todos los campos). El orden aquí define el orden en el
@@ -23,9 +25,10 @@ const COLUMNS = [
   "Título",
   "Descripción",
   "Funcionario",
-  "Unidad funcionario",
+  "Gestión funcionario",
   "Competencia",
-  "Unidad competencia",
+  "Gestión competencia",
+  "Entregable",
   "Estado",
   "Fecha creación",
   "Plazo (días)",
@@ -114,9 +117,13 @@ function buildCsv(
   rows: Actividad[],
   funcionarios: Funcionario[],
   competencias: Competencia[],
+  entregables: Entregable[],
+  gestiones: Gestion[],
 ): string {
   const funById = new Map(funcionarios.map((f) => [f.id, f]));
   const compById = new Map(competencias.map((c) => [c.id, c]));
+  const entregableById = new Map(entregables.map((e) => [e.id, e]));
+  const gestionById = new Map(gestiones.map((g) => [g.id, g]));
 
   const lines = [COLUMNS.map(csvCell).join(";")];
   for (const a of rows) {
@@ -128,9 +135,10 @@ function buildCsv(
       a.titulo,
       a.descripcion,
       fun?.nombre ?? "",
-      fun?.unidad ?? "",
+      (fun && gestionById.get(fun.gestionId)?.nombre) ?? "",
       comp?.nombre ?? "",
-      comp?.unidad ?? "",
+      (comp && gestionById.get(comp.gestionId)?.nombre) ?? "",
+      (a.entregableId && entregableById.get(a.entregableId)?.nombre) ?? "",
       estadoLabel(a.estado),
       fechaDMA(a.fechaCreacion),
       String(a.plazoDias),
@@ -162,14 +170,18 @@ export function ExportDialog({
   open,
   onClose,
   activities,
+  gestiones,
   funcionarios,
   competencias,
+  entregables,
 }: {
   open: boolean;
   onClose: () => void;
   activities: Actividad[];
+  gestiones: Gestion[];
   funcionarios: Funcionario[];
   competencias: Competencia[];
+  entregables: Entregable[];
 }) {
   const [desde, setDesde] = useState("");
   const [hasta, setHasta] = useState("");
@@ -203,17 +215,17 @@ export function ExportDialog({
   function exportar() {
     if (rangoInvalido || seleccionadas.length === 0) return;
     const [a, b] = desde <= hasta ? [desde, hasta] : [hasta, desde];
-    const csv = buildCsv(seleccionadas, funcionarios, competencias);
+    const csv = buildCsv(seleccionadas, funcionarios, competencias, entregables, gestiones);
     downloadCsv(`actividades_${a}_a_${b}.csv`, csv);
     onClose();
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4">
       <div className="absolute inset-0 bg-slate-900/30 backdrop-blur-[2px]" onClick={onClose} />
-      <div className="relative z-10 w-full max-w-md rounded-xl bg-white p-5 ring-1 ring-foreground/10 shadow-xl">
-        <div className="flex items-start justify-between">
-          <div>
+      <div className="relative z-10 max-h-[calc(100dvh-1rem)] w-full max-w-md overflow-y-auto rounded-xl bg-white p-4 ring-1 ring-foreground/10 shadow-xl sm:max-h-[calc(100dvh-2rem)] sm:p-5">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
             <div className="text-base font-semibold text-slate-900">Exportar actividades</div>
             <div className="mt-0.5 text-xs text-slate-500">
               Filtra por <b>fecha de vencimiento</b> y descarga un archivo CSV (Excel).
@@ -222,13 +234,14 @@ export function ExportDialog({
           <button
             type="button"
             onClick={onClose}
-            className="rounded-md p-1.5 text-slate-500 hover:bg-slate-100"
+            aria-label="Cerrar"
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md text-slate-500 hover:bg-slate-100 sm:h-auto sm:w-auto sm:p-1.5"
           >
             <Icon name="close" size={16} />
           </button>
         </div>
 
-        <div className="mt-4 grid grid-cols-2 gap-3">
+        <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div className="space-y-1.5">
             <Label htmlFor="export-desde">Desde</Label>
             <DateFieldDMA id="export-desde" value={desde} onChange={setDesde} />
@@ -239,8 +252,8 @@ export function ExportDialog({
           </div>
         </div>
 
-        <div className="mt-4 flex items-center gap-2 rounded-lg bg-slate-50 p-3 text-sm ring-1 ring-foreground/5">
-          <Icon name="calendar" size={14} className="text-slate-400" />
+        <div className="mt-4 flex items-start gap-2 rounded-lg bg-slate-50 p-3 text-sm ring-1 ring-foreground/5 sm:items-center">
+          <Icon name="calendar" size={14} className="mt-0.5 shrink-0 text-slate-400 sm:mt-0" />
           {rangoInvalido ? (
             <span className="text-slate-500">Selecciona ambas fechas.</span>
           ) : sinResultados ? (
@@ -252,11 +265,11 @@ export function ExportDialog({
           )}
         </div>
 
-        <div className="mt-5 flex items-center justify-end gap-2">
-          <Button variant="outline" onClick={onClose}>
+        <div className="mt-5 grid grid-cols-2 gap-2 sm:flex sm:items-center sm:justify-end">
+          <Button className="w-full sm:w-auto" variant="outline" onClick={onClose}>
             Cancelar
           </Button>
-          <Button onClick={exportar} disabled={rangoInvalido || sinResultados}>
+          <Button className="w-full sm:w-auto" onClick={exportar} disabled={rangoInvalido || sinResultados}>
             <Icon name="download" size={14} /> Exportar CSV
           </Button>
         </div>

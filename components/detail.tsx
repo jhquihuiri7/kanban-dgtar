@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Avatar, Badge, Button, Icon, Input, Label, Select, Textarea, type IconName } from "@/components/ui";
 import { cn } from "@/lib/utils";
 import {
@@ -13,14 +13,17 @@ import {
   fmtFecha,
   fmtFechaLarga,
   fmtHora,
+  gestionNombre,
+  gestionTone,
   iso,
   plazoInfo,
-  unidadTone,
   withHora,
   type Actividad,
   type Competencia,
+  type Entregable,
   type EstadoActividad,
   type Funcionario,
+  type Gestion,
   type PlazoInfo,
   type PlazoTone,
 } from "@/lib/data";
@@ -36,7 +39,7 @@ function MetaCell({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-lg bg-slate-50 px-3 py-2 ring-1 ring-foreground/5">
       <div className="text-[10px] uppercase tracking-wide text-slate-500">{label}</div>
-      <div className="mt-0.5 text-sm font-medium text-slate-900">{value}</div>
+      <div className="mt-0.5 break-words text-sm font-medium text-slate-900">{value}</div>
     </div>
   );
 }
@@ -48,7 +51,7 @@ function ReadOnlyField({ label, value }: { label: string; value: string }) {
   return (
     <div>
       <Label className="mb-1.5 block uppercase tracking-wide text-slate-500">{label}</Label>
-      <div className="whitespace-pre-wrap rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
+      <div className="whitespace-pre-wrap break-words rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
         {text || <span className="text-slate-400">—</span>}
       </div>
     </div>
@@ -82,13 +85,13 @@ function PlazoBanner({ act, p }: { act: Actividad; p: PlazoInfo }) {
           ? "Vence hoy"
           : `${p.days} día(s) restantes`;
   return (
-    <div className={cn("flex items-center gap-3 rounded-lg p-3 ring-1", s.bg, s.ring)}>
-      <div className={cn("flex h-8 w-8 items-center justify-center rounded-md ring-1 bg-white", s.ring, s.text)}>
+    <div className={cn("flex items-start gap-3 rounded-lg p-3 ring-1 sm:items-center", s.bg, s.ring)}>
+      <div className={cn("flex h-8 w-8 shrink-0 items-center justify-center rounded-md ring-1 bg-white", s.ring, s.text)}>
         <Icon name={s.icon} size={16} />
       </div>
-      <div className="flex-1">
-        <div className={cn("text-sm font-semibold", s.text)}>{heading}</div>
-        <div className="text-xs text-slate-600">
+      <div className="min-w-0 flex-1">
+        <div className={cn("break-words text-sm font-semibold", s.text)}>{heading}</div>
+        <div className="break-words text-xs text-slate-600">
           {act.tipo === "reunion" ? "Reunión" : "Vencimiento"}: {fmtFechaLarga(act.fechaVencimiento)}
           {act.tipo === "reunion" && fmtHora(act.fechaVencimiento) ? ` · ${fmtHora(act.fechaVencimiento)}` : ""}
         </div>
@@ -120,8 +123,8 @@ function HistoryItem({
       <div className={cn("flex h-6 w-6 items-center justify-center rounded-full", dotMap[tone])}>
         <Icon name={icon} size={12} />
       </div>
-      <div className="flex-1">
-        <div className="text-sm text-slate-800">{text}</div>
+      <div className="min-w-0 flex-1">
+        <div className="break-words text-sm text-slate-800">{text}</div>
         <div className="text-[11px] text-slate-500">{when}</div>
       </div>
     </li>
@@ -132,8 +135,10 @@ export function DetailPanel({
   activityId,
   activities,
   setActivities,
+  gestiones,
   funcionarios,
   competencias,
+  entregables,
   useAvatars,
   isAdmin,
   currentUser,
@@ -143,8 +148,10 @@ export function DetailPanel({
   activityId: string;
   activities: Actividad[];
   setActivities: React.Dispatch<React.SetStateAction<Actividad[]>>;
+  gestiones: Gestion[];
   funcionarios: Funcionario[];
   competencias: Competencia[];
+  entregables: Entregable[];
   useAvatars: boolean;
   isAdmin: boolean;
   currentUser: AuthUser;
@@ -163,6 +170,7 @@ export function DetailPanel({
     .map((id) => funcionarios.find((f) => f.id === id))
     .filter((f): f is Funcionario => Boolean(f));
   const comp = competencias.find((c) => c.id === act.competenciaId);
+  const entregable = entregables.find((e) => e.id === act.entregableId);
   const p = plazoInfo(act, TODAY_ISO);
   const esReunion = act.tipo === "reunion";
   const hora = fmtHora(act.fechaVencimiento);
@@ -209,6 +217,7 @@ export function DetailPanel({
       funcionarioId: responsableId,
       participantesIds: esReunion ? cleanParticipantes(draft.participantesIds ?? [], responsableId) : [],
       competenciaId: draft.competenciaId,
+      entregableId: draft.entregableId,
       estado: draft.estado,
       fechaCreacion: draft.fechaCreacion,
       plazoDias: plazo,
@@ -232,30 +241,38 @@ export function DetailPanel({
   return (
     <div className="fixed inset-0 z-40 flex justify-end">
       <div className="absolute inset-0 bg-slate-900/20 backdrop-blur-[2px]" onClick={onClose} />
-      <aside className="relative z-10 flex h-full w-full max-w-[520px] flex-col overflow-y-auto border-l border-slate-200 bg-white shadow-2xl">
+      <aside className="relative z-10 flex h-[100dvh] w-full max-w-[520px] flex-col overflow-y-auto border-l border-slate-200 bg-white shadow-2xl">
         {/* header */}
-        <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-200 bg-white/95 px-5 py-3 backdrop-blur">
-          <div className="flex items-center gap-2">
+        <div className="sticky top-0 z-10 flex items-start justify-between gap-2 border-b border-slate-200 bg-white/95 px-3 py-2 backdrop-blur sm:items-center sm:px-5 sm:py-3">
+          <div className="flex min-w-0 flex-wrap items-center gap-2 py-1 sm:py-0">
             {esReunion && (
               <Badge variant="violet">
                 <Icon name="users" size={11} /> Reunión
               </Badge>
             )}
-            <Badge variant={comp ? unidadTone(comp.unidad) : "slate"}>{comp?.unidad}</Badge>
+            <Badge variant={comp ? gestionTone(comp.gestionId, gestiones) : "slate"}>
+              {gestionNombre(comp?.gestionId, gestiones)}
+            </Badge>
             <EstadoBadge estado={act.estado} />
           </div>
-          <button onClick={onClose} className="rounded-md p-1.5 text-slate-500 hover:bg-slate-100">
+          <button
+            onClick={onClose}
+            className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-md text-slate-500 hover:bg-slate-100 sm:h-8 sm:w-8"
+            aria-label="Cerrar detalle"
+          >
             <Icon name="close" size={16} />
           </button>
         </div>
 
-        <div className="flex-1 space-y-6 p-5">
+        <div className="flex-1 space-y-5 p-3 sm:space-y-6 sm:p-5">
           {editing && draft ? (
             <EditForm
               draft={draft}
               setDraft={setDraft}
+              gestiones={gestiones}
               funcionarios={funcionarios}
               competencias={competencias}
+              entregables={entregables}
               isAdmin={isAdmin}
               currentUser={currentUser}
             />
@@ -263,22 +280,22 @@ export function DetailPanel({
           <>
           {/* title + description */}
           <div>
-            <h2 className="text-lg font-semibold text-slate-900 leading-snug">{act.titulo}</h2>
-            <p className="mt-2 text-sm text-slate-600 leading-relaxed">{act.descripcion}</p>
+            <h2 className="break-words text-lg font-semibold leading-snug text-slate-900">{act.titulo}</h2>
+            <p className="mt-2 break-words text-sm leading-relaxed text-slate-600">{act.descripcion}</p>
           </div>
 
           {/* responsable */}
-          <div className="flex items-center justify-between rounded-lg bg-slate-50 p-3 ring-1 ring-foreground/5">
-            <div className="flex items-center gap-3">
+          <div className="flex flex-col items-start gap-3 rounded-lg bg-slate-50 p-3 ring-1 ring-foreground/5 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex min-w-0 items-center gap-3">
               <Avatar funcionario={fun} useAvatars={useAvatars} size={36} />
-              <div>
-                <div className="text-sm font-medium text-slate-900">{fun?.nombre}</div>
-                <div className="text-xs text-slate-500">
-                  {fun?.cargo} · {fun?.unidad}
+              <div className="min-w-0">
+                <div className="break-words text-sm font-medium text-slate-900">{fun?.nombre}</div>
+                <div className="break-words text-xs text-slate-500">
+                  {fun?.cargo} · {gestionNombre(fun?.gestionId, gestiones)}
                 </div>
               </div>
             </div>
-            <Badge variant={unidadTone(fun?.unidad)}>{fun?.unidad}</Badge>
+            <Badge variant={gestionTone(fun?.gestionId, gestiones)}>{gestionNombre(fun?.gestionId, gestiones)}</Badge>
           </div>
 
           {esReunion && (
@@ -305,7 +322,7 @@ export function DetailPanel({
           )}
 
           {/* plazo grid */}
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
             <MetaCell label="Creada" value={fmtFecha(act.fechaCreacion)} />
             {esReunion ? (
               <>
@@ -327,12 +344,17 @@ export function DetailPanel({
           <div>
             <Label className="mb-1.5 block uppercase tracking-wide text-slate-500">Competencia</Label>
             <div className="rounded-lg border border-slate-200 p-3">
-              <div className="flex items-center justify-between">
-                <div>
-                  <div className="text-sm font-medium text-slate-900">{comp?.nombre}</div>
+              <div className="flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <div className="min-w-0">
+                  <div className="break-words text-sm font-medium text-slate-900">{comp?.nombre}</div>
                   <div className="text-xs text-slate-500">Estatuto del Régimen Especial</div>
+                  {entregable && (
+                    <div className="mt-1 text-xs text-slate-500">
+                      Entregable: <span className="font-medium text-slate-700">{entregable.nombre}</span>
+                    </div>
+                  )}
                 </div>
-                <Badge variant={unidadTone(comp?.unidad)}>{comp?.unidad}</Badge>
+                <Badge variant={gestionTone(comp?.gestionId, gestiones)}>{gestionNombre(comp?.gestionId, gestiones)}</Badge>
               </div>
             </div>
           </div>
@@ -390,45 +412,47 @@ export function DetailPanel({
         </div>
 
         {/* footer actions */}
-        <div className="sticky bottom-0 flex items-center justify-between gap-2 border-t border-slate-200 bg-white p-3">
+        <div className="sticky bottom-0 flex flex-col gap-2 border-t border-slate-200 bg-white p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:flex-row sm:items-center sm:justify-between">
           {editing ? (
             <>
-              <Button variant="ghost" onClick={cancelEdit}>
+              <Button variant="ghost" className="w-full sm:w-auto" onClick={cancelEdit}>
                 Cancelar
               </Button>
-              <Button onClick={saveEdit} disabled={!draft?.titulo.trim()}>
+              <Button className="w-full sm:w-auto" onClick={saveEdit} disabled={!draft?.titulo.trim()}>
                 <Icon name="check" size={14} /> Guardar cambios
               </Button>
             </>
           ) : (
             <>
-              <div className="flex items-center gap-2">
-                <Button variant="ghost" onClick={onClose}>
+              <div className="flex w-full items-center gap-2 sm:w-auto">
+                <Button variant="ghost" className="flex-1 sm:flex-none" onClick={onClose}>
                   Cerrar
                 </Button>
                 {canManage && (
                   <Button
                     variant="ghost"
-                    className="text-red-600 hover:bg-red-50"
+                    className="flex-1 text-red-600 hover:bg-red-50 sm:flex-none"
                     onClick={() => setConfirmDelete(true)}
                   >
                     <Icon name="trash" size={14} /> Eliminar
                   </Button>
                 )}
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex w-full items-center gap-2 sm:w-auto">
                 {canManage && (
-                  <Button variant="outline" onClick={startEdit}>
+                  <Button variant="outline" className="flex-1 sm:flex-none" onClick={startEdit}>
                     <Icon name="edit" size={14} /> Editar
                   </Button>
                 )}
                 {canManage && (
                   act.estado !== "cumplida" ? (
-                    <Button onClick={marcarCumplida}>
-                      <Icon name="check" size={14} /> Marcar cumplida
+                    <Button className="flex-1 sm:flex-none" onClick={marcarCumplida} aria-label="Marcar actividad como cumplida">
+                      <Icon name="check" size={14} />
+                      <span className="sm:hidden">Cumplir</span>
+                      <span className="hidden sm:inline">Marcar cumplida</span>
                     </Button>
                   ) : (
-                    <Button variant="outline" onClick={() => update({ estado: "en_revision", fechaCumplimiento: null })}>
+                    <Button className="flex-1 sm:flex-none" variant="outline" onClick={() => update({ estado: "en_revision", fechaCumplimiento: null })}>
                       Reabrir
                     </Button>
                   )
@@ -455,15 +479,19 @@ export function DetailPanel({
 function EditForm({
   draft,
   setDraft,
+  gestiones,
   funcionarios,
   competencias,
+  entregables,
   isAdmin,
   currentUser,
 }: {
   draft: Actividad;
   setDraft: React.Dispatch<React.SetStateAction<Actividad | null>>;
+  gestiones: Gestion[];
   funcionarios: Funcionario[];
   competencias: Competencia[];
+  entregables: Entregable[];
   isAdmin: boolean;
   currentUser: AuthUser;
 }) {
@@ -473,6 +501,27 @@ function EditForm({
   const esReunion = draft.tipo === "reunion";
   const vence = iso(addDays(draft.fechaCreacion, Math.max(0, Number(draft.plazoDias) || 0)));
   const currentFuncionario = funcionarios.find((f) => f.id === currentUser.funcionarioId);
+
+  // gestionId es solo un filtro de UI para competencia/entregable; se deriva
+  // una vez de la competencia actual (cada edición monta un EditForm nuevo,
+  // ver startEdit()/cancelEdit() en DetailPanel).
+  const [gestionId, setGestionId] = useState(
+    () => competencias.find((c) => c.id === draft.competenciaId)?.gestionId || gestiones[0]?.id || "",
+  );
+  const competenciasDisponibles = competencias.filter((c) => c.gestionId === gestionId);
+  const entregablesDisponibles = entregables.filter((e) => e.gestionId === gestionId);
+
+  useEffect(() => {
+    const compForGestion = competencias.filter((c) => c.gestionId === gestionId);
+    if (!compForGestion.some((c) => c.id === draft.competenciaId)) {
+      set("competenciaId", compForGestion[0]?.id || "");
+    }
+    const entForGestion = entregables.filter((e) => e.gestionId === gestionId);
+    if (!entForGestion.some((e) => e.id === draft.entregableId)) {
+      set("entregableId", entForGestion[0]?.id || null);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gestionId, competencias, entregables]);
 
   return (
     <div className="space-y-3">
@@ -493,7 +542,17 @@ function EditForm({
           onChange={(e) => set("descripcion", e.target.value)}
         />
       </div>
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <div className="space-y-1.5">
+          <Label htmlFor="edit-gestion">Gestión</Label>
+          <Select id="edit-gestion" value={gestionId} onChange={(e) => setGestionId(e.target.value)}>
+            {gestiones.map((g) => (
+              <option key={g.id} value={g.id}>
+                {g.nombre}
+              </option>
+            ))}
+          </Select>
+        </div>
         {isAdmin ? (
           <div className="space-y-1.5">
             <Label htmlFor="edit-resp">Funcionario responsable</Label>
@@ -515,7 +574,7 @@ function EditForm({
             >
               {funcionarios.map((f) => (
                 <option key={f.id} value={f.id}>
-                  {f.nombre} — {f.unidad}
+                  {f.nombre} — {gestionNombre(f.gestionId, gestiones)}
                 </option>
               ))}
             </Select>
@@ -523,7 +582,7 @@ function EditForm({
         ) : (
           <div className="space-y-1.5">
             <Label>Funcionario responsable</Label>
-            <div className="flex h-9 items-center rounded-lg bg-slate-50 px-3 text-sm font-medium text-slate-700 ring-1 ring-foreground/5">
+            <div className="flex min-h-11 min-w-0 items-center break-words rounded-lg bg-slate-50 px-3 py-2 text-sm font-medium text-slate-700 ring-1 ring-foreground/5 sm:min-h-9">
               {currentFuncionario?.nombre || currentUser.email}
             </div>
           </div>
@@ -535,12 +594,32 @@ function EditForm({
             value={draft.competenciaId}
             onChange={(e) => set("competenciaId", e.target.value)}
           >
-            {competencias.map((c) => (
+            {competenciasDisponibles.map((c) => (
               <option key={c.id} value={c.id}>
-                {c.nombre} — {c.unidad}
+                {c.nombre}
               </option>
             ))}
           </Select>
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="edit-entregable">Entregable (opcional)</Label>
+          {entregablesDisponibles.length > 0 ? (
+            <Select
+              id="edit-entregable"
+              value={draft.entregableId ?? ""}
+              onChange={(e) => set("entregableId", e.target.value || null)}
+            >
+              {entregablesDisponibles.map((en) => (
+                <option key={en.id} value={en.id}>
+                  {en.nombre}
+                </option>
+              ))}
+            </Select>
+          ) : (
+            <div className="flex min-h-11 items-center rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-400 ring-1 ring-foreground/5 sm:min-h-9">
+              Esta gestión no tiene entregables.
+            </div>
+          )}
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="edit-estado">Estado</Label>
@@ -558,7 +637,7 @@ function EditForm({
         </div>
         <div className="space-y-1.5">
           <Label>Fecha de creación</Label>
-          <div className="flex h-9 items-center gap-2 rounded-lg bg-slate-50 px-3 text-sm font-medium text-slate-500 ring-1 ring-foreground/5">
+          <div className="flex min-h-11 items-center gap-2 rounded-lg bg-slate-50 px-3 py-2 text-sm font-medium text-slate-500 ring-1 ring-foreground/5 sm:min-h-9">
             <Icon name="calendar" size={14} className="text-slate-400" />
             {fmtFechaLarga(draft.fechaCreacion)}
           </div>
@@ -601,7 +680,7 @@ function EditForm({
             </div>
             <div className="space-y-1.5">
               <Label>Vence (calculado)</Label>
-              <div className="flex h-9 items-center gap-2 rounded-lg bg-slate-50 px-3 text-sm font-medium text-slate-700 ring-1 ring-foreground/5">
+              <div className="flex min-h-11 items-center gap-2 rounded-lg bg-slate-50 px-3 py-2 text-sm font-medium text-slate-700 ring-1 ring-foreground/5 sm:min-h-9">
                 <Icon name="calendar" size={14} className="text-slate-400" />
                 {fmtFechaLarga(vence)}
               </div>
@@ -620,11 +699,11 @@ function EditForm({
                   .map((f) => (
                     <label
                       key={f.id}
-                      className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-sm text-slate-700 hover:bg-slate-50"
+                      className="flex min-h-11 cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-sm text-slate-700 hover:bg-slate-50"
                     >
                       <input
                         type="checkbox"
-                        className="h-4 w-4 rounded border-slate-300 text-slate-900 focus:ring-slate-900/20"
+                        className="h-5 w-5 shrink-0 rounded border-slate-300 text-slate-900 focus:ring-slate-900/20 sm:h-4 sm:w-4"
                         checked={(draft.participantesIds ?? []).includes(f.id)}
                         onChange={() =>
                           setDraft((d) =>
@@ -641,7 +720,9 @@ function EditForm({
                         }
                       />
                       <span className="min-w-0 flex-1 truncate">{f.nombre}</span>
-                      <span className="shrink-0 text-xs text-slate-400">{f.unidad}</span>
+                      <span className="max-w-[35%] shrink-0 truncate text-xs text-slate-400">
+                        {gestionNombre(f.gestionId, gestiones)}
+                      </span>
                     </label>
                   ))}
               </div>
@@ -694,25 +775,25 @@ function ConfirmDeleteDialog({
   onConfirm: () => void;
 }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-50 flex items-end justify-center p-0 sm:items-center sm:p-4">
       <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-[2px]" onClick={onCancel} />
-      <div className="relative z-10 w-full max-w-sm rounded-xl bg-white p-5 ring-1 ring-foreground/10 shadow-xl">
+      <div className="relative z-10 max-h-[calc(100dvh-0.5rem)] w-full max-w-sm overflow-y-auto rounded-t-xl bg-white p-4 pb-[max(1rem,env(safe-area-inset-bottom))] ring-1 ring-foreground/10 shadow-xl sm:rounded-xl sm:p-5">
         <div className="flex items-start gap-3">
           <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-red-100 text-red-600">
             <Icon name="trash" size={18} />
           </div>
           <div>
             <div className="text-sm font-semibold text-slate-900">¿Eliminar esta actividad?</div>
-            <p className="mt-1 text-xs text-slate-500">
+            <p className="mt-1 break-words text-xs text-slate-500">
               Se eliminará <b>“{titulo}”</b> de forma permanente. Esta acción no se puede deshacer.
             </p>
           </div>
         </div>
-        <div className="mt-5 flex items-center justify-end gap-2">
-          <Button variant="outline" onClick={onCancel}>
+        <div className="mt-5 grid grid-cols-2 gap-2 sm:flex sm:items-center sm:justify-end">
+          <Button className="w-full sm:w-auto" variant="outline" onClick={onCancel}>
             Cancelar
           </Button>
-          <Button variant="destructive" onClick={onConfirm}>
+          <Button className="w-full sm:w-auto" variant="destructive" onClick={onConfirm}>
             <Icon name="trash" size={14} /> Eliminar
           </Button>
         </div>

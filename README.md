@@ -44,9 +44,10 @@ Requiere **Docker** con el plugin `compose`. Un solo comando levanta la base y l
 app:
 
 ```bash
-./deploy.sh dev        # desarrollo con hot reload: http://localhost:3000
+./deploy.sh dev        # desarrollo aislado con hot reload: http://localhost:3000
 ./deploy.sh prod       # producción: http://localhost:8001
-./deploy.sh --down     # detiene y elimina los contenedores
+./deploy.sh dev-down   # detiene solo desarrollo
+./deploy.sh --down     # detiene desarrollo, producción y ngrok
 ```
 
 `deploy.sh` crea `.env` a partir de
@@ -55,13 +56,70 @@ app:
 Qué hace por dentro:
 
 1. `docker compose up -d --build --wait` — levanta `db` (postgres:16) y `app`
-   (Next.js). En modo `dev` monta el código local y corre `npm run dev`; en
-   modo `prod` construye la imagen y corre `npm start`. La app espera a que
-   Postgres esté *healthy*.
+   (Next.js). En modo `dev` usa un proyecto Compose separado
+   (`kanban-dgtar-dev`) con `kanban-dev-app`, monta el código local y corre
+   `npm run dev`, pero se conecta a la misma PostgreSQL de producción por
+   `localhost:5433`; en modo `prod` construye la imagen y corre `npm start`.
+   La app espera a que Postgres esté *healthy*.
 2. El esquema (`db/schema.sql`) se asegura automáticamente desde la API cuando
    la app lee o guarda datos (`CREATE TABLE IF NOT EXISTS`).
 
 En producción, la app queda publicada localmente en `http://localhost:8001`.
+En desarrollo, la app queda en `http://localhost:3000` con hot reload y comparte
+la misma base de datos de producción; cualquier cambio de datos desde dev se ve
+también en producción.
+
+### ngrok dockerizado para OAuth
+
+El backend y el frontend viven en el mismo servicio Next.js `app`. Dentro de
+Docker escucha en `app:3000`; en producción se publica al host como
+`http://localhost:8001` mediante `APP_PORT`. No hay Nginx, Traefik ni gateway
+intermedio, y el frontend consume la API con rutas relativas `/api/...`, así
+que no hace falta CORS para el flujo ngrok.
+
+Para exponer solo la app/API por HTTPS público:
+
+```bash
+# En .env, agrega tu token de ngrok. No va en git.
+NGROK_AUTHTOKEN=tu-token
+
+./deploy.sh ngrok
+./deploy.sh ngrok-url
+```
+
+Comando Compose equivalente:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.ngrok.yml up -d --build --wait
+./scripts/ngrok-url.sh
+```
+
+`docker-compose.ngrok.yml` agrega el servicio `ngrok` con la imagen oficial
+`ngrok/ngrok:alpine` y apunta el túnel al puerto publicado del host Docker:
+`http://host.docker.internal:8001` por defecto. En tu red privada corresponde a
+la misma app que ves en `http://192.168.93.125:8001/`, pero sin hardcodear esa IP
+LAN dentro del contenedor. No tuneliza PostgreSQL ni otros servicios. La API
+local de inspección queda disponible solo desde el host en
+`http://localhost:4040/api/tunnels` y el dashboard en `http://localhost:4040`.
+
+Si cambias `APP_PORT`, puedes fijar el destino explícito:
+
+```bash
+NGROK_TARGET=http://host.docker.internal:8001
+```
+
+Si tienes un dominio reservado de ngrok, puedes fijarlo en `.env`:
+
+```bash
+NGROK_URL=https://tu-dominio.ngrok.app
+NGROK_APP_PUBLIC_URL=https://tu-dominio.ngrok.app
+NGROK_GOOGLE_REDIRECT_URI=https://tu-dominio.ngrok.app/api/google/callback
+```
+
+Con URL dinámica, deja `NGROK_APP_PUBLIC_URL` y `NGROK_GOOGLE_REDIRECT_URI`
+vacíos y entra a la app desde la URL que imprime `./deploy.sh ngrok-url`. El
+overlay limpia las URLs locales de `APP_PUBLIC_URL`/`GOOGLE_REDIRECT_URI` para
+que el callback se construya con los headers públicos que envía ngrok.
 
 ### Arquitectura de datos
 
@@ -128,6 +186,18 @@ En Google Cloud crea credenciales OAuth 2.0 de tipo **Web application** y agrega
 `GOOGLE_REDIRECT_URI` como Authorized redirect URI. La app solicita el scope
 `https://www.googleapis.com/auth/calendar.events` para crear, actualizar y borrar
 los eventos que sincroniza en el calendario principal del usuario.
+
+Para usar Google OAuth con ngrok, copia en Google Cloud Console la URI exacta:
+
+```text
+https://TU-DOMINIO-NGROK/api/google/callback
+```
+
+El endpoint real del proyecto es `GET /api/google/callback`. Si usas URL
+dinámica gratuita de ngrok, esa URI cambia cada vez que ngrok asigne otro
+dominio y debes actualizarla en Google Cloud Console antes de vincular la
+cuenta. Luego abre la app desde `https://TU-DOMINIO-NGROK`, inicia sesión y usa
+el botón de conexión de Google desde esa misma URL pública.
 
 ## Desarrollo sin Docker
 

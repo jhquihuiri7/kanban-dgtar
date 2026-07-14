@@ -2,26 +2,108 @@
 -- Las fechas se guardan como texto ISO (YYYY-MM-DD) para preservar el valor
 -- exacto sin desfases de zona horaria.
 
+-- Gestiones: catálogo padre de competencias y entregables. Reemplaza el
+-- enum fijo UNIDADES que antes vivía solo en código.
+CREATE TABLE IF NOT EXISTS gestiones (
+  id     text PRIMARY KEY,
+  nombre text NOT NULL,
+  color  text NOT NULL DEFAULT ''
+);
+
+-- Siembra de las gestiones que hoy existen como texto libre en
+-- funcionarios.unidad / competencias.unidad, con ids fijos para que el
+-- backfill de abajo pueda enlazarlas por nombre.
+INSERT INTO gestiones (id, nombre, color) VALUES
+  ('g1', 'DGTAR', '#0ea5e9'),
+  ('g2', 'Gestión Territorial', '#22c55e'),
+  ('g3', 'Gestión y Saneamiento Ambiental', '#8b5cf6'),
+  ('g4', 'Gestión de Riesgos', '#14b8a6')
+ON CONFLICT (id) DO NOTHING;
+
 CREATE TABLE IF NOT EXISTS funcionarios (
-  id      text PRIMARY KEY,
-  nombre  text NOT NULL,
-  email   text NOT NULL DEFAULT '',
-  cargo   text NOT NULL DEFAULT '',
-  unidad  text NOT NULL,
-  color   text NOT NULL DEFAULT ''
+  id         text PRIMARY KEY,
+  nombre     text NOT NULL,
+  email      text NOT NULL DEFAULT '',
+  cargo      text NOT NULL DEFAULT '',
+  gestion_id text NOT NULL REFERENCES gestiones(id),
+  color      text NOT NULL DEFAULT ''
 );
 
 ALTER TABLE funcionarios DROP COLUMN IF EXISTS activo;
 
 CREATE TABLE IF NOT EXISTS competencias (
-  id        text PRIMARY KEY,
-  nombre    text NOT NULL,
-  unidad    text NOT NULL
+  id         text PRIMARY KEY,
+  nombre     text NOT NULL,
+  gestion_id text NOT NULL REFERENCES gestiones(id) ON DELETE CASCADE
 );
 
 ALTER TABLE competencias DROP COLUMN IF EXISTS codigo;
 ALTER TABLE competencias DROP COLUMN IF EXISTS articulo;
 ALTER TABLE competencias DROP COLUMN IF EXISTS activo;
+
+CREATE TABLE IF NOT EXISTS entregables (
+  id         text PRIMARY KEY,
+  nombre     text NOT NULL,
+  gestion_id text NOT NULL REFERENCES gestiones(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS entregables_gestion_id_idx ON entregables(gestion_id);
+
+-- Migración de bases existentes: funcionarios.unidad (texto) -> funcionarios.gestion_id (FK).
+ALTER TABLE funcionarios ADD COLUMN IF NOT EXISTS gestion_id text REFERENCES gestiones(id);
+
+-- El backfill solo tiene sentido mientras "unidad" siga existiendo; en
+-- reejecuciones posteriores (ya migradas) esa columna ya no está, así que el
+-- UPDATE que la referencia queda condicionado para no romper la reejecución
+-- (PL/pgSQL no valida el UPDATE contra el catálogo si la rama no se ejecuta).
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'funcionarios' AND column_name = 'unidad'
+  ) THEN
+    UPDATE funcionarios f
+    SET gestion_id = g.id
+    FROM gestiones g
+    WHERE f.gestion_id IS NULL
+      AND f.unidad = g.nombre;
+  END IF;
+END $$;
+
+-- Red de seguridad: un funcionario cuyo valor de unidad no calzó con ninguna
+-- gestión sembrada (dato legado inesperado) no queda en NULL —rompería el
+-- NOT NULL de abajo— sino que se cuelga de la primera gestión existente.
+UPDATE funcionarios f
+SET gestion_id = (SELECT id FROM gestiones ORDER BY id LIMIT 1)
+WHERE f.gestion_id IS NULL;
+
+ALTER TABLE funcionarios ALTER COLUMN gestion_id SET NOT NULL;
+ALTER TABLE funcionarios DROP COLUMN IF EXISTS unidad;
+CREATE INDEX IF NOT EXISTS funcionarios_gestion_id_idx ON funcionarios(gestion_id);
+
+-- Migración competencias.unidad (texto) -> competencias.gestion_id (FK).
+ALTER TABLE competencias ADD COLUMN IF NOT EXISTS gestion_id text REFERENCES gestiones(id) ON DELETE CASCADE;
+
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'competencias' AND column_name = 'unidad'
+  ) THEN
+    UPDATE competencias c
+    SET gestion_id = g.id
+    FROM gestiones g
+    WHERE c.gestion_id IS NULL
+      AND c.unidad = g.nombre;
+  END IF;
+END $$;
+
+UPDATE competencias c
+SET gestion_id = (SELECT id FROM gestiones ORDER BY id LIMIT 1)
+WHERE c.gestion_id IS NULL;
+ALTER TABLE competencias ALTER COLUMN gestion_id SET NOT NULL;
+ALTER TABLE competencias DROP COLUMN IF EXISTS unidad;
+CREATE INDEX IF NOT EXISTS competencias_gestion_id_idx ON competencias(gestion_id);
 
 CREATE TABLE IF NOT EXISTS actividades (
   id                  text PRIMARY KEY,
@@ -30,6 +112,7 @@ CREATE TABLE IF NOT EXISTS actividades (
   descripcion         text NOT NULL DEFAULT '',
   funcionario_id      text REFERENCES funcionarios(id) ON DELETE CASCADE,
   competencia_id      text REFERENCES competencias(id) ON DELETE CASCADE,
+  entregable_id       text REFERENCES entregables(id) ON DELETE SET NULL,
   estado              text NOT NULL,
   fecha_creacion      text NOT NULL,
   plazo_dias          integer NOT NULL DEFAULT 0,
@@ -40,6 +123,13 @@ CREATE TABLE IF NOT EXISTS actividades (
   resultados_alcanzados text NOT NULL DEFAULT '',
   orden               integer NOT NULL DEFAULT 0
 );
+
+-- Entregable opcional del formulario de actividad/reunión. Nullable: no
+-- todas las gestiones tienen entregables cargados (p.ej. DGTAR). SET NULL en
+-- vez de CASCADE: borrar un entregable del catálogo no debe borrar las
+-- actividades que lo tenían asignado, solo desvincularlas.
+ALTER TABLE actividades ADD COLUMN IF NOT EXISTS entregable_id text REFERENCES entregables(id) ON DELETE SET NULL;
+CREATE INDEX IF NOT EXISTS actividades_entregable_id_idx ON actividades(entregable_id);
 
 CREATE TABLE IF NOT EXISTS actividad_participantes (
   actividad_id   text NOT NULL REFERENCES actividades(id) ON DELETE CASCADE,
