@@ -1,0 +1,26 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "incremental": false,
+    "isolatedModules": false,
+    "jsx": "react-jsx",
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "noEmit": false,
+    "outDir": ".test-dist",
+    "plugins": [],
+    "rootDir": ".",
+    "target": "ES2022"
+  },
+  "include": [
+    "lib/activity-create.ts",
+    "lib/activity-client.ts",
+    "lib/activity-draft.ts",
+    "lib/activity-draft.test.ts",
+    "lib/auth-token.ts",
+    "lib/data.ts",
+    "lib/db.ts",
+    "tests/**/*.test.ts"
+  ],
+  "exclude": ["node_modules", ".next", ".test-dist"]
+}

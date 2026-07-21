@@ -107,6 +107,9 @@ CREATE INDEX IF NOT EXISTS competencias_gestion_id_idx ON competencias(gestion_i
 
 CREATE TABLE IF NOT EXISTS actividades (
   id                  text PRIMARY KEY,
+  client_request_id   text,
+  created_by_user_id  text,
+  request_fingerprint text,
   tipo                text NOT NULL DEFAULT 'asignacion',
   titulo              text NOT NULL,
   descripcion         text NOT NULL DEFAULT '',
@@ -121,7 +124,9 @@ CREATE TABLE IF NOT EXISTS actividades (
   observaciones       text NOT NULL DEFAULT '',
   acciones_pendientes text NOT NULL DEFAULT '',
   resultados_alcanzados text NOT NULL DEFAULT '',
-  orden               integer NOT NULL DEFAULT 0
+  orden               integer NOT NULL DEFAULT 0,
+  created_at          timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at          timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Entregable opcional del formulario de actividad/reunión. Nullable: no
@@ -173,6 +178,174 @@ END $$;
 
 CREATE INDEX IF NOT EXISTS usuarios_funcionario_id_idx ON usuarios(funcionario_id);
 CREATE INDEX IF NOT EXISTS actividad_participantes_funcionario_id_idx ON actividad_participantes(funcionario_id);
+
+-- Metadata transaccional de actividades. Las columnas son nullable para que
+-- las filas legadas sigan siendo válidas; toda creación nueva por la API las
+-- completa y client_request_id queda protegido por unicidad global.
+ALTER TABLE actividades ADD COLUMN IF NOT EXISTS client_request_id text;
+ALTER TABLE actividades ADD COLUMN IF NOT EXISTS created_by_user_id text;
+ALTER TABLE actividades ADD COLUMN IF NOT EXISTS request_fingerprint text;
+ALTER TABLE actividades ADD COLUMN IF NOT EXISTS created_at timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP;
+ALTER TABLE actividades ADD COLUMN IF NOT EXISTS updated_at timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP;
+
+-- Normaliza únicamente valores legados que pueden repararse sin inventar
+-- relaciones de catálogo. Las FK opcionales quedan fuera del CHECK porque una
+-- base antigua podría contener filas huérfanas que deben poder editarse/migrarse.
+UPDATE actividades
+SET tipo = 'asignacion'
+WHERE tipo NOT IN ('asignacion', 'reunion');
+
+UPDATE actividades
+SET estado = 'pendiente'
+WHERE estado NOT IN ('pendiente', 'en_progreso', 'en_revision', 'cumplida', 'archivada');
+
+UPDATE actividades
+SET titulo = 'Actividad sin título'
+WHERE btrim(titulo) = '';
+
+UPDATE actividades
+SET plazo_dias = GREATEST(-3650, LEAST(3650, plazo_dias))
+WHERE plazo_dias NOT BETWEEN -3650 AND 3650;
+
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM pg_constraint
+    WHERE conrelid = 'actividades'::regclass
+      AND conname = 'actividades_created_by_user_id_fkey'
+      AND confdeltype <> 'n'
+  ) THEN
+    ALTER TABLE actividades DROP CONSTRAINT actividades_created_by_user_id_fkey;
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_constraint
+    WHERE conrelid = 'actividades'::regclass
+      AND conname = 'actividades_created_by_user_id_fkey'
+  ) THEN
+    ALTER TABLE actividades
+      ADD CONSTRAINT actividades_created_by_user_id_fkey
+      FOREIGN KEY (created_by_user_id) REFERENCES usuarios(id) ON DELETE SET NULL;
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_constraint
+    WHERE conrelid = 'actividades'::regclass
+      AND conname = 'actividades_idempotency_metadata_check'
+  ) THEN
+    ALTER TABLE actividades
+      ADD CONSTRAINT actividades_idempotency_metadata_check
+      CHECK (
+        (client_request_id IS NULL AND request_fingerprint IS NULL)
+        OR (client_request_id IS NOT NULL AND request_fingerprint IS NOT NULL)
+      );
+  END IF;
+
+  -- Retira una única vez la versión NOT VALID usada durante el desarrollo.
+  IF EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conrelid = 'actividades'::regclass
+      AND conname = 'actividades_business_fields_check'
+  ) THEN
+    ALTER TABLE actividades DROP CONSTRAINT actividades_business_fields_check;
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conrelid = 'actividades'::regclass
+      AND conname = 'actividades_business_fields_check_v2'
+  ) THEN
+    ALTER TABLE actividades
+      ADD CONSTRAINT actividades_business_fields_check_v2
+      CHECK (
+        tipo IN ('asignacion', 'reunion')
+        AND estado IN ('pendiente', 'en_progreso', 'en_revision', 'cumplida', 'archivada')
+        AND btrim(titulo) <> ''
+        AND plazo_dias BETWEEN -3650 AND 3650
+      );
+  END IF;
+END $$;
+
+CREATE UNIQUE INDEX IF NOT EXISTS actividades_client_request_id_uidx
+  ON actividades(client_request_id)
+  WHERE client_request_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS actividades_created_by_user_id_idx ON actividades(created_by_user_id);
+
+-- Ledger durable de idempotencia. No tiene FK a actividades porque el PUT
+-- legado todavía reescribe esa tabla; así una eliminación no permite reutilizar
+-- accidentalmente la misma solicitud y crear un duplicado.
+CREATE TABLE IF NOT EXISTS activity_creation_requests (
+  client_request_id   text PRIMARY KEY,
+  created_by_user_id  text REFERENCES usuarios(id) ON DELETE SET NULL,
+  request_fingerprint text NOT NULL,
+  funcionario_id      text NOT NULL,
+  activity_id         text NOT NULL,
+  created_at          timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+ALTER TABLE activity_creation_requests ALTER COLUMN created_by_user_id DROP NOT NULL;
+
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM pg_constraint
+    WHERE conrelid = 'activity_creation_requests'::regclass
+      AND conname = 'activity_creation_requests_created_by_user_id_fkey'
+      AND confdeltype <> 'n'
+  ) THEN
+    ALTER TABLE activity_creation_requests
+      DROP CONSTRAINT activity_creation_requests_created_by_user_id_fkey;
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_constraint
+    WHERE conrelid = 'activity_creation_requests'::regclass
+      AND conname = 'activity_creation_requests_created_by_user_id_fkey'
+  ) THEN
+    ALTER TABLE activity_creation_requests
+      ADD CONSTRAINT activity_creation_requests_created_by_user_id_fkey
+      FOREIGN KEY (created_by_user_id) REFERENCES usuarios(id) ON DELETE SET NULL;
+  END IF;
+END $$;
+
+CREATE UNIQUE INDEX IF NOT EXISTS activity_creation_requests_activity_id_uidx
+  ON activity_creation_requests(activity_id);
+CREATE INDEX IF NOT EXISTS activity_creation_requests_user_id_idx
+  ON activity_creation_requests(created_by_user_id);
+
+-- Bases que alcanzaron a usar las columnas de metadata antes de incorporar el
+-- ledger conservan sus operaciones ya confirmadas.
+INSERT INTO activity_creation_requests
+  (client_request_id, created_by_user_id, request_fingerprint, funcionario_id, activity_id, created_at)
+SELECT
+  client_request_id,
+  created_by_user_id,
+  request_fingerprint,
+  funcionario_id,
+  id,
+  created_at
+FROM actividades
+WHERE client_request_id IS NOT NULL
+  AND request_fingerprint IS NOT NULL
+  AND funcionario_id IS NOT NULL
+ON CONFLICT (client_request_id) DO NOTHING;
+
+-- Revisión única del documento usado por /api/data. El endpoint bloquea esta
+-- fila antes de reescribir y solo acepta la revisión que leyó el cliente.
+CREATE TABLE IF NOT EXISTS data_revision (
+  id         smallint PRIMARY KEY CHECK (id = 1),
+  revision   bigint NOT NULL DEFAULT 0 CHECK (revision >= 0),
+  updated_at timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+INSERT INTO data_revision (id, revision)
+VALUES (1, 0)
+ON CONFLICT (id) DO NOTHING;
 
 CREATE TABLE IF NOT EXISTS google_accounts (
   user_id                 text PRIMARY KEY REFERENCES usuarios(id) ON DELETE CASCADE,

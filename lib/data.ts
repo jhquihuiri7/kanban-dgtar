@@ -67,7 +67,7 @@ export interface EstadoDef {
   accent: "slate" | "blue" | "amber" | "green";
 }
 
-function todayIsoForZone(timeZone: string): string {
+export function todayIsoForZone(timeZone: string): string {
   const parts = new Intl.DateTimeFormat("en-US", {
     timeZone,
     year: "numeric",

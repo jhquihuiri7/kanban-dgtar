@@ -23,6 +23,7 @@ const GOOGLE_CALENDAR_API = "https://www.googleapis.com/calendar/v3";
 const GOOGLE_CALENDAR_ID = "primary";
 const GOOGLE_FETCH_ATTEMPTS = 3;
 const GOOGLE_FETCH_TIMEOUT_MS = 20000;
+const GOOGLE_SYNC_ADVISORY_KEY = "kanban-dgtar-google-calendar-sync-v1";
 
 export const GOOGLE_CALENDAR_SCOPE = "https://www.googleapis.com/auth/calendar.events";
 const GOOGLE_SCOPES = ["openid", "email", GOOGLE_CALENDAR_SCOPE];
@@ -690,12 +691,7 @@ export async function connectGoogleAccount(req: Request, userId: string, code: s
     ],
   );
 
-  const data = await readAll();
-  await syncGoogleCalendars(
-    { gestiones: [], funcionarios: [], competencias: [], entregables: [], actividades: [] },
-    data,
-    { userIds: [userId], force: true },
-  );
+  await syncLatestGoogleCalendars({ userIds: [userId], force: true });
 }
 
 export async function getGoogleConnectionStatus(userId: string): Promise<GoogleConnectionStatus> {
@@ -761,11 +757,40 @@ export async function syncGoogleCalendars(
   return summary;
 }
 
+/**
+ * Serializes reconciliation across Node replicas and always reads PostgreSQL
+ * after acquiring the lock. An older background job therefore cannot apply a
+ * stale snapshot after a newer creation and delete its calendar event.
+ */
+export async function syncLatestGoogleCalendars(
+  options: SyncOptions = {},
+): Promise<GoogleSyncSummary> {
+  await ensureSchema();
+  const client = await getPool().connect();
+  let locked = false;
+  try {
+    await client.query("SELECT pg_advisory_lock(hashtext($1))", [GOOGLE_SYNC_ADVISORY_KEY]);
+    locked = true;
+    const data = await readAll();
+    return await syncGoogleCalendars(
+      { gestiones: [], funcionarios: [], competencias: [], entregables: [], actividades: [] },
+      data,
+      options,
+    );
+  } finally {
+    if (locked) {
+      try {
+        await client.query("SELECT pg_advisory_unlock(hashtext($1))", [GOOGLE_SYNC_ADVISORY_KEY]);
+      } catch (error) {
+        console.error("[google] No se pudo liberar el bloqueo de sincronización", {
+          errorType: error instanceof Error ? error.name : typeof error,
+        });
+      }
+    }
+    client.release();
+  }
+}
+
 export async function syncCurrentUserGoogleCalendar(userId: string): Promise<GoogleSyncSummary> {
-  const data = await readAll();
-  return syncGoogleCalendars(
-    { gestiones: [], funcionarios: [], competencias: [], entregables: [], actividades: [] },
-    data,
-    { userIds: [userId], force: true },
-  );
+  return syncLatestGoogleCalendars({ userIds: [userId], force: true });
 }

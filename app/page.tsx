@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Badge, Button, Icon, Input, Label, Select, useClickAway, type IconName } from "@/components/ui";
-import { cn, createId } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 import {
   TODAY_ISO,
   dateOnly,
@@ -23,10 +23,17 @@ import { CalendarView } from "@/components/calendar";
 import { DetailPanel } from "@/components/detail";
 import { StatsView } from "@/components/stats";
 import { CatalogsView } from "@/components/catalogs";
-import { NewActivityDialog, type NewActivityInput } from "@/components/new-activity";
+import { NewActivityDialog, type CreateActivityHandler } from "@/components/new-activity";
 import { ExportDialog } from "@/components/export";
 import { UsersView } from "@/components/users";
 import type { AuthUser } from "@/lib/auth-token";
+import {
+  ActivityPersistenceError,
+  activityFieldMismatches,
+  failureKindForStatus,
+  persistActivityWithVerification,
+} from "@/lib/activity-client";
+import { DataMergeConflictError, rebaseDataDocument, type DataDocument } from "@/lib/data-rebase";
 
 type Tab = "kanban" | "stats" | "catalogs" | "users";
 type BoardView = "columns" | "week" | "month";
@@ -49,11 +56,55 @@ interface Settings {
 }
 
 const SYNC_DEBOUNCE_MS = 800;
+const SERVER_READ_TIMEOUT_MS = 10_000;
+const LEGACY_SAVE_TIMEOUT_MS = 15_000;
+
+interface ServerDataSnapshot extends DataDocument {
+  revision: number;
+}
+
+function snapshotPayload(snapshot: DataDocument): string {
+  return JSON.stringify(snapshot);
+}
+
+function snapshotDocument(snapshot: ServerDataSnapshot): DataDocument {
+  return {
+    gestiones: snapshot.gestiones,
+    funcionarios: snapshot.funcionarios,
+    competencias: snapshot.competencias,
+    entregables: snapshot.entregables,
+    actividades: snapshot.actividades,
+  };
+}
+
+function parseServerSnapshot(value: Record<string, unknown>): ServerDataSnapshot {
+  const revision = Number(value.revision);
+  if (!Number.isSafeInteger(revision) || revision < 0) {
+    throw new Error("El servidor no devolvió una revisión de datos válida.");
+  }
+  if (
+    !Array.isArray(value.gestiones) ||
+    !Array.isArray(value.funcionarios) ||
+    !Array.isArray(value.competencias) ||
+    !Array.isArray(value.entregables) ||
+    !Array.isArray(value.actividades)
+  ) {
+    throw new Error("El servidor devolvió datos incompletos.");
+  }
+  return {
+    gestiones: value.gestiones as Gestion[],
+    funcionarios: value.funcionarios as Funcionario[],
+    competencias: value.competencias as Competencia[],
+    entregables: value.entregables as Entregable[],
+    actividades: value.actividades as Actividad[],
+    revision,
+  };
+}
 
 /* Loads the catalog + activities from /api/data on mount, then writes the
-   whole document back (debounced) whenever any of the three lists change.
-   This keeps every existing mutation (drag&drop, edits, toggles, create) in
-   sync with the PostgreSQL backend without touching the child components. */
+   whole document back (debounced) for legacy edits. Every PUT carries the
+   revision read from PostgreSQL, so a stale snapshot is rejected before it can
+   erase a concurrently-created activity. New activities use their own POST. */
 function useServerSync({
   gestiones,
   funcionarios,
@@ -86,27 +137,256 @@ function useServerSync({
 
   const hydratedPayloadRef = useRef<string | null>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const revisionRef = useRef<number | null>(null);
+  const pendingPayloadRef = useRef<string | null>(null);
+  const confirmedPayloadRef = useRef<string | null>(null);
+  const activeSavePromiseRef = useRef<Promise<void> | null>(null);
+  const lastSaveErrorRef = useRef<Error | null>(null);
+  const latestSnapshotRef = useRef<ServerDataSnapshot | null>(null);
+  const currentDocumentRef = useRef<DataDocument>({
+    gestiones,
+    funcionarios,
+    competencias,
+    entregables,
+    actividades: activities,
+  });
+  currentDocumentRef.current = { gestiones, funcionarios, competencias, entregables, actividades: activities };
 
-  async function persistPayload(payload: string) {
-    try {
-      const res = await fetch("/api/data", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: payload,
-      });
-      if (!res.ok) {
-        const json = await res.json().catch(() => null);
-        throw new Error(json?.error || res.statusText);
-      }
-      const json = await res.json().catch(() => null);
-      if (json?.googleSync?.failed > 0 || json?.googleSync?.errors?.length > 0) {
-        throw new Error("La app guardó los cambios, pero Google Calendar no se pudo sincronizar.");
-      }
-      setSyncState("saved");
-    } catch (err) {
-      console.error("[sync] PUT /api/data", err);
-      setSyncState("error");
+  function applyServerSnapshot(snapshot: ServerDataSnapshot) {
+    if (revisionRef.current != null && snapshot.revision < revisionRef.current && latestSnapshotRef.current) {
+      return latestSnapshotRef.current;
     }
+    const data = snapshotDocument(snapshot);
+    currentDocumentRef.current = data;
+    revisionRef.current = snapshot.revision;
+    const payload = snapshotPayload(data);
+    hydratedPayloadRef.current = payload;
+    confirmedPayloadRef.current = payload;
+    latestSnapshotRef.current = snapshot;
+    setGestiones(data.gestiones);
+    setFuncionarios(data.funcionarios);
+    setCompetencias(data.competencias);
+    setEntregables(data.entregables);
+    setActivities(data.actividades);
+    return snapshot;
+  }
+
+  function currentPayload(): string {
+    return snapshotPayload(currentDocumentRef.current);
+  }
+
+  function applyLocalDocument(data: DataDocument, revision: number, payload: string) {
+    currentDocumentRef.current = data;
+    hydratedPayloadRef.current = payload;
+    latestSnapshotRef.current = { ...data, revision };
+    setGestiones(data.gestiones);
+    setFuncionarios(data.funcionarios);
+    setCompetencias(data.competencias);
+    setEntregables(data.entregables);
+    setActivities(data.actividades);
+  }
+
+  async function fetchServerSnapshot(): Promise<ServerDataSnapshot> {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), SERVER_READ_TIMEOUT_MS);
+    try {
+      const response = await fetch("/api/data", { cache: "no-store", signal: controller.signal });
+      const json = (await response.json().catch(() => null)) as Record<string, unknown> | null;
+      if (!response.ok || !json) {
+        const kind = failureKindForStatus(response.status);
+        throw new ActivityPersistenceError(
+          kind,
+          typeof json?.error === "string" ? json.error : "No se pudo leer la fuente oficial de datos.",
+          typeof json?.code === "string" ? json.code : "SERVER_SNAPSHOT_FAILED",
+          response.status,
+        );
+      }
+      return parseServerSnapshot(json);
+    } catch (error) {
+      if (error instanceof ActivityPersistenceError) throw error;
+      if (controller.signal.aborted || (error as { name?: string })?.name === "AbortError") {
+        throw new ActivityPersistenceError(
+          "timeout",
+          "La actualización desde el servidor tardó demasiado; los datos locales permanecen disponibles.",
+          "SERVER_SNAPSHOT_TIMEOUT",
+        );
+      }
+      throw new ActivityPersistenceError(
+        "network",
+        "No fue posible consultar la fuente oficial de datos.",
+        "SERVER_SNAPSHOT_NETWORK_ERROR",
+      );
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+
+  async function flushPendingChanges(): Promise<void> {
+    if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = null;
+    if (activeSavePromiseRef.current) await activeSavePromiseRef.current;
+    const payload = currentPayload();
+    if (payload !== confirmedPayloadRef.current) {
+      await persistPayload(payload);
+    }
+    if (lastSaveErrorRef.current) throw lastSaveErrorRef.current;
+  }
+
+  async function refreshFromServer(options: {
+    flushPending?: boolean;
+    beforeApply?: (snapshot: ServerDataSnapshot) => void;
+  } = {}): Promise<ServerDataSnapshot> {
+    if (options.flushPending !== false) await flushPendingChanges();
+    const snapshot = await fetchServerSnapshot();
+    options.beforeApply?.(snapshot);
+    return applyServerSnapshot(snapshot);
+  }
+
+  function persistPayload(payload: string): Promise<void> {
+    pendingPayloadRef.current = payload;
+    if (activeSavePromiseRef.current) return activeSavePromiseRef.current;
+
+    lastSaveErrorRef.current = null;
+    const drain = (async () => {
+      try {
+        while (pendingPayloadRef.current) {
+          let nextPayload = pendingPayloadRef.current;
+          pendingPayloadRef.current = null;
+          let revision = revisionRef.current;
+          if (revision == null) throw new Error("No existe una revisión cargada para guardar.");
+          setSyncState("saving");
+          let json: Record<string, unknown> | null = null;
+          let rebasedDocument: DataDocument | null = null;
+          for (let rebaseAttempt = 0; ; rebaseAttempt++) {
+            const document = JSON.parse(nextPayload) as DataDocument;
+            const controller = new AbortController();
+            const timeout = setTimeout(() => controller.abort(), LEGACY_SAVE_TIMEOUT_MS);
+            let res: Response;
+            try {
+              res = await fetch("/api/data", {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ ...document, revision }),
+                signal: controller.signal,
+              });
+              json = (await res.json().catch(() => null)) as Record<string, unknown> | null;
+            } catch (error) {
+              if (controller.signal.aborted || (error as { name?: string })?.name === "AbortError") {
+                throw new ActivityPersistenceError(
+                  "timeout",
+                  "El guardado pendiente tardó demasiado. Los cambios locales se conservaron.",
+                  "LEGACY_SAVE_TIMEOUT",
+                );
+              }
+              throw new ActivityPersistenceError(
+                "network",
+                "No fue posible guardar los cambios pendientes. Los datos locales se conservaron.",
+                "LEGACY_SAVE_NETWORK_ERROR",
+              );
+            } finally {
+              clearTimeout(timeout);
+            }
+
+            if (res.status !== 409 || json?.code !== "STALE_REVISION") {
+              if (!res.ok || json?.ok !== true) {
+                const kind = failureKindForStatus(res.status);
+                throw new ActivityPersistenceError(
+                  kind,
+                  typeof json?.error === "string" ? json.error : "No se pudieron guardar los cambios pendientes.",
+                  typeof json?.code === "string" ? json.code : "LEGACY_SAVE_FAILED",
+                  res.status,
+                );
+              }
+              break;
+            }
+
+            if (rebaseAttempt >= 2 || !confirmedPayloadRef.current) {
+              throw new ActivityPersistenceError(
+                "conflict",
+                "Los datos cambiaron repetidamente en otra pestaña. Tus cambios locales se conservaron.",
+                "STALE_REVISION",
+                409,
+              );
+            }
+
+            const remote = await fetchServerSnapshot();
+            try {
+              rebasedDocument = rebaseDataDocument(
+                JSON.parse(confirmedPayloadRef.current) as DataDocument,
+                document,
+                snapshotDocument(remote),
+              );
+              // An edit may have produced Q while the stale PUT(P) and remote
+              // read were in flight. Q is based on P, so fold Q over the
+              // already-rebased P before applying or retrying it; sending the
+              // raw Q later could erase the remote rows preserved above.
+              const queuedDuringRebase = pendingPayloadRef.current;
+              if (queuedDuringRebase) {
+                pendingPayloadRef.current = null;
+                rebasedDocument = rebaseDataDocument(
+                  document,
+                  JSON.parse(queuedDuringRebase) as DataDocument,
+                  rebasedDocument,
+                );
+              }
+            } catch (error) {
+              if (error instanceof DataMergeConflictError) {
+                throw new ActivityPersistenceError(
+                  "conflict",
+                  "La misma información cambió en otra pestaña. Tus cambios locales se conservaron para conciliarlos.",
+                  `DATA_MERGE_CONFLICT:${error.conflicts.join(",")}`,
+                  409,
+                );
+              }
+              throw error;
+            }
+            revision = remote.revision;
+            confirmedPayloadRef.current = snapshotPayload(snapshotDocument(remote));
+            latestSnapshotRef.current = remote;
+            nextPayload = snapshotPayload(rebasedDocument);
+            // Keep the merged local view even if the retry times out after this
+            // point; otherwise a later save could mistake a remote addition for
+            // a local deletion.
+            applyLocalDocument(rebasedDocument, remote.revision, nextPayload);
+          }
+
+          const nextRevision = Number(json?.revision);
+          if (!Number.isSafeInteger(nextRevision) || nextRevision <= revision) {
+            throw new Error("El servidor no confirmó una nueva revisión después de guardar.");
+          }
+          revisionRef.current = Math.max(revisionRef.current ?? nextRevision, nextRevision);
+          confirmedPayloadRef.current = nextPayload;
+          if (rebasedDocument) applyLocalDocument(rebasedDocument, nextRevision, nextPayload);
+          if (
+            (json.googleSync as { failed?: number; errors?: unknown[] } | undefined)?.failed ||
+            (json.googleSync as { failed?: number; errors?: unknown[] } | undefined)?.errors?.length
+          ) {
+            console.warn("[sync] Los datos se guardaron, pero Google Calendar reportó fallos.");
+          }
+          setSyncState("saved");
+        }
+      } catch (err) {
+        const saveError = err instanceof Error ? err : new Error("Error desconocido al guardar.");
+        lastSaveErrorRef.current = saveError;
+        console.error("[sync] PUT /api/data", saveError);
+        setSyncState("error");
+      }
+    })();
+    const active = drain.finally(() => {
+      if (activeSavePromiseRef.current === active) activeSavePromiseRef.current = null;
+      const queued = pendingPayloadRef.current;
+      if (queued) {
+        // The queued payload is a newer full snapshot. Give it one independent
+        // attempt even when the in-flight request failed; do not loop-retry a
+        // single failing payload forever.
+        pendingPayloadRef.current = null;
+        queueMicrotask(() => {
+          void persistPayload(queued);
+        });
+      }
+    });
+    activeSavePromiseRef.current = active;
+    return active;
   }
 
   function saveNow(overrides?: {
@@ -118,13 +398,15 @@ function useServerSync({
   }) {
     if (loadState !== "ready") return;
     if (timerRef.current) clearTimeout(timerRef.current);
-    const payload = JSON.stringify({
+    const document: DataDocument = {
       gestiones: overrides?.gestiones ?? gestiones,
       funcionarios: overrides?.funcionarios ?? funcionarios,
       competencias: overrides?.competencias ?? competencias,
       entregables: overrides?.entregables ?? entregables,
       actividades: overrides?.activities ?? activities,
-    });
+    };
+    currentDocumentRef.current = document;
+    const payload = snapshotPayload(document);
     hydratedPayloadRef.current = payload;
     setSyncState("saving");
     void persistPayload(payload);
@@ -137,26 +419,18 @@ function useServerSync({
     setLoadError("");
     (async () => {
       try {
-        const [meRes, dataRes] = await Promise.all([fetch("/api/auth/me"), fetch("/api/data")]);
+        const [meRes, dataRes] = await Promise.all([
+          fetch("/api/auth/me", { cache: "no-store" }),
+          fetch("/api/data", { cache: "no-store" }),
+        ]);
         const meJson = await meRes.json();
-        const dataJson = await dataRes.json();
+        const dataJson = (await dataRes.json()) as Record<string, unknown>;
         if (!meRes.ok) throw new Error(meJson?.error || meRes.statusText);
-        if (!dataRes.ok) throw new Error(dataJson?.error || dataRes.statusText);
+        if (!dataRes.ok) throw new Error(typeof dataJson?.error === "string" ? dataJson.error : dataRes.statusText);
         if (cancelled) return;
-        const nextData = {
-          gestiones: dataJson.gestiones ?? [],
-          funcionarios: dataJson.funcionarios ?? [],
-          competencias: dataJson.competencias ?? [],
-          entregables: dataJson.entregables ?? [],
-          actividades: dataJson.actividades ?? [],
-        };
-        hydratedPayloadRef.current = JSON.stringify(nextData);
+        const nextData = parseServerSnapshot(dataJson);
         setCurrentUser(meJson.user ?? null);
-        setGestiones(nextData.gestiones);
-        setFuncionarios(nextData.funcionarios);
-        setCompetencias(nextData.competencias);
-        setEntregables(nextData.entregables);
-        setActivities(nextData.actividades);
+        applyServerSnapshot(nextData);
         setLoadState("ready");
       } catch (err) {
         if (cancelled) return;
@@ -188,7 +462,42 @@ function useServerSync({
     };
   }, [gestiones, funcionarios, competencias, entregables, activities, loadState]);
 
-  return { loadState, loadError, syncState, saveNow, retry: () => setReloadKey((k) => k + 1) };
+  useEffect(() => {
+    if (loadState !== "ready") return;
+    const hasUnsavedChanges = () =>
+      Boolean(timerRef.current || activeSavePromiseRef.current || pendingPayloadRef.current) ||
+      currentPayload() !== confirmedPayloadRef.current;
+    const beforeUnload = (event: BeforeUnloadEvent) => {
+      if (!hasUnsavedChanges()) return;
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    const retryWhenOnline = () => {
+      if (!hasUnsavedChanges()) return;
+      if (timerRef.current) clearTimeout(timerRef.current);
+      timerRef.current = null;
+      setSyncState("saving");
+      void persistPayload(currentPayload());
+    };
+    window.addEventListener("beforeunload", beforeUnload);
+    window.addEventListener("online", retryWhenOnline);
+    return () => {
+      window.removeEventListener("beforeunload", beforeUnload);
+      window.removeEventListener("online", retryWhenOnline);
+    };
+    // Refs carry the latest document/queue; listeners only depend on readiness.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loadState]);
+
+  return {
+    loadState,
+    loadError,
+    syncState,
+    saveNow,
+    flushPendingChanges,
+    refreshFromServer,
+    retry: () => setReloadKey((k) => k + 1),
+  };
 }
 
 export default function Page() {
@@ -207,7 +516,7 @@ export default function Page() {
   const [activities, setActivities] = useState<Actividad[]>([]);
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
 
-  const { loadState, loadError, syncState, saveNow, retry } = useServerSync({
+  const { loadState, loadError, syncState, saveNow, flushPendingChanges, refreshFromServer, retry } = useServerSync({
     gestiones,
     funcionarios,
     competencias,
@@ -227,6 +536,7 @@ export default function Page() {
   const [exportOpen, setExportOpen] = useState(false);
 
   const [filters, setFilters] = useState<Filters>({ funcionario: "all", competencia: "all", q: "" });
+  const creationAttemptsRef = useRef(new Map<string, number>());
 
   const isAdmin = currentUser?.role === "admin";
 
@@ -242,11 +552,73 @@ export default function Page() {
     setTab(nextTab);
   }
 
-  function createActivity(partial: NewActivityInput) {
-    const id = createId("a");
-    const next: Actividad = { id, orden: activities.length, ...partial };
-    setActivities([next, ...activities]);
-  }
+  const createActivity: CreateActivityHandler = async (input, clientRequestId, onPhase) => {
+    if (!currentUser) {
+      throw new ActivityPersistenceError("authentication", "No hay una sesión autenticada.");
+    }
+    const attempt = (creationAttemptsRef.current.get(clientRequestId) ?? 0) + 1;
+    const trace = {
+      attempt,
+      requestId: `req_${globalThis.crypto?.randomUUID?.() ?? `${Date.now().toString(36)}_${Math.random().toString(36).slice(2)}`}`,
+    };
+    creationAttemptsRef.current.set(clientRequestId, attempt);
+
+    // Do not let the authoritative refresh below cancel a pending drag/edit.
+    // Serialize and confirm the legacy queue before starting the isolated POST.
+    await flushPendingChanges();
+
+    let verified: Actividad;
+    try {
+      verified = await persistActivityWithVerification({
+        input,
+        clientRequestId,
+        retryAttempt: trace.attempt,
+        requestId: trace.requestId,
+        onPhase,
+      });
+    } catch (error) {
+      // A lost response followed by user edits is an intentional idempotency
+      // conflict. The row carried by the error was read directly from DB; make
+      // it visible in the official list before offering "Aceptar guardada".
+      if (error instanceof ActivityPersistenceError && error.existingActivity?.id) {
+        const existingId = error.existingActivity.id;
+        await refreshFromServer({
+          beforeApply: (snapshot) => {
+            if (!snapshot.actividades.some((activity) => activity.id === existingId)) {
+              throw new ActivityPersistenceError(
+                "verification",
+                "La actividad previa ya no está disponible en la fuente oficial.",
+                "EXISTING_ACTIVITY_REFRESH_MISSING",
+              );
+            }
+          },
+        });
+        creationAttemptsRef.current.delete(clientRequestId);
+      }
+      throw error;
+    }
+
+    // Refresh every collection from the official source and suppress the
+    // legacy autosync echo. The activity returned to the modal is the row from
+    // this second no-cache server read, not the optimistic POST response.
+    let official: Actividad | undefined;
+    await refreshFromServer({
+      beforeApply: (snapshot) => {
+        official = snapshot.actividades.find((activity) => activity.id === verified.id);
+        const mismatches = official ? activityFieldMismatches(official, input) : ["id"];
+        if (!official || mismatches.length > 0) {
+          throw new ActivityPersistenceError(
+            "verification",
+            "La actividad dejó de estar disponible durante la actualización del listado.",
+            `OFFICIAL_REFRESH_MISMATCH:${mismatches.join(",")}`,
+          );
+        }
+      },
+    });
+
+    creationAttemptsRef.current.delete(clientRequestId);
+    return official!;
+  };
 
   if (loadState !== "ready" || !currentUser) {
     return <LoadingGate state={loadState} error={loadError} onRetry={retry} />;
@@ -1187,9 +1559,9 @@ function SyncIndicator({ state }: { state: SyncState }) {
   };
   const s = map[state];
   return (
-    <div className={cn("hidden lg:flex items-center gap-1.5 text-xs font-medium", s.cls)} title="Sincronización con la base de datos">
+    <div className={cn("flex items-center gap-1.5 text-xs font-medium", s.cls)} title="Sincronización con la base de datos">
       <Icon name={s.icon} size={14} className={s.spin ? "animate-spin" : undefined} />
-      <span>{s.text}</span>
+      <span className="hidden sm:inline">{s.text}</span>
     </div>
   );
 }

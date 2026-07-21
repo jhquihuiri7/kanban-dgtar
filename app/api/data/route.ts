@@ -5,12 +5,19 @@
 // node-postgres needs the Node runtime (not Edge); never cache the responses.
 
 import { NextResponse } from "next/server";
-import { readAll, writeAll, type DbData } from "@/lib/db";
+import {
+  AuthorizationContextChangedError,
+  RevisionConflictError,
+  readAllWithRevision,
+  writeAll,
+  type DbData,
+} from "@/lib/db";
 import { requireUser } from "@/lib/auth-server";
-import { syncGoogleCalendars } from "@/lib/google-calendar";
+import { syncLatestGoogleCalendars } from "@/lib/google-calendar";
+import { validateActivityDocument, validateExistingActivityDocumentIds } from "@/lib/activity-document";
+import { errorTraceFields, logActivityTrace, requestIdFor, todayIsoGalapagos } from "@/lib/activity-create";
 import {
   ESTADOS,
-  TODAY_ISO,
   TIPOS,
   actividadIncludesFuncionario,
   addDays,
@@ -24,21 +31,77 @@ import {
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+const NO_STORE_HEADERS = { "Cache-Control": "no-store, max-age=0", Pragma: "no-cache" };
+
+function queueDocumentGoogleSync(trace: { requestId: string; userId: string }) {
+  logActivityTrace({ ...trace, event: "document_google_sync_queued" });
+  void syncLatestGoogleCalendars()
+    .then((summary) => {
+      logActivityTrace({
+        ...trace,
+        event: summary.failed > 0 ? "document_google_sync_completed_with_errors" : "document_google_sync_completed",
+        ...(summary.failed > 0
+          ? {
+              errorCode: "GOOGLE_SYNC_FAILED",
+              detail: { synced: summary.synced, failed: summary.failed, errors: summary.errors },
+            }
+          : {}),
+      });
+    })
+    .catch((error: unknown) => {
+      logActivityTrace({
+        ...trace,
+        event: "document_google_sync_failed",
+        errorCode: "GOOGLE_SYNC_FAILED",
+        ...errorTraceFields(error, { stack: true }),
+      });
+    });
+}
+
+class DataRouteError extends Error {
+  constructor(
+    readonly status: 400 | 403 | 422,
+    readonly code: string,
+    readonly publicMessage: string,
+  ) {
+    super(publicMessage);
+  }
+}
+
+export async function GET(req: Request) {
+  const requestId = requestIdFor(req);
   try {
     const user = await requireUser();
-    const data = await readAll();
-    return NextResponse.json(filterForUser(data, user));
+    const snapshot = await readAllWithRevision();
+    return NextResponse.json(
+      { ...filterForUser(snapshot.data, user), revision: snapshot.revision },
+      { headers: { ...NO_STORE_HEADERS, "X-Request-Id": requestId } },
+    );
   } catch (err) {
-    console.error("[api/data] GET", err);
-    return NextResponse.json({ error: errorMessage(err) }, { status: statusForError(err) });
+    const readErrorCode =
+      err instanceof Error && err.message === "No autenticado" ? "UNAUTHENTICATED" : "INTERNAL_ERROR";
+    logActivityTrace({
+      requestId,
+      event: "document_read_failed",
+      errorCode: readErrorCode,
+      ...errorTraceFields(err, { stack: readErrorCode === "INTERNAL_ERROR" }),
+    });
+    return dataErrorResponse(err, requestId);
   }
 }
 
 export async function PUT(req: Request) {
+  const requestId = requestIdFor(req);
+  let userId: string | undefined;
   try {
     const user = await requireUser();
-    const body = (await req.json()) as Partial<DbData>;
+    userId = user.id;
+    let body: Partial<DbData> & { revision?: unknown };
+    try {
+      body = (await req.json()) as Partial<DbData> & { revision?: unknown };
+    } catch {
+      throw new DataRouteError(400, "INVALID_REQUEST", "El cuerpo JSON no es válido.");
+    }
     if (
       !body ||
       !Array.isArray(body.gestiones) ||
@@ -48,11 +111,27 @@ export async function PUT(req: Request) {
       !Array.isArray(body.actividades)
     ) {
       return NextResponse.json(
-        { error: "Cuerpo inválido: se esperan gestiones, funcionarios, competencias, entregables y actividades." },
-        { status: 400 },
+        {
+          ok: false,
+          error: "Cuerpo inválido: se esperan gestiones, funcionarios, competencias, entregables y actividades.",
+          code: "INVALID_REQUEST",
+          requestId,
+        },
+        { status: 400, headers: { ...NO_STORE_HEADERS, "X-Request-Id": requestId } },
       );
     }
-    const current = await readAll();
+    if (typeof body.revision !== "number" || !Number.isSafeInteger(body.revision) || body.revision < 0) {
+      throw new DataRouteError(400, "INVALID_REQUEST", "revision es obligatoria y debe ser un entero válido.");
+    }
+    const expectedRevision = body.revision;
+
+    const snapshot = await readAllWithRevision();
+    if (snapshot.revision !== expectedRevision) {
+      throw new RevisionConflictError(expectedRevision, snapshot.revision);
+    }
+    const current = snapshot.data;
+    const activityIdError = validateExistingActivityDocumentIds(current.actividades, body.actividades);
+    if (activityIdError) throw new DataRouteError(422, activityIdError.code, activityIdError.message);
     const next: DbData =
       user.role === "admin"
         ? {
@@ -63,25 +142,86 @@ export async function PUT(req: Request) {
             actividades: body.actividades,
           }
         : mergeUserWrite(current, body.actividades, user.funcionarioId);
+    const documentError = validateActivityDocument(next);
+    if (documentError) throw new DataRouteError(422, documentError.code, documentError.message);
 
-    await writeAll(next);
-    const googleSync = await syncGoogleCalendars(current, next);
-    return NextResponse.json({ ok: true, googleSync });
+    logActivityTrace({
+      requestId,
+      userId,
+      event: "document_write_started",
+      detail: {
+        role: user.role,
+        expectedRevision,
+        actividades: next.actividades.length,
+        funcionarios: next.funcionarios.length,
+        competencias: next.competencias.length,
+        entregables: next.entregables.length,
+      },
+    });
+    const revision = await writeAll(next, expectedRevision, {
+      userId: user.id,
+      role: user.role,
+      funcionarioId: user.funcionarioId,
+    });
+    logActivityTrace({ requestId, userId, event: "document_write_committed" });
+    queueDocumentGoogleSync({ requestId, userId: user.id });
+    return NextResponse.json(
+      { ok: true, googleSync: { queued: true }, revision, requestId },
+      { headers: { ...NO_STORE_HEADERS, "X-Request-Id": requestId, "X-Data-Revision": String(revision) } },
+    );
   } catch (err) {
-    console.error("[api/data] PUT", err);
-    return NextResponse.json({ error: errorMessage(err) }, { status: statusForError(err) });
+    const errorCode =
+      err instanceof RevisionConflictError
+        ? err.code
+        : err instanceof AuthorizationContextChangedError
+          ? err.code
+        : err instanceof DataRouteError
+          ? err.code
+          : err instanceof Error && err.message === "No autenticado"
+            ? "UNAUTHENTICATED"
+            : "INTERNAL_ERROR";
+    logActivityTrace({
+      requestId,
+      userId,
+      event: "document_write_failed",
+      errorCode,
+      ...errorTraceFields(err, { stack: errorCode === "INTERNAL_ERROR" }),
+    });
+    return dataErrorResponse(err, requestId);
   }
 }
 
-function errorMessage(err: unknown): string {
-  return err instanceof Error ? err.message : "Error desconocido";
-}
-
-function statusForError(err: unknown): number {
-  const message = errorMessage(err);
-  if (message === "No autenticado") return 401;
-  if (message === "No autorizado") return 403;
-  return 500;
+function dataErrorResponse(err: unknown, requestId: string) {
+  let status = 500;
+  let code = "INTERNAL_ERROR";
+  let error = "No se pudieron guardar los datos.";
+  let currentRevision: number | undefined;
+  if (err instanceof RevisionConflictError) {
+    status = 409;
+    code = err.code;
+    error = err.message;
+    currentRevision = err.currentRevision;
+  } else if (err instanceof AuthorizationContextChangedError) {
+    status = 409;
+    code = err.code;
+    error = err.message;
+  } else if (err instanceof DataRouteError) {
+    status = err.status;
+    code = err.code;
+    error = err.publicMessage;
+  } else if (err instanceof Error && err.message === "No autenticado") {
+    status = 401;
+    code = "UNAUTHENTICATED";
+    error = "No autenticado";
+  } else if (err instanceof Error && err.message === "No autorizado") {
+    status = 403;
+    code = "FORBIDDEN";
+    error = "No autorizado";
+  }
+  return NextResponse.json(
+    { ok: false, error, code, requestId, ...(currentRevision == null ? {} : { currentRevision }) },
+    { status, headers: { ...NO_STORE_HEADERS, "X-Request-Id": requestId } },
+  );
 }
 
 function filterForUser(data: DbData, user: { role: string; funcionarioId: string | null }): DbData {
@@ -97,9 +237,12 @@ function filterForUser(data: DbData, user: { role: string; funcionarioId: string
 }
 
 function mergeUserWrite(current: DbData, posted: Actividad[], funcionarioId: string | null): DbData {
-  if (!funcionarioId) throw new Error("Tu usuario no está vinculado a un funcionario.");
+  if (!funcionarioId) {
+    throw new DataRouteError(403, "FORBIDDEN", "Tu usuario no está vinculado a un funcionario.");
+  }
 
-  const currentById = new Map(current.actividades.map((a) => [a.id, a]));
+  const today = todayIsoGalapagos();
+
   const postedById = new Map(posted.map((a) => [a.id, a]));
   const competenciaIds = new Set(current.competencias.map((c) => c.id));
   const funcionarioIds = new Set(current.funcionarios.map((f) => f.id));
@@ -110,27 +253,8 @@ function mergeUserWrite(current: DbData, posted: Actividad[], funcionarioId: str
     .flatMap((activity) => {
       const draft = postedById.get(activity.id);
       return draft
-        ? [sanitizeUserActivity(draft, funcionarioId, competenciaIds, funcionarioIds, entregableIds, activity.orden, activity)]
+        ? [sanitizeUserActivity(draft, funcionarioId, competenciaIds, funcionarioIds, entregableIds, activity.orden, today, activity)]
         : [];
-    });
-
-  const maxOrden = current.actividades.reduce((max, a) => Math.max(max, a.orden || 0), 0);
-  let nextOrden = maxOrden + 1;
-  const newOwn = posted
-    .filter((activity) => !currentById.has(activity.id))
-    .map((activity) => {
-      const competenciaId = competenciaIds.has(activity.competenciaId)
-        ? activity.competenciaId
-        : current.competencias[0]?.id;
-      if (!competenciaId) throw new Error("No existe una competencia válida para crear la actividad.");
-      return sanitizeUserActivity(
-        { ...activity, competenciaId },
-        funcionarioId,
-        competenciaIds,
-        funcionarioIds,
-        entregableIds,
-        nextOrden++,
-      );
     });
 
   return {
@@ -141,7 +265,6 @@ function mergeUserWrite(current: DbData, posted: Actividad[], funcionarioId: str
     actividades: [
       ...current.actividades.filter((a) => a.funcionarioId !== funcionarioId),
       ...nextExistingOwn,
-      ...newOwn,
     ],
   };
 }
@@ -153,11 +276,12 @@ function sanitizeUserActivity(
   funcionarioIds: Set<string>,
   entregableIds: Set<string>,
   orden: number,
+  today: string,
   current?: Actividad,
 ): Actividad {
   const tipo = validTipo(draft.tipo, current?.tipo);
   const estado = validEstado(draft.estado, current?.estado);
-  const fechaCreacion = current?.fechaCreacion || TODAY_ISO;
+  const fechaCreacion = current?.fechaCreacion || today;
   const titulo = cleanText(draft.titulo) || current?.titulo || "Nueva actividad";
   const competenciaId = competenciaIds.has(draft.competenciaId)
     ? draft.competenciaId
@@ -174,7 +298,7 @@ function sanitizeUserActivity(
   const fechaVencimiento =
     tipo === "reunion" ? sanitizeMeetingDateTime(draft.fechaVencimiento) : iso(addDays(fechaCreacion, plazoDias));
   const fechaCumplimiento =
-    estado === "cumplida" ? cleanDate(draft.fechaCumplimiento) || current?.fechaCumplimiento || TODAY_ISO : null;
+    estado === "cumplida" ? cleanDate(draft.fechaCumplimiento) || current?.fechaCumplimiento || today : null;
 
   return {
     id: draft.id,
@@ -231,7 +355,7 @@ function cleanDate(value: unknown): string {
 function sanitizeMeetingDateTime(value: unknown): string {
   const raw = typeof value === "string" ? value : "";
   const [dateRaw, timeRaw] = raw.split("T");
-  const date = cleanDate(dateRaw) || TODAY_ISO;
+  const date = cleanDate(dateRaw) || todayIsoGalapagos();
   const time = typeof timeRaw === "string" && /^\d{2}:\d{2}/.test(timeRaw) ? timeRaw.slice(0, 5) : "09:00";
   return `${date}T${time}`;
 }

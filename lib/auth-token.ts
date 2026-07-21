@@ -17,9 +17,17 @@ export interface SessionPayload extends AuthUser {
 }
 
 const DEFAULT_AUTH_SECRET = "kanban-dgtar-change-me";
+const INSECURE_PRODUCTION_SECRETS = new Set([
+  DEFAULT_AUTH_SECRET,
+  "change-this-secret-in-production",
+]);
 
 function authSecret(): string {
-  return process.env.AUTH_SECRET || DEFAULT_AUTH_SECRET;
+  const secret = process.env.AUTH_SECRET || DEFAULT_AUTH_SECRET;
+  if (process.env.NODE_ENV === "production" && INSECURE_PRODUCTION_SECRETS.has(secret)) {
+    throw new Error("AUTH_SECRET seguro es obligatorio en producción.");
+  }
+  return secret;
 }
 
 function bytesToBase64Url(bytes: Uint8Array): string {

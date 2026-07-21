@@ -167,11 +167,26 @@ export async function updateUser(
   await ensureSchema();
   const now = new Date().toISOString();
   const funcionarioId = input.funcionarioId || null;
-  if (input.password?.trim()) {
-    const passwordHash = await hashPassword(input.password);
-    const result = await getPool().query(
+  const passwordHash = input.password?.trim() ? await hashPassword(input.password) : null;
+  const client = await getPool().connect();
+  try {
+    await client.query("BEGIN");
+    await client.query("SELECT revision FROM data_revision WHERE id = 1 FOR UPDATE");
+    const previousResult = await client.query(
+      "SELECT rol, funcionario_id FROM usuarios WHERE id = $1 FOR UPDATE",
+      [id],
+    );
+    const previous = previousResult.rows[0];
+    if (!previous) throw new Error("Usuario no encontrado.");
+
+    const result = await client.query(
       `UPDATE usuarios
-       SET email = $2, nombre = $3, rol = $4, funcionario_id = $5, password_hash = $6, updated_at = $7
+       SET email = $2,
+           nombre = $3,
+           rol = $4,
+           funcionario_id = $5,
+           password_hash = COALESCE($6, password_hash),
+           updated_at = $7
        WHERE id = $1
        RETURNING id, email, nombre, rol, funcionario_id, created_at, updated_at,
          (SELECT nombre FROM funcionarios WHERE funcionarios.id = usuarios.funcionario_id) AS funcionario_nombre`,
@@ -185,32 +200,58 @@ export async function updateUser(
         now,
       ],
     );
-    if (!result.rows[0]) throw new Error("Usuario no encontrado.");
-    return mapManagedUser(result.rows[0]);
-  }
 
-  const result = await getPool().query(
-    `UPDATE usuarios
-     SET email = $2, nombre = $3, rol = $4, funcionario_id = $5, updated_at = $6
-     WHERE id = $1
-     RETURNING id, email, nombre, rol, funcionario_id, created_at, updated_at,
-       (SELECT nombre FROM funcionarios WHERE funcionarios.id = usuarios.funcionario_id) AS funcionario_nombre`,
-    [
-      id,
-      normalizeEmail(input.email),
-      input.nombre?.trim() || "",
-      input.role,
-      funcionarioId,
-      now,
-    ],
-  );
-  if (!result.rows[0]) throw new Error("Usuario no encontrado.");
-  return mapManagedUser(result.rows[0]);
+    if (
+      previous.rol !== input.role ||
+      ((previous.funcionario_id as string | null) ?? null) !== funcionarioId
+    ) {
+      await client.query(
+        "UPDATE data_revision SET revision = revision + 1, updated_at = CURRENT_TIMESTAMP WHERE id = 1",
+      );
+    }
+    await client.query("COMMIT");
+    return mapManagedUser(result.rows[0]);
+  } catch (error) {
+    await rollbackAuthMutation(client, "update_user");
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+async function rollbackAuthMutation(client: import("pg").PoolClient, operation: string): Promise<void> {
+  try {
+    await client.query("ROLLBACK");
+  } catch (rollbackError) {
+    console.error("[auth] No se pudo revertir una mutación de usuario", {
+      operation,
+      errorType: rollbackError instanceof Error ? rollbackError.name : typeof rollbackError,
+    });
+  }
 }
 
 export async function deleteUser(id: string): Promise<void> {
   await ensureSchema();
-  await getPool().query("DELETE FROM usuarios WHERE id = $1", [id]);
+  const client = await getPool().connect();
+  try {
+    await client.query("BEGIN");
+    // Keep the same lock order as activity POST/writeAll. Deleting a user
+    // updates activity/ledger FKs, so doing it outside this serialization point
+    // could deadlock with the legacy delete-and-reinsert transaction.
+    await client.query("SELECT revision FROM data_revision WHERE id = 1 FOR UPDATE");
+    const result = await client.query("DELETE FROM usuarios WHERE id = $1", [id]);
+    if (result.rowCount) {
+      await client.query(
+        "UPDATE data_revision SET revision = revision + 1, updated_at = CURRENT_TIMESTAMP WHERE id = 1",
+      );
+    }
+    await client.query("COMMIT");
+  } catch (error) {
+    await rollbackAuthMutation(client, "delete_user");
+    throw error;
+  } finally {
+    client.release();
+  }
 }
 
 function resetTokenHash(token: string): string {

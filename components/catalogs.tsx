@@ -687,7 +687,19 @@ function GestionesPanel({
             emptyLabel="Esta gestión todavía no tiene entregables."
             onCreate={(id, nombre) => setEntregables((prev) => [...prev, { id, nombre, gestionId: selected.id }])}
             onUpdate={(item) => setEntregables((prev) => prev.map((e) => (e.id === item.id ? item : e)))}
-            onRemove={(item) => setEntregables((prev) => prev.filter((e) => e.id !== item.id))}
+            onRemove={(item) => {
+              setEntregables((prev) => prev.filter((e) => e.id !== item.id));
+              // entregableId is optional. Keep the final document referentially
+              // valid instead of relying on a database FK failure or silently
+              // deleting the activity.
+              setActivities((prev) =>
+                prev.map((activity) =>
+                  activity.entregableId === item.id
+                    ? { ...activity, entregableId: null }
+                    : activity,
+                ),
+              );
+            }}
           />
         </>
       )}

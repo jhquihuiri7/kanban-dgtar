@@ -123,13 +123,52 @@ que el callback se construya con los headers públicos que envía ngrok.
 
 ### Arquitectura de datos
 
-- **PostgreSQL** es la fuente de verdad. Tres tablas: `funcionarios`,
-  `competencias`, `actividades` y `usuarios` (ver `db/schema.sql`).
-- `lib/db.ts` — capa server-only (`pg`) con `readAll` / `writeAll` (transacción).
-- `app/api/data/route.ts` — `GET` lee todo, `PUT` reescribe todo.
-- La app guarda el documento completo (debounce ~0.8 s) ante cualquier cambio.
-  El último en escribir gana, así que no está pensada para edición simultánea de
-  varias personas a la vez.
+- **PostgreSQL** es la fuente de verdad. Las entidades de negocio viven en
+  `gestiones`, `funcionarios`, `competencias`, `entregables`, `actividades` y
+  `usuarios` (ver `db/schema.sql`).
+- `lib/db.ts` — capa server-only (`pg`) con lecturas de snapshot y escrituras
+  transaccionales protegidas por una revisión monotónica.
+- `app/api/data/route.ts` — `GET` lee todo junto con `revision`; el `PUT` legado
+  solo acepta esa misma revisión. Un documento obsoleto recibe `409` antes de
+  modificar tablas, evitando que borre cambios concurrentes.
+- `POST /api/activities` crea una sola actividad con una clave idempotente,
+  usuario creador y huella del contenido. `GET /api/activities/verify` confirma
+  la fila directamente en PostgreSQL y nunca usa caché.
+- `activity_creation_requests` conserva un ledger de idempotencia separado de
+  la actividad. Aunque una actividad se elimine después, una solicitud antigua
+  no puede reutilizarse para crear un duplicado.
+- El resto de ediciones todavía se agrupa con debounce (~0.8 s), pero sus
+  escrituras se serializan en cliente y quedan protegidas contra *lost updates*
+  mediante la revisión del servidor. Ante un `409`, el cliente hace un rebase de
+  tres vías y solo se detiene si dos pestañas editaron la misma entidad.
+
+### Guardado confiable de actividades
+
+El formulario conserva borradores locales por usuario y usa una clave distinta
+en cada apertura para no mezclar pestañas. El borrador más reciente se puede
+recuperar aunque la pestaña anterior se haya cerrado y no se limpia ni se cierra
+mientras la operación está en `saving` o `verifying`. Una creación se
+considera exitosa únicamente cuando el backend vuelve a leer la fila por
+`clientRequestId`, comprueba los campos principales y el cliente refresca la
+lista desde `/api/data`. Si la respuesta del `POST` se pierde, el botón de
+reintento consulta primero la misma clave y recupera la fila ya creada en vez de
+insertar un duplicado.
+
+```bash
+npm test       # validación, borradores, red, timeout, reintento e idempotencia
+npm run build  # typecheck y build de producción
+```
+
+La prueba PostgreSQL se omite si no se proporciona una base desechable. Para
+ejecutarla junto con el resto de la suite:
+
+```bash
+ACTIVITY_INTEGRATION_DATABASE_URL=postgres://usuario:clave@host:5432/base_de_prueba npm test
+```
+
+Usa exclusivamente una base cuyo nombre contenga `test`: el caso de integración
+rechaza otros nombres, crea y elimina fixtures, e inspecciona la migración del
+esquema.
 
 ### Autenticación y usuarios
 

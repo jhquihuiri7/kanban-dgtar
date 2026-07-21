@@ -108,6 +108,20 @@ dc_ngrok() {
   COMPOSE_PROFILES="" "${COMPOSE[@]}" "${NGROK_FILES[@]}" "$@"
 }
 
+ngrok_active() {
+  docker ps --format "{{.Names}}" 2>/dev/null | grep -qx "kanban-ngrok"
+}
+
+# Usa la config de ngrok si el túnel ya está activo, para no perder los
+# overrides (APP_PUBLIC_URL vacío, AUTH_COOKIE_SECURE, etc.) al redeployar.
+dc_auto() {
+  if ngrok_active; then
+    dc_ngrok "$@"
+  else
+    dc_prod "$@"
+  fi
+}
+
 print_access() {
   local mode="$1"
   local port="$2"
@@ -170,7 +184,10 @@ case "$ACTION" in
     ensure_env
     export APP_PORT="${APP_PORT:-$(env_file_value APP_PORT 8001)}"
     echo "Levantando servicios en modo producción..."
-    dc_prod up -d --wait
+    dc_auto up -d --wait
+    if ngrok_active; then
+      echo "(ngrok activo: se preservó la config del túnel)"
+    fi
     print_access "producción" "$APP_PORT"
     echo "  Logs:     ./deploy.sh logs"
     ;;
@@ -211,10 +228,13 @@ case "$ACTION" in
     export APP_PORT="${APP_PORT:-$(env_file_value APP_PORT 8001)}"
     if [ -n "$SERVICE" ]; then
       echo "Actualizando $SERVICE en producción..."
-      dc_prod up -d --build --wait "$SERVICE"
+      dc_auto up -d --build --wait "$SERVICE"
     else
       echo "Actualizando todos los servicios en producción..."
-      dc_prod up -d --build --wait
+      dc_auto up -d --build --wait
+    fi
+    if ngrok_active; then
+      echo "(ngrok activo: se preservó la config del túnel)"
     fi
     print_access "producción" "$APP_PORT"
     ;;

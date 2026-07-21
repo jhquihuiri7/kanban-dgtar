@@ -571,7 +571,6 @@ function ProgressBar({ pct }: { pct: number }) {
 
 const GANTT_GROUP_ROW_HEIGHT = 44;
 const GANTT_TASK_ROW_HEIGHT = 42;
-const GANTT_SVG_WIDTH = 1000;
 const TODAY_COLUMN_STYLE: React.CSSProperties = {
   backgroundImage: "repeating-linear-gradient(135deg, rgba(14, 165, 233, 0.18) 0 6px, rgba(14, 165, 233, 0.04) 6px 12px)",
 };
@@ -590,8 +589,6 @@ interface GanttRawRow {
   plazo: ReturnType<typeof plazoInfo>;
   barLeftPct: number;
   barWidthPct: number;
-  barStartUnit: number;
-  barEndUnit: number;
 }
 
 interface GanttGestionRow {
@@ -667,8 +664,8 @@ function GanttChart({
 }) {
   const [collapsedGroups, setCollapsedGroups] = React.useState<Set<string>>(() => new Set());
   const funcionarioById = useMemo(() => new Map(funcionarios.map((f) => [f.id, f])), [funcionarios]);
-  const openActivities = useMemo(
-    () => activities.filter((a) => a.estado !== "cumplida" && a.estado !== "archivada"),
+  const visibleActivities = useMemo(
+    () => activities.filter((a) => a.estado !== "archivada"),
     [activities],
   );
   const toggleGroup = (key: string) => {
@@ -686,7 +683,7 @@ function GanttChart({
   const rangeStartOffset = daysBetween(TODAY_ISO, dateRange.from);
   const rangeEndOffset = daysBetween(TODAY_ISO, dateRange.to);
   const gestionOrder = new Map(gestiones.map((g, index) => [g.nombre, index]));
-  const rawRows = openActivities.map((activity) => {
+  const rawRows = visibleActivities.map((activity) => {
     const funcionario = funcionarioById.get(activity.funcionarioId);
     const funcionarioKey = funcionario?.id ?? "sin-funcionario";
     const funcionarioName = funcionario?.nombre ?? "Sin funcionario asignado";
@@ -737,9 +734,7 @@ function GanttChart({
     const visibleDuration = row.end - row.start + 1;
     const barLeftPct = ((row.start - minOffset) / dayCount) * 100;
     const barWidthPct = (visibleDuration / dayCount) * 100;
-    const barStartUnit = ((row.start - minOffset) / dayCount) * GANTT_SVG_WIDTH;
-    const barEndUnit = ((row.end - minOffset + 1) / dayCount) * GANTT_SVG_WIDTH;
-    return { ...row, barLeftPct, barWidthPct, barStartUnit, barEndUnit };
+    return { ...row, barLeftPct, barWidthPct };
   });
   const gestionCounts = new Map<string, number>();
   const primaryCounts = new Map<string, number>();
@@ -823,7 +818,7 @@ function GanttChart({
       <div className="mb-3 flex items-center justify-between gap-2 sm:relative sm:block sm:text-center">
         <h2 className="min-w-0 text-base font-semibold text-slate-900">Diagrama de Gantt</h2>
         <span className="shrink-0 rounded-full bg-slate-200 px-2 py-0.5 text-xs text-slate-600 sm:absolute sm:right-0 sm:top-0">
-          {openActivities.length} abiertas
+          {visibleActivities.length} actividades
         </span>
       </div>
 
@@ -887,7 +882,7 @@ function GanttChart({
           })
         ) : (
           <div className="rounded-lg bg-white px-3 py-8 text-center text-sm text-slate-400 ring-1 ring-slate-200">
-            Sin actividades abiertas
+            Sin actividades para mostrar
           </div>
         )}
       </div>
@@ -955,7 +950,7 @@ function GanttChart({
                   className="flex items-center justify-center bg-white text-sm text-slate-400"
                   style={{ height: bodyHeight }}
                 >
-                  Sin actividades abiertas
+                  Sin actividades para mostrar
                 </div>
               )}
             </div>
@@ -1031,31 +1026,6 @@ function GanttChart({
                 />
               ))}
 
-              {activityRows.length > 1 && (
-                <svg
-                  className="pointer-events-none absolute left-0 top-0 z-[1] h-full w-full"
-                  viewBox={`0 0 ${GANTT_SVG_WIDTH} ${bodyHeight}`}
-                  preserveAspectRatio="none"
-                  aria-hidden="true"
-                >
-                  {activityRows.slice(0, -1).map((row, index) => {
-                    const next = activityRows[index + 1];
-                    const x1 = row.barEndUnit;
-                    const x2 = next.barStartUnit;
-                    if (x2 <= x1) return null;
-                    const y1 = row.top + row.height / 2;
-                    const y2 = next.top + next.height / 2;
-                    const mid = x1 + (x2 - x1) / 2;
-                    return (
-                      <g key={row.activity.id}>
-                        <path d={`M ${x1} ${y1} H ${mid} V ${y2} H ${x2 - 8}`} fill="none" stroke="#9ca3af" strokeWidth="2" vectorEffect="non-scaling-stroke" />
-                        <path d={`M ${x2 - 8} ${y2 - 5} L ${x2} ${y2} L ${x2 - 8} ${y2 + 5} Z`} fill="#9ca3af" />
-                      </g>
-                    );
-                  })}
-                </svg>
-              )}
-
               {activityRows.map((row) => (
                 <button
                   key={row.activity.id}
@@ -1079,7 +1049,7 @@ function GanttChart({
 
               {visibleRows.length === 0 && (
                 <div className="absolute inset-0 flex items-center justify-center text-sm text-slate-400">
-                  Sin actividades abiertas
+                  Sin actividades para mostrar
                 </div>
               )}
             </div>
