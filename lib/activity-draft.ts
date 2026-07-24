@@ -1,6 +1,6 @@
 import type { EstadoActividad, TipoActividad } from "./data";
 
-export const ACTIVITY_DRAFT_VERSION = 2;
+export const ACTIVITY_DRAFT_VERSION = 3;
 const ACTIVITY_DRAFT_PREFIX = "kanban:new-activity-draft";
 const CLIENT_REQUEST_ID_RE = /^[A-Za-z0-9][A-Za-z0-9._:-]{7,127}$/;
 
@@ -19,7 +19,8 @@ export interface ActivityDraft {
   gestionId: string;
   competenciaId: string;
   entregableId: string;
-  plazoDias: string;
+  fechaInicio: string;
+  fechaFin: string;
   fechaReunion: string;
   horaReunion: string;
 }
@@ -66,7 +67,8 @@ export function parseActivityDraft(raw: string | null, now = Date.now()): Activi
       "gestionId",
       "competenciaId",
       "entregableId",
-      "plazoDias",
+      "fechaInicio",
+      "fechaFin",
       "fechaReunion",
       "horaReunion",
     ] as const;
@@ -90,7 +92,8 @@ export function parseActivityDraft(raw: string | null, now = Date.now()): Activi
       gestionId: value.gestionId as string,
       competenciaId: value.competenciaId as string,
       entregableId: value.entregableId as string,
-      plazoDias: value.plazoDias as string,
+      fechaInicio: value.fechaInicio as string,
+      fechaFin: value.fechaFin as string,
       fechaReunion: value.fechaReunion as string,
       horaReunion: value.horaReunion as string,
     };

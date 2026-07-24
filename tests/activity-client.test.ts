@@ -20,8 +20,8 @@ const input: NewActivityPayload = {
   entregableId: null,
   estado: "pendiente",
   fechaCreacion: "2026-07-16",
-  plazoDias: 7,
-  fechaVencimiento: "2026-07-23",
+  fechaInicio: "2026-07-16",
+  fechaFin: "2026-07-23",
   fechaCumplimiento: null,
   observaciones: "",
   accionesPendientes: "Revisar",
@@ -159,25 +159,24 @@ test("a POST idempotency race verifies and exposes the already-saved row", async
   assert.equal(mock.calls.filter((call) => call.init?.method === "POST").length, 1);
 });
 
-test("server-generated dates may differ from the client clock when assignment semantics remain coherent", () => {
+test("the server-generated creation date may differ from the client clock", () => {
   const nextDayActivity: Actividad = {
     ...activity,
     fechaCreacion: "2026-07-17",
-    fechaVencimiento: "2026-07-24",
   };
   assert.equal(activityMatchesInput(nextDayActivity, input), true);
 });
 
-test("meeting verification ignores server-derived day count but checks the selected date and time", () => {
+test("meeting verification checks the identical selected start and end datetime", () => {
   const meetingInput: NewActivityPayload = {
     ...input,
     tipo: "reunion",
-    plazoDias: 6,
-    fechaVencimiento: "2026-07-23T09:00",
+    fechaInicio: "2026-07-23T09:00",
+    fechaFin: "2026-07-23T09:00",
   };
-  const meeting: Actividad = { id: "a_meeting_server_date", orden: 2, ...meetingInput, plazoDias: 5 };
+  const meeting: Actividad = { id: "a_meeting_server_date", orden: 2, ...meetingInput };
   assert.equal(activityMatchesInput(meeting, meetingInput), true);
-  assert.equal(activityMatchesInput({ ...meeting, fechaVencimiento: "2026-07-23T10:00" }, meetingInput), false);
+  assert.equal(activityMatchesInput({ ...meeting, fechaFin: "2026-07-23T10:00" }, meetingInput), false);
 });
 
 test("validation, authentication, permission and idempotency conflicts stay distinguishable", async () => {
@@ -263,7 +262,8 @@ test("optional empty fields and unordered participants compare canonically", () 
     tipo: "reunion",
     participantesIds: ["f3", "f2"],
     entregableId: null,
-    fechaVencimiento: "2026-07-23T09:00",
+    fechaInicio: "2026-07-23T09:00",
+    fechaFin: "2026-07-23T09:00",
   };
   const meeting: Actividad = {
     id: "a_meeting",

@@ -301,8 +301,8 @@ function buildGoogleEvent(
   };
 
   if (activity.tipo === "reunion") {
-    const fecha = dateOnly(activity.fechaVencimiento);
-    const hora = fmtHora(activity.fechaVencimiento) || "09:00";
+    const fecha = dateOnly(activity.fechaInicio);
+    const hora = fmtHora(activity.fechaInicio) || "09:00";
     const end = addLocalMinutes(fecha, hora, defaultDurationMinutes());
     return {
       ...base,
@@ -312,12 +312,14 @@ function buildGoogleEvent(
     };
   }
 
-  const fecha = dateOnly(activity.fechaVencimiento);
+  const inicio = dateOnly(activity.fechaInicio);
+  const fin = dateOnly(activity.fechaFin);
   return {
     ...base,
     transparency: "transparent",
-    start: { date: fecha },
-    end: { date: iso(addDays(fecha, 1)) },
+    start: { date: inicio },
+    // Google Calendar usa un fin exclusivo para eventos de día completo.
+    end: { date: iso(addDays(fin, 1)) },
   };
 }
 

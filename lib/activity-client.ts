@@ -77,14 +77,7 @@ function isIsoDate(value: unknown): value is string {
   );
 }
 
-function addIsoDays(value: string, days: number): string {
-  const [year, month, day] = value.split("-").map(Number);
-  const date = new Date(Date.UTC(year, month - 1, day, 12));
-  date.setUTCDate(date.getUTCDate() + days);
-  return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}-${String(date.getUTCDate()).padStart(2, "0")}`;
-}
-
-/** Compares user intent and validates server-generated dates for consistency. */
+/** Compares user intent and validates server-generated audit dates. */
 export function activityFieldMismatches(activity: Actividad, input: NewActivityPayload): string[] {
   const mismatches: string[] = [];
   const same = (field: string, actual: unknown, expected: unknown) => {
@@ -100,14 +93,8 @@ export function activityFieldMismatches(activity: Actividad, input: NewActivityP
   same("entregableId", activity.entregableId ?? null, input.entregableId ?? null);
   same("estado", activity.estado, input.estado);
   if (!isIsoDate(activity.fechaCreacion)) mismatches.push("fechaCreacion");
-  if (input.tipo === "reunion") {
-    same("fechaVencimiento", activity.fechaVencimiento, input.fechaVencimiento);
-  } else {
-    same("plazoDias", activity.plazoDias, input.plazoDias);
-    if (isIsoDate(activity.fechaCreacion)) {
-      same("fechaVencimiento", activity.fechaVencimiento, addIsoDays(activity.fechaCreacion, input.plazoDias));
-    }
-  }
+  same("fechaInicio", activity.fechaInicio, input.fechaInicio);
+  same("fechaFin", activity.fechaFin, input.fechaFin);
   same("observaciones", activity.observaciones, input.observaciones.trim());
   same("accionesPendientes", activity.accionesPendientes, input.accionesPendientes.trim());
   same("resultadosAlcanzados", activity.resultadosAlcanzados, input.resultadosAlcanzados.trim());

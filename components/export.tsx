@@ -17,8 +17,8 @@ import {
 } from "@/lib/data";
 
 // Columnas del CSV (todos los campos). El orden aquí define el orden en el
-// archivo. Las reuniones llevan la hora dentro de fechaVencimiento, por eso se
-// separa en su propia columna.
+// archivo. Las asignaciones usan fechas sin hora; las reuniones conservan el
+// mismo instante en inicio y fin.
 const COLUMNS = [
   "ID",
   "Tipo",
@@ -31,9 +31,10 @@ const COLUMNS = [
   "Entregable",
   "Estado",
   "Fecha creación",
-  "Plazo (días)",
-  "Fecha vencimiento",
-  "Hora reunión",
+  "Fecha inicio",
+  "Hora inicio",
+  "Fecha fin",
+  "Hora fin",
   "Fecha cumplimiento",
   "Observaciones",
   "Acciones pendientes y actividades programadas",
@@ -141,9 +142,10 @@ function buildCsv(
       (a.entregableId && entregableById.get(a.entregableId)?.nombre) ?? "",
       estadoLabel(a.estado),
       fechaDMA(a.fechaCreacion),
-      String(a.plazoDias),
-      fechaDMA(dateOnly(a.fechaVencimiento)),
-      a.tipo === "reunion" ? fmtHora(a.fechaVencimiento) : "",
+      fechaDMA(dateOnly(a.fechaInicio)),
+      fmtHora(a.fechaInicio),
+      fechaDMA(dateOnly(a.fechaFin)),
+      fmtHora(a.fechaFin),
       fechaDMA(a.fechaCumplimiento ?? ""),
       a.observaciones ?? "",
       a.accionesPendientes ?? "",
@@ -194,17 +196,22 @@ export function ExportDialog({
     }
   }, [open]);
 
-  // Filtra por la parte de fecha del vencimiento (las reuniones traen hora).
+  // Incluye cualquier actividad cuyo rango se solape con el período elegido.
   // La comparación lexicográfica de "YYYY-MM-DD" equivale a la cronológica.
   const seleccionadas = useMemo(() => {
     if (!desde || !hasta) return [];
     const [a, b] = desde <= hasta ? [desde, hasta] : [hasta, desde];
     return activities
       .filter((act) => {
-        const venc = dateOnly(act.fechaVencimiento);
-        return venc >= a && venc <= b;
+        const inicio = dateOnly(act.fechaInicio);
+        const fin = dateOnly(act.fechaFin);
+        return inicio <= b && fin >= a;
       })
-      .sort((x, y) => dateOnly(x.fechaVencimiento).localeCompare(dateOnly(y.fechaVencimiento)));
+      .sort(
+        (x, y) =>
+          dateOnly(x.fechaInicio).localeCompare(dateOnly(y.fechaInicio)) ||
+          dateOnly(x.fechaFin).localeCompare(dateOnly(y.fechaFin)),
+      );
   }, [activities, desde, hasta]);
 
   if (!open) return null;
@@ -228,7 +235,7 @@ export function ExportDialog({
           <div className="min-w-0">
             <div className="text-base font-semibold text-slate-900">Exportar actividades</div>
             <div className="mt-0.5 text-xs text-slate-500">
-              Filtra por <b>fecha de vencimiento</b> y descarga un archivo CSV (Excel).
+              Incluye las actividades cuyo rango se solapa con el período y descarga un archivo CSV (Excel).
             </div>
           </div>
           <button
@@ -257,7 +264,7 @@ export function ExportDialog({
           {rangoInvalido ? (
             <span className="text-slate-500">Selecciona ambas fechas.</span>
           ) : sinResultados ? (
-            <span className="text-amber-700">No hay actividades que venzan en ese rango.</span>
+            <span className="text-amber-700">No hay actividades en ese rango.</span>
           ) : (
             <span className="text-slate-700">
               <b>{seleccionadas.length}</b> actividad(es) en el rango.

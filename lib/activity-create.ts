@@ -73,8 +73,8 @@ export interface NormalizedActivityRequest {
   competenciaId: string;
   entregableId: string | null;
   estado: EstadoActividad;
-  plazoDias: number;
-  fechaVencimiento: string;
+  fechaInicio: string;
+  fechaFin: string;
   observaciones: string;
   accionesPendientes: string;
   resultadosAlcanzados: string;
@@ -178,23 +178,19 @@ function validDate(value: unknown, field: string): string {
   return value;
 }
 
-function validMeetingDateTime(value: unknown): string {
+function validMeetingDateTime(value: unknown, field: string): string {
   if (typeof value !== "string") {
-    throw new ActivityRequestError(422, "VALIDATION_ERROR", "fechaVencimiento es obligatoria.");
+    throw new ActivityRequestError(422, "VALIDATION_ERROR", `${field} es obligatoria.`);
   }
   const match = /^(\d{4}-\d{2}-\d{2})T(\d{2}):(\d{2})$/.exec(value);
   if (!match || !isValidDate(match[1]) || Number(match[2]) > 23 || Number(match[3]) > 59) {
-    throw new ActivityRequestError(422, "VALIDATION_ERROR", "La fecha y hora de la reunión no son válidas.");
+    throw new ActivityRequestError(
+      422,
+      "VALIDATION_ERROR",
+      `${field} no contiene una fecha y hora válidas.`,
+    );
   }
   return value;
-}
-
-function integerInRange(value: unknown, field: string, min: number, max: number): number {
-  const number = typeof value === "number" ? value : Number.NaN;
-  if (!Number.isInteger(number) || number < min || number > max) {
-    throw new ActivityRequestError(422, "VALIDATION_ERROR", `${field} debe estar entre ${min} y ${max}.`);
-  }
-  return number;
 }
 
 export function normalizeClientRequestId(value: unknown): string {
@@ -232,13 +228,28 @@ export function normalizeActivityRequest(value: unknown): NormalizedActivityRequ
     throw new ActivityRequestError(422, "VALIDATION_ERROR", "Una asignación no puede incluir participantes.");
   }
 
-  const plazoDias = integerInRange(value.plazoDias, "plazoDias", tipo === "reunion" ? -3650 : 1, tipo === "reunion" ? 3650 : 365);
-  const fechaVencimiento =
+  const fechaInicio =
     tipo === "reunion"
-      ? validMeetingDateTime(value.fechaVencimiento)
-      : value.fechaVencimiento == null
-        ? ""
-        : validDate(String(value.fechaVencimiento).split("T")[0], "fechaVencimiento");
+      ? validMeetingDateTime(value.fechaInicio, "fechaInicio")
+      : validDate(value.fechaInicio, "fechaInicio");
+  const fechaFin =
+    tipo === "reunion"
+      ? validMeetingDateTime(value.fechaFin, "fechaFin")
+      : validDate(value.fechaFin, "fechaFin");
+  if (tipo === "asignacion" && fechaInicio > fechaFin) {
+    throw new ActivityRequestError(
+      422,
+      "VALIDATION_ERROR",
+      "fechaInicio no puede ser posterior a fechaFin.",
+    );
+  }
+  if (tipo === "reunion" && fechaInicio !== fechaFin) {
+    throw new ActivityRequestError(
+      422,
+      "VALIDATION_ERROR",
+      "fechaInicio y fechaFin deben ser exactamente iguales para una reunión.",
+    );
+  }
 
   if (value.fechaCreacion != null) validDate(value.fechaCreacion, "fechaCreacion");
   if (value.fechaCumplimiento != null) validDate(value.fechaCumplimiento, "fechaCumplimiento");
@@ -252,8 +263,8 @@ export function normalizeActivityRequest(value: unknown): NormalizedActivityRequ
     competenciaId: entityId(value.competenciaId, "competenciaId") as string,
     entregableId: entityId(value.entregableId, "entregableId", true),
     estado: value.estado as EstadoActividad,
-    plazoDias,
-    fechaVencimiento,
+    fechaInicio,
+    fechaFin,
     observaciones: optionalText(value.observaciones, "observaciones", 20_000),
     accionesPendientes: optionalText(value.accionesPendientes, "accionesPendientes", 20_000),
     resultadosAlcanzados: optionalText(value.resultadosAlcanzados, "resultadosAlcanzados", 20_000),
@@ -271,24 +282,6 @@ export function todayIsoGalapagos(now = new Date()): string {
   return `${part("year")}-${part("month")}-${part("day")}`;
 }
 
-function dateAtNoonUtc(value: string): Date {
-  const [year, month, day] = value.split("-").map(Number);
-  return new Date(Date.UTC(year, month - 1, day, 12));
-}
-
-export function addIsoDays(value: string, days: number): string {
-  const date = dateAtNoonUtc(value);
-  date.setUTCDate(date.getUTCDate() + days);
-  const year = date.getUTCFullYear();
-  const month = String(date.getUTCMonth() + 1).padStart(2, "0");
-  const day = String(date.getUTCDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-}
-
-function daysBetweenIso(from: string, to: string): number {
-  return Math.round((dateAtNoonUtc(to).getTime() - dateAtNoonUtc(from).getTime()) / 86_400_000);
-}
-
 export function activityRequestFingerprint(
   request: NormalizedActivityRequest,
   funcionarioId: string,
@@ -302,8 +295,8 @@ export function activityRequestFingerprint(
     competenciaId: request.competenciaId,
     entregableId: request.entregableId,
     estado: request.estado,
-    plazoDias: request.tipo === "asignacion" ? request.plazoDias : null,
-    fechaVencimiento: request.tipo === "reunion" ? request.fechaVencimiento : null,
+    fechaInicio: request.fechaInicio,
+    fechaFin: request.fechaFin,
     observaciones: request.observaciones,
     accionesPendientes: request.accionesPendientes,
     resultadosAlcanzados: request.resultadosAlcanzados,
@@ -530,21 +523,6 @@ export async function createActivityIdempotent(input: {
     const { funcionarioId, participantesIds } = await resolveAndValidateReferences(client, input.request, currentUser);
     const fingerprint = activityRequestFingerprint(input.request, funcionarioId);
     const today = todayIsoGalapagos();
-    const fechaVencimiento =
-      input.request.tipo === "reunion"
-        ? input.request.fechaVencimiento
-        : addIsoDays(today, input.request.plazoDias);
-    const plazoDias =
-      input.request.tipo === "reunion"
-        ? daysBetweenIso(today, input.request.fechaVencimiento.split("T")[0])
-        : input.request.plazoDias;
-    if (input.request.tipo === "reunion" && (plazoDias < -3650 || plazoDias > 3650)) {
-      throw new ActivityRequestError(
-        422,
-        "VALIDATION_ERROR",
-        "La fecha de la reunión está fuera del intervalo permitido.",
-      );
-    }
     const fechaCumplimiento = input.request.estado === "cumplida" ? today : null;
     const activityId = `a_${randomUUID()}`;
     const orderResult = await client.query("SELECT COALESCE(MAX(orden), -1) + 1 AS orden FROM actividades");
@@ -554,7 +532,7 @@ export async function createActivityIdempotent(input: {
       `INSERT INTO actividades
          (id, client_request_id, created_by_user_id, request_fingerprint,
           tipo, titulo, descripcion, funcionario_id, competencia_id, entregable_id, estado,
-          fecha_creacion, plazo_dias, fecha_vencimiento, fecha_cumplimiento,
+          fecha_creacion, fecha_inicio, fecha_fin, fecha_cumplimiento,
           observaciones, acciones_pendientes, resultados_alcanzados, orden,
           created_at, updated_at)
        VALUES
@@ -576,8 +554,8 @@ export async function createActivityIdempotent(input: {
         input.request.entregableId,
         input.request.estado,
         today,
-        plazoDias,
-        fechaVencimiento,
+        input.request.fechaInicio,
+        input.request.fechaFin,
         fechaCumplimiento,
         input.request.observaciones,
         input.request.accionesPendientes,

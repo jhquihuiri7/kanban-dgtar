@@ -15,23 +15,24 @@ corre **dockerizado** (app + base de datos).
 - **Tablero** — Kanban con 4 columnas (Pendiente · En progreso · En revisión ·
   Cumplida), drag & drop entre columnas, búsqueda y filtros por funcionario y
   competencia. Cada card muestra código, competencia, responsable, fecha de
-  vencimiento y badge de plazo.
-- **Estadísticas** — KPIs, distribución por estado (donut), carga de plazos,
+  inicio–fin y un badge calculado respecto de la fecha de fin.
+- **Estadísticas** — KPIs, distribución por estado (donut), rangos de actividad,
   ranking de cumplimiento por funcionario y competencias con más actividades
   (gráficos con Recharts).
 - **Catálogos** — administración de funcionarios y competencias del Estatuto
   (activar/desactivar).
 
-Al hacer clic en una card se abre un **panel de detalle** con historial, plazo y
-acciones (avanzar / marcar cumplida / reabrir). El botón **Nueva actividad**
-calcula la fecha de vencimiento a partir del plazo en días.
+Al hacer clic en una card se abre un **panel de detalle** con historial, fechas
+de inicio y fin, y acciones (avanzar / marcar cumplida / reabrir). El botón
+**Nueva actividad** permite definir directamente ambas fechas. En una reunión,
+inicio y fin son el mismo instante (fecha y hora).
 
-### Colores de plazo
+### Colores según fecha de fin
 
-- 🟢 Verde — cumplida en plazo
-- 🟡 Amber — vence en 3 días o menos
-- 🔴 Rojo — vencida o cumplida fuera de plazo
-- ⚪ Slate — plazo normal
+- 🟢 Verde — cumplida
+- 🟡 Amber — finaliza hoy o en 3 días o menos
+- 🔴 Rojo — fecha de fin superada mientras sigue abierta
+- ⚪ Slate — fecha de fin futura
 
 ### Vista (engranaje en el header)
 
@@ -175,9 +176,10 @@ esquema.
 La app requiere login con email y contraseña. Hay dos roles:
 
 - **admin** — ve todo, administra catálogos, usuarios, actividades, estados y fechas.
-- **user** — queda vinculado a un funcionario; solo ve sus actividades y reuniones
-  donde participa. Puede crear y administrar actividades propias como asignación
-  o reunión, manteniendo como responsable a su funcionario vinculado.
+- **user** — queda vinculado a un funcionario; ve sus actividades y las reuniones
+  donde participa. Puede crear y administrar actividades propias; además, como
+  participante puede editar el contenido, fecha y estado de una reunión. Solo el
+  responsable (o un admin) puede reasignarla, cambiar sus participantes o eliminarla.
 
 Para crear el primer usuario admin:
 
@@ -205,10 +207,10 @@ usuario hacia su calendario principal (`primary`):
   como participantes;
 - admins: todas las actividades visibles para el administrador.
 
-Las asignaciones se crean como eventos de día completo en la fecha de
-vencimiento. Las reuniones se crean con hora y una duración por defecto definida
-en `GOOGLE_DEFAULT_EVENT_DURATION_MINUTES` porque el modelo actual todavía no
-guarda duración por reunión.
+Las asignaciones se crean como eventos de día completo desde la fecha de inicio
+hasta la fecha de fin, ambas inclusive. Las reuniones usan el instante común de
+inicio y fin como comienzo del evento y una duración por defecto definida en
+`GOOGLE_DEFAULT_EVENT_DURATION_MINUTES`.
 
 Variables necesarias:
 

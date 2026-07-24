@@ -313,7 +313,13 @@ case "$ACTION" in
     ensure_env
     echo "Aplicando db/schema.sql..."
     dc_prod up -d --wait db
-    dc_prod exec db sh -lc 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -f /docker-entrypoint-initdb.d/01-schema.sql'
+    # El esquema entra por stdin para no depender del inode de un bind-mount
+    # antiguo cuando db/schema.sql fue reemplazado en el host. Una sola
+    # transacción y ON_ERROR_STOP garantizan rollback completo ante cualquier
+    # error; el mismo advisory lock serializa este comando con ensureSchema().
+    dc_prod exec -T db sh -lc \
+      'psql -v ON_ERROR_STOP=1 --single-transaction -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "SELECT pg_advisory_xact_lock(hashtext(\$\$kanban-dgtar-schema-v1\$\$))" -f -' \
+      < db/schema.sql
     echo "Migración completada."
     ;;
 

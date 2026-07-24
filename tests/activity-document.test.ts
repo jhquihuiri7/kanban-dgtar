@@ -35,8 +35,8 @@ function activity(overrides: Partial<Actividad> = {}): Actividad {
     entregableId: "e1",
     estado: "pendiente",
     fechaCreacion: "2026-07-16",
-    plazoDias: 7,
-    fechaVencimiento: "2026-07-23",
+    fechaInicio: "2026-07-16",
+    fechaFin: "2026-07-23",
     fechaCumplimiento: null,
     observaciones: "",
     accionesPendientes: "",
@@ -58,8 +58,8 @@ test("the final legacy document accepts coherent assignment and meeting dates", 
         activity({
           tipo: "reunion",
           participantesIds: ["f2"],
-          plazoDias: 1,
-          fechaVencimiento: "2026-07-17T23:59",
+          fechaInicio: "2026-07-17T23:59",
+          fechaFin: "2026-07-17T23:59",
         }),
       ),
     ),
@@ -73,14 +73,26 @@ test("the final legacy document rejects impossible and incoherent dates", () => 
     /fechaCreacion/,
   );
   assert.match(
-    validateActivityDocument(documentWith(activity({ fechaVencimiento: "2026-07-24" })))?.message ?? "",
-    /fechaVencimiento/,
+    validateActivityDocument(documentWith(activity({ fechaFin: "2026-02-30" })))?.message ?? "",
+    /fechaFin/,
   );
   assert.match(
     validateActivityDocument(
-      documentWith(activity({ tipo: "reunion", plazoDias: 0, fechaVencimiento: "2026-07-16T25:00" })),
+      documentWith(
+        activity({
+          tipo: "reunion",
+          fechaInicio: "2026-07-16T25:00",
+          fechaFin: "2026-07-16T25:00",
+        }),
+      ),
     )?.message ?? "",
-    /fechaVencimiento/,
+    /fechaInicio/,
+  );
+  assert.match(
+    validateActivityDocument(
+      documentWith(activity({ fechaInicio: "2026-07-24", fechaFin: "2026-07-23" })),
+    )?.message ?? "",
+    /posterior/,
   );
 });
 
@@ -99,31 +111,33 @@ test("the final legacy document rejects invalid catalog references and state inv
   );
 });
 
-test("the legacy assignment rules accept zero days and real leap dates", () => {
+test("legacy assignments accept same-day, leap-day and multi-year intervals", () => {
   assert.equal(
     validateActivityDocument(
       documentWith(
         activity({
           fechaCreacion: "2028-02-29",
-          plazoDias: 0,
-          fechaVencimiento: "2028-02-29",
+          fechaInicio: "2028-02-29",
+          fechaFin: "2028-02-29",
         }),
       ),
     ),
     null,
   );
-  assert.match(
-    validateActivityDocument(documentWith(activity({ plazoDias: 1.5 })))?.message ?? "",
-    /plazoDias/,
+  assert.equal(
+    validateActivityDocument(
+      documentWith(activity({ fechaInicio: "2020-01-01", fechaFin: "2030-01-01" })),
+    ),
+    null,
   );
 });
 
-test("meeting participants, time and derived day count remain coherent", () => {
+test("meeting participants and identical date-times remain coherent", () => {
   const meeting = activity({
     tipo: "reunion",
     participantesIds: ["f2"],
-    plazoDias: -1,
-    fechaVencimiento: "2026-07-15T00:00",
+    fechaInicio: "2026-07-15T00:00",
+    fechaFin: "2026-07-15T00:00",
   });
   assert.equal(validateActivityDocument(documentWith(meeting)), null);
   assert.match(
@@ -131,12 +145,12 @@ test("meeting participants, time and derived day count remain coherent", () => {
     /responsable/,
   );
   assert.match(
-    validateActivityDocument(documentWith({ ...meeting, fechaVencimiento: "2026-07-15T00:00:00" }))?.message ?? "",
-    /fechaVencimiento/,
+    validateActivityDocument(documentWith({ ...meeting, fechaFin: "2026-07-15T00:00:00" }))?.message ?? "",
+    /fechaFin/,
   );
   assert.match(
-    validateActivityDocument(documentWith({ ...meeting, plazoDias: 0 }))?.message ?? "",
-    /plazoDias/,
+    validateActivityDocument(documentWith({ ...meeting, fechaFin: "2026-07-15T00:01" }))?.message ?? "",
+    /exactamente iguales/,
   );
 });
 

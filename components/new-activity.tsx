@@ -27,7 +27,6 @@ import {
   TIPOS,
   ZONE_TZ,
   addDays,
-  fmtFechaLarga,
   gestionNombre,
   iso,
   todayIsoForZone,
@@ -50,7 +49,16 @@ export type CreateActivityHandler = (
 ) => Promise<Actividad>;
 
 type ResultDialog = "success" | "error" | null;
-type ValidationField = "titulo" | "funcionarioId" | "gestionId" | "competenciaId" | "entregableId" | "plazoDias" | "fechaReunion" | "horaReunion";
+type ValidationField =
+  | "titulo"
+  | "funcionarioId"
+  | "gestionId"
+  | "competenciaId"
+  | "entregableId"
+  | "fechaInicio"
+  | "fechaFin"
+  | "fechaReunion"
+  | "horaReunion";
 type ValidationErrors = Partial<Record<ValidationField, string>>;
 
 function toggleId(ids: string[], id: string): string[] {
@@ -109,7 +117,8 @@ export function NewActivityDialog({
   const [gestionId, setGestionId] = useState(gestiones[0]?.id || "");
   const [competenciaId, setCompetenciaId] = useState("");
   const [entregableId, setEntregableId] = useState("");
-  const [plazoDias, setPlazoDias] = useState<number | string>(7);
+  const [fechaInicio, setFechaInicio] = useState(() => todayIsoForZone(ZONE_TZ));
+  const [fechaFin, setFechaFin] = useState(() => iso(addDays(todayIsoForZone(ZONE_TZ), 7)));
   const [fechaReunion, setFechaReunion] = useState(() => todayIsoForZone(ZONE_TZ));
   const [horaReunion, setHoraReunion] = useState("09:00");
   const [estado, setEstado] = useState<Exclude<EstadoActividad, "archivada">>("pendiente");
@@ -220,7 +229,8 @@ export function NewActivityDialog({
       setGestionId(storedDraft.gestionId);
       setCompetenciaId(storedDraft.competenciaId);
       setEntregableId(storedDraft.entregableId);
-      setPlazoDias(storedDraft.plazoDias);
+      setFechaInicio(storedDraft.fechaInicio);
+      setFechaFin(storedDraft.fechaFin);
       setFechaReunion(storedDraft.fechaReunion);
       setHoraReunion(storedDraft.horaReunion);
       setClientRequestId(storedDraft.clientRequestId);
@@ -243,8 +253,10 @@ export function NewActivityDialog({
       setGestionId(initialGestionId);
       setCompetenciaId(competencias.find((c) => c.gestionId === initialGestionId)?.id || "");
       setEntregableId("");
-      setPlazoDias("7");
-      setFechaReunion(todayIsoForZone(ZONE_TZ));
+      const initialDay = todayIsoForZone(ZONE_TZ);
+      setFechaInicio(initialDay);
+      setFechaFin(iso(addDays(initialDay, 7)));
+      setFechaReunion(initialDay);
       setHoraReunion("09:00");
       setClientRequestId(initialRequestId);
       clientRequestIdRef.current = initialRequestId;
@@ -282,7 +294,8 @@ export function NewActivityDialog({
       gestionId,
       competenciaId,
       entregableId,
-      plazoDias: String(plazoDias),
+      fechaInicio,
+      fechaFin,
       fechaReunion,
       horaReunion,
     };
@@ -305,13 +318,14 @@ export function NewActivityDialog({
     draftScope,
     entregableId,
     estado,
+    fechaFin,
+    fechaInicio,
     fechaReunion,
     funcionarioId,
     gestionId,
     horaReunion,
     open,
     participantesIds,
-    plazoDias,
     resultadosAlcanzados,
     tipo,
     titulo,
@@ -377,11 +391,6 @@ export function NewActivityDialog({
   const catalogosVacios = isAdmin
     ? funcionariosDisponibles.length === 0 || gestiones.length === 0 || competencias.length === 0
     : !currentUser.funcionarioId || gestiones.length === 0 || competencias.length === 0;
-  // Asignación: vence = hoy + plazo. Reunión: la fecha+hora elegidas se guardan
-  // juntas en fechaVencimiento ("YYYY-MM-DDTHH:mm").
-  const plazo = Number(plazoDias) || 0;
-  const today = todayIsoForZone(ZONE_TZ);
-  const vence = esReunion ? `${fechaReunion}T${horaReunion}` : iso(addDays(today, plazo));
   const estadoDef = ESTADOS.find((e) => e.id === effectiveEstado);
 
   function clearValidationError(...fields: ValidationField[]) {
@@ -413,8 +422,12 @@ export function NewActivityDialog({
     if (esReunion) {
       if (!isCalendarDate(fechaReunion)) next.fechaReunion = "Selecciona una fecha válida para la reunión.";
       if (!isClockTime(horaReunion)) next.horaReunion = "Selecciona una hora válida para la reunión.";
-    } else if (!Number.isInteger(Number(plazoDias)) || Number(plazoDias) < 1 || Number(plazoDias) > 365) {
-      next.plazoDias = "El plazo debe ser un número entero entre 1 y 365 días.";
+    } else {
+      if (!isCalendarDate(fechaInicio)) next.fechaInicio = "Selecciona una fecha de inicio válida.";
+      if (!isCalendarDate(fechaFin)) next.fechaFin = "Selecciona una fecha de fin válida.";
+      if (isCalendarDate(fechaInicio) && isCalendarDate(fechaFin) && fechaInicio > fechaFin) {
+        next.fechaFin = "La fecha de fin debe ser igual o posterior a la fecha de inicio.";
+      }
     }
 
     setValidationErrors(next);
@@ -426,7 +439,8 @@ export function NewActivityDialog({
         gestionId: "gestion",
         competenciaId: "comp",
         entregableId: "entregable",
-        plazoDias: "plazo",
+        fechaInicio: "fecha-inicio",
+        fechaFin: "fecha-fin",
         fechaReunion: "fecha-reunion",
         horaReunion: "hora-reunion",
       };
@@ -437,12 +451,8 @@ export function NewActivityDialog({
 
   function buildInput(): NewActivityInput {
     const responsibleId = isAdmin ? funcionarioId : currentUser.funcionarioId || "";
-    // These legacy date fields are sent for shape compatibility only. The API
-    // generates creation/completion dates and assignment deadlines itself.
     const clientDay = todayIsoForZone(ZONE_TZ);
-    const calculatedDeadline = esReunion
-      ? `${fechaReunion}T${horaReunion}`
-      : iso(addDays(clientDay, plazo));
+    const reunionDateTime = `${fechaReunion}T${horaReunion}`;
     return {
       tipo: effectiveTipo,
       titulo: titulo.trim(),
@@ -459,8 +469,8 @@ export function NewActivityDialog({
       entregableId: entregableId || null,
       estado: effectiveEstado,
       fechaCreacion: clientDay,
-      plazoDias: esReunion ? 0 : plazo,
-      fechaVencimiento: calculatedDeadline,
+      fechaInicio: esReunion ? reunionDateTime : fechaInicio,
+      fechaFin: esReunion ? reunionDateTime : fechaFin,
       fechaCumplimiento: effectiveEstado === "cumplida" ? clientDay : null,
       observaciones: "",
       accionesPendientes: accionesPendientes.trim(),
@@ -825,6 +835,7 @@ export function NewActivityDialog({
                     <Input
                       id="fecha-reunion"
                       type="date"
+                      required
                       value={fechaReunion}
                       aria-invalid={Boolean(validationErrors.fechaReunion)}
                       aria-describedby={validationErrors.fechaReunion ? "fecha-reunion-error" : undefined}
@@ -841,6 +852,7 @@ export function NewActivityDialog({
                     <Input
                       id="hora-reunion"
                       type="time"
+                      required
                       value={horaReunion}
                       aria-invalid={Boolean(validationErrors.horaReunion)}
                       aria-describedby={validationErrors.horaReunion ? "hora-reunion-error" : undefined}
@@ -856,29 +868,40 @@ export function NewActivityDialog({
               ) : (
                 <>
                   <div className="space-y-1.5">
-                    <Label htmlFor="plazo">Plazo (días calendario)</Label>
+                    <Label htmlFor="fecha-inicio">Fecha de inicio</Label>
                     <Input
-                      id="plazo"
-                      type="number"
-                      min={1}
-                      max={365}
-                      value={plazoDias}
-                      aria-invalid={Boolean(validationErrors.plazoDias)}
-                      aria-describedby={validationErrors.plazoDias ? "plazo-error" : undefined}
-                      className={validationErrors.plazoDias ? "border-red-300 focus-visible:ring-red-500/20" : ""}
+                      id="fecha-inicio"
+                      type="date"
+                      required
+                      max={fechaFin || undefined}
+                      value={fechaInicio}
+                      aria-invalid={Boolean(validationErrors.fechaInicio)}
+                      aria-describedby={validationErrors.fechaInicio ? "fecha-inicio-error" : undefined}
+                      className={validationErrors.fechaInicio ? "border-red-300 focus-visible:ring-red-500/20" : ""}
                       onChange={(e) => {
-                        setPlazoDias(e.target.value);
-                        clearValidationError("plazoDias");
+                        setFechaInicio(e.target.value);
+                        clearValidationError("fechaInicio", "fechaFin");
                       }}
                     />
-                    <FieldError id="plazo-error" message={validationErrors.plazoDias} />
+                    <FieldError id="fecha-inicio-error" message={validationErrors.fechaInicio} />
                   </div>
                   <div className="space-y-1.5">
-                    <Label>Fecha de vencimiento</Label>
-                    <div className="flex h-auto min-h-11 min-w-0 items-center gap-2 rounded-lg bg-slate-50 px-3 py-2 text-sm font-medium text-slate-700 ring-1 ring-foreground/5 sm:h-9 sm:min-h-0 sm:py-0">
-                      <Icon name="calendar" size={14} className="shrink-0 text-slate-400" />
-                      <span className="min-w-0 break-words">{fmtFechaLarga(vence)}</span>
-                    </div>
+                    <Label htmlFor="fecha-fin">Fecha de fin</Label>
+                    <Input
+                      id="fecha-fin"
+                      type="date"
+                      required
+                      min={fechaInicio || undefined}
+                      value={fechaFin}
+                      aria-invalid={Boolean(validationErrors.fechaFin)}
+                      aria-describedby={validationErrors.fechaFin ? "fecha-fin-error" : undefined}
+                      className={validationErrors.fechaFin ? "border-red-300 focus-visible:ring-red-500/20" : ""}
+                      onChange={(e) => {
+                        setFechaFin(e.target.value);
+                        clearValidationError("fechaInicio", "fechaFin");
+                      }}
+                    />
+                    <FieldError id="fecha-fin-error" message={validationErrors.fechaFin} />
                   </div>
                 </>
               )}

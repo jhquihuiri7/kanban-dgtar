@@ -15,16 +15,19 @@ import { cn } from "@/lib/utils";
 import {
   ESTADOS,
   TODAY_ISO,
+  actividadFuncionarioIds,
   actividadIncludesFuncionario,
   addDays,
   daysBetween,
+  fechaFinInfo,
   fmtFecha,
+  fmtHora,
   gestionNombre,
   iso,
-  plazoInfo,
   type Actividad,
   type Competencia,
   type Entregable,
+  type FechaInfo,
   type Funcionario,
   type Gestion,
 } from "@/lib/data";
@@ -33,13 +36,8 @@ interface FuncionarioStat {
   f: Funcionario;
   total: number;
   cumplidas: number;
-  enPlazo: number;
-  fueraPlazo: number;
-  vencidas: number;
-  vigentes: number;
+  fechaFinSuperada: number;
   cumpl: number;
-  puntualidad: number | null;
-  diasPromAtraso: number;
 }
 
 function computeStats(
@@ -54,14 +52,14 @@ function computeStats(
     en_progreso: 0,
     en_revision: 0,
     cumplida: 0,
-    vencidas: 0,
-    proxVencer: 0,
+    fechaFinSuperada: 0,
+    proximasFinalizar: 0,
   } as Record<string, number>;
   for (const a of activities) {
     totals[a.estado]++;
-    const p = plazoInfo(a, today);
-    if (p.kind === "overdue") totals.vencidas++;
-    if (p.kind === "soon" || p.kind === "today") totals.proxVencer++;
+    const fecha = fechaFinInfo(a, today);
+    if (fecha.kind === "ended") totals.fechaFinSuperada++;
+    if (fecha.kind === "soon" || fecha.kind === "today") totals.proximasFinalizar++;
   }
 
   const porFuncionario: FuncionarioStat[] = funcionarios
@@ -69,35 +67,18 @@ function computeStats(
       const mine = activities.filter((a) => actividadIncludesFuncionario(a, f.id));
       const total = mine.length;
       const cumplidas = mine.filter((a) => a.estado === "cumplida");
-      const enPlazo = cumplidas.filter(
-        (a) => daysBetween(a.fechaCumplimiento ?? today, a.fechaVencimiento) >= 0,
-      ).length;
-      const fueraPlazo = cumplidas.length - enPlazo;
-      const vencidas = mine.filter(
-        (a) => a.estado !== "cumplida" && daysBetween(today, a.fechaVencimiento) < 0,
-      ).length;
-      const vigentes = mine.filter(
-        (a) => a.estado !== "cumplida" && daysBetween(today, a.fechaVencimiento) >= 0,
+      const fechaFinSuperada = mine.filter(
+        (a) => a.estado !== "cumplida" && daysBetween(today, a.fechaFin) < 0,
       ).length;
       const cumpl = total ? Math.round((cumplidas.length / total) * 100) : 0;
-      const puntualidad = cumplidas.length
-        ? Math.round((enPlazo / cumplidas.length) * 100)
-        : null;
-      const atrasos = mine.filter((a) => {
-        if (a.estado === "cumplida")
-          return daysBetween(a.fechaCumplimiento ?? today, a.fechaVencimiento) < 0;
-        return daysBetween(today, a.fechaVencimiento) < 0;
-      });
-      const diasPromAtraso = atrasos.length
-        ? Math.round(
-            atrasos.reduce((s, a) => {
-              const ref = a.fechaCumplimiento || today;
-              return s + Math.max(0, -daysBetween(ref, a.fechaVencimiento));
-            }, 0) / atrasos.length,
-          )
-        : 0;
 
-      return { f, total, cumplidas: cumplidas.length, enPlazo, fueraPlazo, vencidas, vigentes, cumpl, puntualidad, diasPromAtraso };
+      return {
+        f,
+        total,
+        cumplidas: cumplidas.length,
+        fechaFinSuperada,
+        cumpl,
+      };
     })
     .sort((a, b) => b.total - a.total);
 
@@ -585,8 +566,7 @@ interface GanttRawRow {
   start: number;
   end: number;
   duration: number;
-  dueOffset: number;
-  plazo: ReturnType<typeof plazoInfo>;
+  fecha: FechaInfo;
   barLeftPct: number;
   barWidthPct: number;
 }
@@ -683,32 +663,30 @@ function GanttChart({
   const rangeStartOffset = daysBetween(TODAY_ISO, dateRange.from);
   const rangeEndOffset = daysBetween(TODAY_ISO, dateRange.to);
   const gestionOrder = new Map(gestiones.map((g, index) => [g.nombre, index]));
-  const rawRows = visibleActivities.map((activity) => {
-    const funcionario = funcionarioById.get(activity.funcionarioId);
-    const funcionarioKey = funcionario?.id ?? "sin-funcionario";
-    const funcionarioName = funcionario?.nombre ?? "Sin funcionario asignado";
-    const funcionarioCargo = funcionario?.cargo;
-    const gestion = funcionario ? gestionNombre(funcionario.gestionId, gestiones) : "Sin gestión asignada";
-    const createdOffset = daysBetween(TODAY_ISO, activity.fechaCreacion);
-    const dueOffset = daysBetween(TODAY_ISO, activity.fechaVencimiento);
-    const activityStart = Math.min(createdOffset, dueOffset);
-    const activityEnd = Math.max(createdOffset, dueOffset);
+  const rawRows = visibleActivities.flatMap((activity) => {
+    const involvedFuncionarios = actividadFuncionarioIds(activity)
+      .map((funcionarioId) => funcionarioById.get(funcionarioId))
+      .filter((funcionario): funcionario is Funcionario => Boolean(funcionario));
+    const rowFuncionarios: Array<Funcionario | undefined> =
+      involvedFuncionarios.length > 0 ? involvedFuncionarios : [undefined];
+    const activityStart = daysBetween(TODAY_ISO, activity.fechaInicio);
+    const activityEnd = daysBetween(TODAY_ISO, activity.fechaFin);
     const start = Math.max(activityStart, rangeStartOffset);
     const end = Math.min(activityEnd, rangeEndOffset);
     const duration = activityEnd - activityStart + 1;
-    return {
+
+    return rowFuncionarios.map((funcionario) => ({
       activity,
       funcionario,
-      funcionarioKey,
-      funcionarioName,
-      funcionarioCargo,
-      gestion,
+      funcionarioKey: funcionario?.id ?? "sin-funcionario",
+      funcionarioName: funcionario?.nombre ?? "Sin funcionario asignado",
+      funcionarioCargo: funcionario?.cargo,
+      gestion: funcionario ? gestionNombre(funcionario.gestionId, gestiones) : "Sin gestión asignada",
       start,
       end,
       duration,
-      dueOffset,
-      plazo: plazoInfo(activity, TODAY_ISO),
-    };
+      fecha: fechaFinInfo(activity, TODAY_ISO),
+    }));
   }).sort((a, b) => {
     const gestionA = gestionOrder.get(a.gestion) ?? Number.MAX_SAFE_INTEGER;
     const gestionB = gestionOrder.get(b.gestion) ?? Number.MAX_SAFE_INTEGER;
@@ -716,7 +694,8 @@ function GanttChart({
       gestionA - gestionB ||
       a.gestion.localeCompare(b.gestion, "es") ||
       a.funcionarioName.localeCompare(b.funcionarioName, "es") ||
-      a.activity.fechaVencimiento.localeCompare(b.activity.fechaVencimiento)
+      a.activity.fechaInicio.localeCompare(b.activity.fechaInicio) ||
+      a.activity.fechaFin.localeCompare(b.activity.fechaFin)
     );
   });
 
@@ -777,7 +756,7 @@ function GanttChart({
     groupedRows.push({
       ...row,
       kind: "activity" as const,
-      key: row.activity.id,
+      key: `activity-${row.funcionarioKey}-${row.activity.id}`,
       height: GANTT_TASK_ROW_HEIGHT,
     });
   }
@@ -858,21 +837,31 @@ function GanttChart({
               );
             }
             return (
-              <article key={row.activity.id} className="rounded-lg bg-white p-3 ring-1 ring-slate-200">
+              <article key={row.key} className="rounded-lg bg-white p-3 ring-1 ring-slate-200">
                 <div className="flex items-start justify-between gap-2">
                   <h3 className="min-w-0 break-words text-sm font-semibold leading-snug text-slate-900">
                     {row.activity.titulo}
                   </h3>
-                  <Badge variant={row.plazo.tone} className="shrink-0">
-                    {row.plazo.text}
+                  <Badge variant={row.fecha.tone} className="shrink-0">
+                    {row.fecha.text}
                   </Badge>
                 </div>
                 <dl className="mt-3 grid grid-cols-2 gap-2 text-xs">
                   <div className="min-w-0">
-                    <dt className="text-[10px] uppercase tracking-wide text-slate-400">Vence</dt>
-                    <dd className="mt-0.5 truncate font-medium text-slate-700">{fmtFecha(row.activity.fechaVencimiento)}</dd>
+                    <dt className="text-[10px] uppercase tracking-wide text-slate-400">Inicio</dt>
+                    <dd className="mt-0.5 truncate font-medium text-slate-700">
+                      {fmtFecha(row.activity.fechaInicio)}
+                      {fmtHora(row.activity.fechaInicio) ? ` · ${fmtHora(row.activity.fechaInicio)}` : ""}
+                    </dd>
                   </div>
-                  <div>
+                  <div className="min-w-0">
+                    <dt className="text-[10px] uppercase tracking-wide text-slate-400">Fin</dt>
+                    <dd className="mt-0.5 truncate font-medium text-slate-700">
+                      {fmtFecha(row.activity.fechaFin)}
+                      {fmtHora(row.activity.fechaFin) ? ` · ${fmtHora(row.activity.fechaFin)}` : ""}
+                    </dd>
+                  </div>
+                  <div className="col-span-2">
                     <dt className="text-[10px] uppercase tracking-wide text-slate-400">Duración</dt>
                     <dd className="mt-0.5 font-medium tabular-nums text-slate-700">{row.duration} días</dd>
                   </div>
@@ -939,7 +928,7 @@ function GanttChart({
                   }
                   return (
                     <div
-                      key={row.activity.id}
+                      key={row.key}
                       className="bg-white"
                       style={{ height: row.height }}
                     />
@@ -1028,7 +1017,7 @@ function GanttChart({
 
               {activityRows.map((row) => (
                 <button
-                  key={row.activity.id}
+                  key={row.key}
                   type="button"
                   onClick={() => onOpenActivity(row.activity.id)}
                   className={cn(
@@ -1040,7 +1029,7 @@ function GanttChart({
                     top: row.top + 7,
                     width: `${row.barWidthPct}%`,
                   }}
-                  title={row.activity.titulo}
+                  title={`${row.activity.titulo} · ${fmtFecha(row.activity.fechaInicio)} – ${fmtFecha(row.activity.fechaFin)}`}
                   aria-label={`Ver detalle de ${row.activity.titulo}`}
                 >
                   <span className="truncate">{row.activity.titulo}</span>
@@ -1097,20 +1086,15 @@ export function StatsView({
     [activities, responsables, competencias, entregables, gestiones],
   );
 
-  const cumplidasEnPlazo = activities.filter(
-    (a) => a.estado === "cumplida" && daysBetween(a.fechaCumplimiento ?? TODAY_ISO, a.fechaVencimiento) >= 0,
-  ).length;
-  const enPlazoPct = s.totals.cumplida ? Math.round((cumplidasEnPlazo / s.totals.cumplida) * 100) : 0;
-
   return (
     <div className="space-y-6">
       {/* KPI row */}
       <div className="grid grid-cols-2 gap-3 md:grid-cols-5 [&>*:last-child]:col-span-2 md:[&>*:last-child]:col-span-1">
         <Kpi icon="inbox" tone="slate" label="Actividades totales" value={s.totals.total} />
         <Kpi icon="zap" tone="blue" label="En progreso" value={s.totals.en_progreso} sub={`${s.totals.en_revision} en revisión`} />
-        <Kpi icon="checkCircle" tone="green" label="Cumplidas" value={s.totals.cumplida} sub={`${enPlazoPct}% en plazo`} />
-        <Kpi icon="alert" tone="red" label="Vencidas" value={s.totals.vencidas} />
-        <Kpi icon="flame" tone="amber" label="Próximas a vencer" value={s.totals.proxVencer} sub="≤ 3 días" />
+        <Kpi icon="checkCircle" tone="green" label="Cumplidas" value={s.totals.cumplida} />
+        <Kpi icon="alert" tone="red" label="Fecha fin superada" value={s.totals.fechaFinSuperada} />
+        <Kpi icon="flame" tone="amber" label="Finalizan pronto" value={s.totals.proximasFinalizar} sub="≤ 3 días" />
       </div>
 
       <GanttChart
@@ -1183,7 +1167,7 @@ export function StatsView({
         <CardHeader className="flex flex-col items-start gap-2 !pb-2 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <CardTitle>Cumplimiento por funcionario</CardTitle>
-            <div className="mt-0.5 text-xs text-slate-500">Total asignadas, cumplidas, puntualidad y atraso promedio</div>
+            <div className="mt-0.5 text-xs text-slate-500">Total asignadas, cumplidas y porcentaje de cumplimiento</div>
           </div>
           <Badge variant="outline">{funcionarios.length} funcionarios</Badge>
         </CardHeader>
@@ -1208,27 +1192,15 @@ export function StatsView({
                     <ProgressBar pct={row.cumpl} />
                   </div>
 
-                  <dl className="mt-3 grid grid-cols-2 gap-x-3 gap-y-2 text-xs min-[380px]:grid-cols-4">
+                  <dl className="mt-3 grid grid-cols-2 gap-x-3 gap-y-2 text-xs">
                     <div>
                       <dt className="text-slate-400">Cumplidas</dt>
                       <dd className="mt-0.5 font-semibold tabular-nums text-slate-800">{row.cumplidas}</dd>
                     </div>
                     <div>
-                      <dt className="text-slate-400">Vencidas</dt>
-                      <dd className={cn("mt-0.5 font-semibold tabular-nums", row.vencidas > 0 ? "text-red-600" : "text-slate-400")}>
-                        {row.vencidas > 0 ? row.vencidas : "—"}
-                      </dd>
-                    </div>
-                    <div>
-                      <dt className="text-slate-400">Puntualidad</dt>
-                      <dd className="mt-0.5 font-semibold tabular-nums text-slate-800">
-                        {row.puntualidad == null ? "—" : `${row.puntualidad}%`}
-                      </dd>
-                    </div>
-                    <div>
-                      <dt className="text-slate-400">Atraso prom.</dt>
-                      <dd className={cn("mt-0.5 font-semibold tabular-nums", row.diasPromAtraso > 0 ? "text-red-600" : "text-slate-400")}>
-                        {row.diasPromAtraso > 0 ? `+${row.diasPromAtraso}d` : "—"}
+                      <dt className="text-slate-400">Fecha fin superada</dt>
+                      <dd className={cn("mt-0.5 font-semibold tabular-nums", row.fechaFinSuperada > 0 ? "text-red-600" : "text-slate-400")}>
+                        {row.fechaFinSuperada > 0 ? row.fechaFinSuperada : "—"}
                       </dd>
                     </div>
                   </dl>
@@ -1246,10 +1218,8 @@ export function StatsView({
                   <th className="px-4 py-2 text-left font-medium">Funcionario</th>
                   <th className="px-2 py-2 text-right font-medium">Total</th>
                   <th className="px-2 py-2 text-right font-medium">Cumplidas</th>
-                  <th className="px-2 py-2 text-right font-medium">Vencidas</th>
+                  <th className="px-2 py-2 text-right font-medium">Fecha fin superada</th>
                   <th className="px-4 py-2 text-left font-medium">% Cumplimiento</th>
-                  <th className="px-2 py-2 text-right font-medium">Puntualidad</th>
-                  <th className="px-2 py-2 text-right font-medium">Atraso prom.</th>
                 </tr>
               </thead>
               <tbody>
@@ -1267,39 +1237,14 @@ export function StatsView({
                     <td className="px-2 py-2.5 text-right font-medium tabular-nums text-slate-800">{row.total}</td>
                     <td className="px-2 py-2.5 text-right tabular-nums text-slate-700">{row.cumplidas}</td>
                     <td className="px-2 py-2.5 text-right tabular-nums">
-                      {row.vencidas > 0 ? (
-                        <span className="font-medium text-red-600">{row.vencidas}</span>
+                      {row.fechaFinSuperada > 0 ? (
+                        <span className="font-medium text-red-600">{row.fechaFinSuperada}</span>
                       ) : (
                         <span className="text-slate-400">—</span>
                       )}
                     </td>
                     <td className="px-4 py-2.5">
                       <ProgressBar pct={row.cumpl} />
-                    </td>
-                    <td className="px-2 py-2.5 text-right tabular-nums">
-                      {row.puntualidad == null ? (
-                        <span className="text-slate-400">—</span>
-                      ) : (
-                        <span
-                          className={cn(
-                            "font-medium",
-                            row.puntualidad >= 80
-                              ? "text-green-700"
-                              : row.puntualidad >= 50
-                                ? "text-amber-700"
-                                : "text-red-700",
-                          )}
-                        >
-                          {row.puntualidad}%
-                        </span>
-                      )}
-                    </td>
-                    <td className="px-2 py-2.5 text-right tabular-nums">
-                      {row.diasPromAtraso > 0 ? (
-                        <span className="text-red-600">+{row.diasPromAtraso}d</span>
-                      ) : (
-                        <span className="text-slate-400">—</span>
-                      )}
                     </td>
                   </tr>
                 ))}

@@ -150,8 +150,8 @@ export function mapActividad(r: Row): DbActividad {
     entregableId: (r.entregable_id as string | null) ?? null,
     estado: r.estado as EstadoActividad,
     fechaCreacion: r.fecha_creacion as string,
-    plazoDias: r.plazo_dias as number,
-    fechaVencimiento: r.fecha_vencimiento as string,
+    fechaInicio: r.fecha_inicio as string,
+    fechaFin: r.fecha_fin as string,
     fechaCumplimiento: (r.fecha_cumplimiento as string | null) ?? null,
     observaciones: r.observaciones as string,
     accionesPendientes: (r.acciones_pendientes as string) ?? "",
@@ -442,7 +442,7 @@ export async function writeAll(
       await client.query(
         `INSERT INTO actividades
            (id, tipo, titulo, descripcion, funcionario_id, competencia_id, entregable_id, estado,
-            fecha_creacion, plazo_dias, fecha_vencimiento, fecha_cumplimiento,
+            fecha_creacion, fecha_inicio, fecha_fin, fecha_cumplimiento,
             observaciones, acciones_pendientes, resultados_alcanzados, orden,
             client_request_id, created_by_user_id, request_fingerprint, created_at, updated_at)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16,
@@ -457,8 +457,8 @@ export async function writeAll(
           a.entregableId ?? null,
           a.estado,
           a.fechaCreacion,
-          a.plazoDias,
-          a.fechaVencimiento,
+          a.fechaInicio,
+          a.fechaFin,
           a.fechaCumplimiento,
           a.observaciones,
           a.accionesPendientes ?? "",

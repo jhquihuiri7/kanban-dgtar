@@ -34,6 +34,7 @@ import {
   persistActivityWithVerification,
 } from "@/lib/activity-client";
 import { DataMergeConflictError, rebaseDataDocument, type DataDocument } from "@/lib/data-rebase";
+import { canFuncionarioEditActivity } from "@/lib/activity-access";
 
 type Tab = "kanban" | "stats" | "catalogs" | "users";
 type BoardView = "columns" | "week" | "month";
@@ -1231,8 +1232,8 @@ function KanbanScreen({
   const counts = useMemo(() => {
     const m: Record<string, number> = {};
     for (const a of activities) m[a.estado] = (m[a.estado] || 0) + 1;
-    m.vencidas = activities.filter(
-      (a) => a.estado !== "cumplida" && daysBetween(TODAY_ISO, a.fechaVencimiento) < 0,
+    m.fechaFinSuperada = activities.filter(
+      (a) => a.estado !== "cumplida" && daysBetween(TODAY_ISO, a.fechaFin) < 0,
     ).length;
     return m;
   }, [activities]);
@@ -1283,7 +1284,7 @@ function KanbanScreen({
             <span>{activities.length} actividades</span>
             <span className="hidden h-1 w-1 rounded-full bg-slate-300 sm:block" />
             <span>
-              <b className="text-red-600">{counts.vencidas}</b> vencidas
+              <b className="text-red-600">{counts.fechaFinSuperada}</b> con fecha fin superada
             </span>
             <span className="hidden h-1 w-1 rounded-full bg-slate-300 sm:block" />
             <span>
@@ -1314,7 +1315,9 @@ function KanbanScreen({
           useAvatars={useAvatars}
           density={density}
           canCreate={isAdmin || Boolean(currentUser.funcionarioId)}
-          canManageActivity={(activity) => isAdmin || activity.funcionarioId === currentUser.funcionarioId}
+          canManageActivity={(activity) =>
+            isAdmin || canFuncionarioEditActivity(activity, currentUser.funcionarioId)
+          }
           onOpen={onOpen}
           onAdd={onAdd}
           filters={filters}
@@ -1374,8 +1377,9 @@ function StatsScreen({
   const filteredActivities = useMemo(() => {
     if (invalidRange) return [];
     return activities.filter((activity) => {
-      const dueDate = dateOnly(activity.fechaVencimiento);
-      return dueDate >= activeRange.from && dueDate <= activeRange.to;
+      const startDate = dateOnly(activity.fechaInicio);
+      const endDate = dateOnly(activity.fechaFin);
+      return startDate <= activeRange.to && endDate >= activeRange.from;
     });
   }, [activities, activeRange.from, activeRange.to, invalidRange]);
 
@@ -1474,7 +1478,7 @@ function StatsScreen({
             <span className="text-red-600">Selecciona un rango de fechas válido.</span>
           ) : (
             <span className="text-slate-500">
-              Fecha de vencimiento: {fmtFechaLarga(activeRange.from)} – {fmtFechaLarga(activeRange.to)} ·{" "}
+              Rango de actividad: {fmtFechaLarga(activeRange.from)} – {fmtFechaLarga(activeRange.to)} ·{" "}
               <b className="text-slate-700">{filteredActivities.length}</b> de {activities.length} actividades
             </span>
           )}

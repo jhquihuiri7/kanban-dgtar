@@ -10,31 +10,32 @@ import {
   ZONE_TZ,
   addDays,
   dateOnly,
+  fechaFinInfo,
   fmtFecha,
   fmtHora,
   gestionNombre,
   gestionTone,
   iso,
-  plazoInfo,
   type Actividad,
   type Competencia,
+  type FechaInfo,
+  type FechaTone,
   type Funcionario,
   type Gestion,
-  type PlazoTone,
 } from "@/lib/data";
 
 type CalendarMode = "week" | "month";
 
 const DAY_NAMES = ["lun", "mar", "mié", "jue", "vie", "sáb", "dom"];
 
-const STRIPE: Record<PlazoTone, string> = {
+const STRIPE: Record<FechaTone, string> = {
   green: "bg-green-500",
   amber: "bg-amber-500",
   red: "bg-red-500",
   slate: "bg-slate-300",
 };
 
-const DOT: Record<PlazoTone, string> = {
+const DOT: Record<FechaTone, string> = {
   green: "bg-green-500",
   amber: "bg-amber-500",
   red: "bg-red-500",
@@ -103,9 +104,9 @@ function CalendarItem({
   onOpen: () => void;
   variant: "week" | "month";
 }) {
-  const p = plazoInfo(act, TODAY_ISO);
+  const fecha: FechaInfo = fechaFinInfo(act, TODAY_ISO);
   const esReunion = act.tipo === "reunion";
-  const hora = fmtHora(act.fechaVencimiento);
+  const hora = fmtHora(act.fechaInicio);
 
   if (variant === "month") {
     return (
@@ -114,7 +115,7 @@ function CalendarItem({
         title={`${esReunion && hora ? hora + " · " : ""}${act.titulo}${comp ? " · " + gestionNombre(comp.gestionId, gestiones) : ""}`}
         className="flex w-full items-center gap-1 rounded px-1 py-0.5 text-left text-[10.5px] leading-tight text-slate-700 transition hover:bg-slate-100"
       >
-        <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", DOT[p.tone])} />
+        <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", DOT[fecha.tone])} />
         <span className="truncate">
           {esReunion && hora && <span className="font-semibold text-slate-500">{hora} </span>}
           {act.titulo}
@@ -129,7 +130,7 @@ function CalendarItem({
       title={act.titulo}
       className="group relative min-h-11 w-full overflow-hidden rounded-md bg-white text-left ring-1 ring-foreground/10 transition hover:ring-foreground/20 hover:shadow-[0_1px_4px_rgba(15,23,42,0.06)]"
     >
-      <span className={cn("absolute left-0 top-0 h-full w-1", STRIPE[p.tone])} />
+      <span className={cn("absolute left-0 top-0 h-full w-1", STRIPE[fecha.tone])} />
       <div className="py-1.5 pl-2.5 pr-1.5">
         <div className="flex flex-wrap items-center gap-1">
           {esReunion && (
@@ -149,8 +150,8 @@ function CalendarItem({
             {esReunion && hora && (
               <span className="shrink-0 text-[10px] font-semibold text-slate-600">{hora}</span>
             )}
-            <Badge variant={p.tone} className="!px-1 !py-0 !text-[9.5px]">
-              {p.text}
+            <Badge variant={fecha.tone} className="!px-1 !py-0 !text-[9.5px]">
+              {fecha.text}
             </Badge>
           </div>
           <Avatar funcionario={fun} useAvatars={useAvatars} size={18} />
@@ -426,11 +427,11 @@ function MonthView({
 /* ── Legend ─────────────────────────────────────────────────────────── */
 
 function Legend() {
-  const items: { tone: PlazoTone; label: string }[] = [
-    { tone: "red", label: "Vencida / atrasada" },
-    { tone: "amber", label: "Vence pronto" },
-    { tone: "slate", label: "En plazo" },
-    { tone: "green", label: "Cumplida en plazo" },
+  const items: { tone: FechaTone; label: string }[] = [
+    { tone: "red", label: "Fecha fin superada" },
+    { tone: "amber", label: "Finaliza pronto" },
+    { tone: "slate", label: "Fecha fin futura" },
+    { tone: "green", label: "Cumplida" },
   ];
   return (
     <div className="grid grid-cols-2 gap-x-3 gap-y-2 text-[11px] text-slate-500 sm:flex sm:flex-wrap sm:items-center sm:gap-y-1">
@@ -466,19 +467,37 @@ export function CalendarView({
   onOpen: (id: string) => void;
 }) {
   const [refDate, setRefDate] = useState<string>(TODAY_ISO);
+  const visibleRange = useMemo(() => {
+    const from = mode === "week" ? mondayOf(refDate) : mondayOf(firstOfMonth(refDate));
+    return {
+      from,
+      to: iso(addDays(from, mode === "week" ? 6 : 41)),
+    };
+  }, [mode, refDate]);
 
   const byDay = useMemo(() => {
     const m = new Map<string, Actividad[]>();
     for (const a of filterActivities(activities, filters)) {
-      if (!a.fechaVencimiento) continue;
-      const key = dateOnly(a.fechaVencimiento); // ignora la hora de las reuniones
-      const list = m.get(key);
-      if (list) list.push(a);
-      else m.set(key, [a]);
+      const inicio = dateOnly(a.fechaInicio);
+      const fin = dateOnly(a.fechaFin);
+      if (!inicio || !fin) continue;
+      const activityFrom = inicio <= fin ? inicio : fin;
+      const activityTo = inicio <= fin ? fin : inicio;
+      const from = activityFrom > visibleRange.from ? activityFrom : visibleRange.from;
+      const to = activityTo < visibleRange.to ? activityTo : visibleRange.to;
+      if (from > to) continue;
+      for (let key = from; key <= to; key = iso(addDays(key, 1))) {
+        const list = m.get(key);
+        if (list) list.push(a);
+        else m.set(key, [a]);
+        if (key === to) break;
+      }
     }
-    m.forEach((list) => list.sort((x, y) => x.orden - y.orden));
+    m.forEach((list) =>
+      list.sort((x, y) => x.fechaInicio.localeCompare(y.fechaInicio) || x.orden - y.orden),
+    );
     return m;
-  }, [activities, filters]);
+  }, [activities, filters, visibleRange]);
 
   const label = useMemo(() => {
     if (mode === "month") return monthLabel(refDate);

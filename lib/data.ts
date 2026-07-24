@@ -52,8 +52,8 @@ export interface Actividad {
   entregableId: string | null;
   estado: EstadoActividad;
   fechaCreacion: string;
-  plazoDias: number;
-  fechaVencimiento: string;
+  fechaInicio: string;
+  fechaFin: string;
   fechaCumplimiento: string | null;
   observaciones: string;
   accionesPendientes: string;
@@ -80,16 +80,16 @@ export function todayIsoForZone(timeZone: string): string {
 
 function dateFromIso(isoStr: string): Date {
   // Tolerates an optional "THH:mm" suffix (used by reuniones) — solo la parte
-  // de fecha define el día; la hora se ignora para todo cálculo de plazos.
+  // de fecha define el día para comparaciones de calendario.
   const [datePart] = isoStr.split("T");
   const [year, month, day] = datePart.split("-").map(Number);
   return new Date(Date.UTC(year, month - 1, day, 12));
 }
 
 /* ── Fecha + hora (reuniones) ───────────────────────────────────────────
-   La hora de una reunión se guarda dentro de fechaVencimiento como
-   "YYYY-MM-DDTHH:mm". Estas funciones la separan para mostrarla/editarla sin
-   tocar el resto de la lógica de fechas (que solo mira la parte de día). */
+   En reuniones, fechaInicio y fechaFin contienen el mismo
+   "YYYY-MM-DDTHH:mm". Estas funciones separan la hora para mostrarla y
+   editarla sin afectar las comparaciones por día. */
 
 export function dateOnly(isoStr: string | null): string {
   return isoStr ? isoStr.split("T")[0] : "";
@@ -190,30 +190,28 @@ export type BadgeVariant =
   | "slate"
   | "teal";
 
-export type PlazoTone = "green" | "amber" | "red" | "slate";
-export type PlazoKind = "ok" | "late" | "overdue" | "today" | "soon" | "normal";
+export type FechaTone = "green" | "amber" | "red" | "slate";
+export type FechaKind = "ok" | "ended" | "today" | "soon" | "normal";
 
-export interface PlazoInfo {
-  kind: PlazoKind;
+export interface FechaInfo {
+  kind: FechaKind;
   text: string;
-  tone: PlazoTone;
+  tone: FechaTone;
   days?: number;
 }
 
-// Colores de plazo:
-//  - Verde: cumplida en plazo
-//  - Amber: vence en 3 días o menos
-//  - Red: vencida o cumplida fuera de plazo
-//  - Slate: plazo normal
-export function plazoInfo(act: Actividad, today: string): PlazoInfo {
+// Estado visual respecto de la fecha de fin:
+//  - Verde: completada, sin monitorear retrasos una vez cerrada
+//  - Amber: finaliza hoy o en los próximos 3 días
+//  - Rojo: fecha de fin superada mientras sigue abierta
+//  - Slate: fecha de fin a más de 3 días
+export function fechaFinInfo(act: Actividad, today: string): FechaInfo {
   if (act.estado === "cumplida") {
-    const dCum = daysBetween(act.fechaCumplimiento ?? today, act.fechaVencimiento);
-    if (dCum >= 0) return { kind: "ok", text: "Cumplida en plazo", tone: "green" };
-    return { kind: "late", text: `Cumplida +${-dCum}d`, tone: "red" };
+    return { kind: "ok", text: "Cumplida", tone: "green" };
   }
-  const dRest = daysBetween(today, act.fechaVencimiento);
-  if (dRest < 0) return { kind: "overdue", text: `Vencida ${-dRest}d`, tone: "red", days: dRest };
-  if (dRest === 0) return { kind: "today", text: "Vence hoy", tone: "amber", days: 0 };
-  if (dRest <= 3) return { kind: "soon", text: `${dRest}d restantes`, tone: "amber", days: dRest };
-  return { kind: "normal", text: `${dRest}d restantes`, tone: "slate", days: dRest };
+  const dRest = daysBetween(today, act.fechaFin);
+  if (dRest < 0) return { kind: "ended", text: `Fin superado ${-dRest}d`, tone: "red", days: dRest };
+  if (dRest === 0) return { kind: "today", text: "Finaliza hoy", tone: "amber", days: 0 };
+  if (dRest <= 3) return { kind: "soon", text: `Finaliza en ${dRest}d`, tone: "amber", days: dRest };
+  return { kind: "normal", text: `Finaliza en ${dRest}d`, tone: "slate", days: dRest };
 }

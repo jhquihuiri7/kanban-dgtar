@@ -10,13 +10,14 @@ import {
   actividadIncludesFuncionario,
   fmtFecha,
   fmtHora,
+  fechaFinInfo,
   gestionNombre,
   gestionTone,
-  plazoInfo,
   type Actividad,
   type Competencia,
   type EstadoActividad,
   type EstadoDef,
+  type FechaInfo,
   type Funcionario,
   type Gestion,
 } from "@/lib/data";
@@ -44,8 +45,8 @@ function compareFallback(a: Actividad, b: Actividad): number {
 }
 
 function compareUrgentFirst(a: Actividad, b: Actividad): number {
-  const byVencimiento = a.fechaVencimiento.localeCompare(b.fechaVencimiento);
-  if (byVencimiento !== 0) return byVencimiento;
+  const byFechaFin = a.fechaFin.localeCompare(b.fechaFin);
+  if (byFechaFin !== 0) return byFechaFin;
   return compareFallback(a, b);
 }
 
@@ -53,8 +54,8 @@ function compareCompletedFirst(a: Actividad, b: Actividad): number {
   const byCumplimiento = (b.fechaCumplimiento ?? "").localeCompare(a.fechaCumplimiento ?? "");
   if (byCumplimiento !== 0) return byCumplimiento;
 
-  const byVencimiento = b.fechaVencimiento.localeCompare(a.fechaVencimiento);
-  if (byVencimiento !== 0) return byVencimiento;
+  const byFechaFin = b.fechaFin.localeCompare(a.fechaFin);
+  if (byFechaFin !== 0) return byFechaFin;
 
   return compareFallback(a, b);
 }
@@ -93,7 +94,7 @@ function KanbanCard({
   isDragging: boolean;
   canMove: boolean;
 }) {
-  const p = plazoInfo(act, TODAY_ISO);
+  const fecha: FechaInfo = fechaFinInfo(act, TODAY_ISO);
   const compact = density === "compact";
   const participantesCount = act.tipo === "reunion" ? (act.participantesIds ?? []).length : 0;
 
@@ -102,7 +103,7 @@ function KanbanCard({
     amber: "bg-amber-500",
     red: "bg-red-500",
     slate: "bg-slate-200",
-  }[p.tone];
+  }[fecha.tone];
 
   return (
     <div
@@ -156,29 +157,28 @@ function KanbanCard({
             <div className="flex items-center gap-1">
               <Icon name={act.tipo === "reunion" ? "clock" : "calendar"} size={12} />
               <span>
-                {fmtFecha(act.fechaVencimiento)}
-                {act.tipo === "reunion" && fmtHora(act.fechaVencimiento)
-                  ? ` · ${fmtHora(act.fechaVencimiento)}`
-                  : ""}
+                {act.tipo === "reunion"
+                  ? `${fmtFecha(act.fechaInicio)}${fmtHora(act.fechaInicio) ? ` · ${fmtHora(act.fechaInicio)}` : ""}`
+                  : `${fmtFecha(act.fechaInicio)} – ${fmtFecha(act.fechaFin)}`}
               </span>
             </div>
-            <Badge variant={p.tone}>
-              {p.kind === "overdue" || p.kind === "today" ? (
+            <Badge variant={fecha.tone}>
+              {fecha.kind === "ended" || fecha.kind === "today" ? (
                 <Icon name="alert" size={10} />
-              ) : p.kind === "ok" ? (
+              ) : fecha.kind === "ok" ? (
                 <Icon name="check" size={10} />
               ) : (
                 <Icon name="clock" size={10} />
               )}
-              {p.text}
+              {fecha.text}
             </Badge>
           </div>
         )}
         {compact && (
           <div className="mt-1.5 flex items-center justify-between text-[10.5px] text-slate-500">
             <span className="font-medium text-slate-600">{fun?.nombre.split(" ")[0]}</span>
-            <Badge variant={p.tone} className="!text-[10px] !px-1 !py-0">
-              {p.text}
+            <Badge variant={fecha.tone} className="!text-[10px] !px-1 !py-0">
+              {fecha.text}
             </Badge>
           </div>
         )}

@@ -39,6 +39,7 @@ test(
     const userId = `u_test_${suffix}`;
     const clientRequestId = `activity_request_${suffix}`;
     const legacyActivityId = `a_legacy_${suffix}`;
+    const legacyMeetingId = `a_legacy_meeting_${suffix}`;
     const now = new Date().toISOString();
     const user: AuthUser = {
       id: userId,
@@ -69,8 +70,8 @@ test(
         [userId, user.email, user.nombre, "test-only", "user", funcionarioId, now],
       );
 
-      // Simulate a row that predates the new business CHECK, then rerun the
-      // idempotent migration and verify conservative remediation.
+      // Simulate a row that predates the explicit start/end date model, then
+      // rerun the idempotent migration and verify conservative remediation.
       await db.query("ALTER TABLE activity_creation_requests ALTER COLUMN created_by_user_id SET NOT NULL");
       await db.query(
         "ALTER TABLE activity_creation_requests DROP CONSTRAINT activity_creation_requests_created_by_user_id_fkey",
@@ -86,7 +87,11 @@ test(
          ADD CONSTRAINT actividades_created_by_user_id_fkey
          FOREIGN KEY (created_by_user_id) REFERENCES usuarios(id) ON DELETE CASCADE`,
       );
-      await db.query("ALTER TABLE actividades DROP CONSTRAINT actividades_business_fields_check_v2");
+      await db.query("ALTER TABLE actividades DROP CONSTRAINT IF EXISTS actividades_business_fields_check_v3");
+      await db.query("ALTER TABLE actividades ALTER COLUMN fecha_inicio DROP NOT NULL");
+      await db.query("ALTER TABLE actividades ALTER COLUMN fecha_fin DROP NOT NULL");
+      await db.query("ALTER TABLE actividades ADD COLUMN plazo_dias integer");
+      await db.query("ALTER TABLE actividades ADD COLUMN fecha_vencimiento text");
       await db.query(
         `INSERT INTO actividades
            (id, tipo, titulo, descripcion, funcionario_id, competencia_id, estado,
@@ -94,16 +99,59 @@ test(
          VALUES ($1, 'tipo-legado', '', '', $2, $3, 'estado-legado', '2026-01-01', 9000, '2026-01-02', '', 0)`,
         [legacyActivityId, funcionarioId, competenciaId],
       );
-      await db.query(readFileSync(join(process.cwd(), "db", "schema.sql"), "utf8"));
+      await db.query(
+        `INSERT INTO actividades
+           (id, tipo, titulo, descripcion, funcionario_id, competencia_id, estado,
+            fecha_creacion, plazo_dias, fecha_vencimiento, observaciones, orden)
+         VALUES ($1, 'reunion', 'Reunión legada', '', $2, $3, 'pendiente',
+                 '2026-01-01', 1, '2026-01-02T14:30', '', 1)`,
+        [legacyMeetingId, funcionarioId, competenciaId],
+      );
+      const schemaSql = readFileSync(join(process.cwd(), "db", "schema.sql"), "utf8");
+      await db.query(schemaSql);
+      await db.query(schemaSql);
       const remediated = await db.query(
-        "SELECT tipo, titulo, estado, plazo_dias FROM actividades WHERE id = $1",
+        "SELECT tipo, titulo, estado, fecha_inicio, fecha_fin FROM actividades WHERE id = $1",
         [legacyActivityId],
       );
       assert.deepEqual(remediated.rows[0], {
         tipo: "asignacion",
         titulo: "Actividad sin título",
         estado: "pendiente",
-        plazo_dias: 3650,
+        fecha_inicio: "2026-01-01",
+        fecha_fin: "2026-01-02",
+      });
+      const remediatedMeeting = await db.query(
+        "SELECT tipo, fecha_inicio, fecha_fin FROM actividades WHERE id = $1",
+        [legacyMeetingId],
+      );
+      assert.deepEqual(remediatedMeeting.rows[0], {
+        tipo: "reunion",
+        fecha_inicio: "2026-01-02T14:30",
+        fecha_fin: "2026-01-02T14:30",
+      });
+      const migratedColumns = await db.query(
+        `SELECT
+           EXISTS (
+             SELECT 1 FROM information_schema.columns
+             WHERE table_name = 'actividades' AND column_name = 'fecha_inicio'
+               AND is_nullable = 'NO'
+           ) AS has_required_start,
+           EXISTS (
+             SELECT 1 FROM information_schema.columns
+             WHERE table_name = 'actividades' AND column_name = 'fecha_fin'
+               AND is_nullable = 'NO'
+           ) AS has_required_end,
+           NOT EXISTS (
+             SELECT 1 FROM information_schema.columns
+             WHERE table_name = 'actividades'
+               AND column_name IN ('plazo_dias', 'fecha_vencimiento')
+           ) AS removed_legacy_columns`,
+      );
+      assert.deepEqual(migratedColumns.rows[0], {
+        has_required_start: true,
+        has_required_end: true,
+        removed_legacy_columns: true,
       });
       const ledgerMigration = await db.query(
         `SELECT
@@ -135,9 +183,9 @@ test(
         competenciaId,
         entregableId: null,
         estado: "pendiente",
-        plazoDias: 7,
         fechaCreacion: "2020-01-01",
-        fechaVencimiento: "2020-01-08",
+        fechaInicio: "2020-01-01",
+        fechaFin: "2020-01-08",
         fechaCumplimiento: null,
         observaciones: "",
         accionesPendientes: "",
@@ -179,6 +227,8 @@ test(
       assert.equal(first.activity.id, second.activity.id);
       assert.equal([first.idempotentReplay, second.idempotentReplay].filter(Boolean).length, 1);
       assert.notEqual(first.activity.fechaCreacion, "2020-01-01", "creation date must come from the server");
+      assert.equal(first.activity.fechaInicio, "2020-01-01");
+      assert.equal(first.activity.fechaFin, "2020-01-08");
       assert.equal(await findVerifiedActivity(clientRequestId, user).then((activity) => activity?.id), first.activity.id);
 
       const noLongerVisible: AuthUser = { ...user, funcionarioId: otherFuncionarioId };

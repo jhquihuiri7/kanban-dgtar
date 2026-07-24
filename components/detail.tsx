@@ -7,27 +7,25 @@ import { cn } from "@/lib/utils";
 import {
   ESTADOS,
   TODAY_ISO,
-  addDays,
   dateOnly,
-  daysBetween,
+  fechaFinInfo,
   fmtFecha,
   fmtFechaLarga,
   fmtHora,
   gestionNombre,
   gestionTone,
-  iso,
-  plazoInfo,
   withHora,
   type Actividad,
   type Competencia,
   type Entregable,
   type EstadoActividad,
+  type FechaInfo,
+  type FechaTone,
   type Funcionario,
   type Gestion,
-  type PlazoInfo,
-  type PlazoTone,
 } from "@/lib/data";
 import type { AuthUser } from "@/lib/auth-token";
+import { canFuncionarioDeleteActivity, canFuncionarioEditActivity } from "@/lib/activity-access";
 
 export function EstadoBadge({ estado }: { estado: EstadoActividad }) {
   const e = ESTADOS.find((x) => x.id === estado);
@@ -66,34 +64,24 @@ function cleanParticipantes(ids: string[], responsableId: string): string[] {
   return Array.from(new Set(ids.filter((id) => id && id !== responsableId)));
 }
 
-function PlazoBanner({ act, p }: { act: Actividad; p: PlazoInfo }) {
-  const map: Record<PlazoTone, { bg: string; ring: string; text: string; icon: IconName }> = {
+function FechaBanner({ act, info }: { act: Actividad; info: FechaInfo }) {
+  const map: Record<FechaTone, { bg: string; ring: string; text: string; icon: IconName }> = {
     green: { bg: "bg-green-50", ring: "ring-green-200", text: "text-green-700", icon: "check" },
     amber: { bg: "bg-amber-50", ring: "ring-amber-200", text: "text-amber-800", icon: "clock" },
     red: { bg: "bg-red-50", ring: "ring-red-200", text: "text-red-700", icon: "alert" },
     slate: { bg: "bg-slate-50", ring: "ring-slate-200", text: "text-slate-700", icon: "clock" },
   };
-  const s = map[p.tone];
-  const heading =
-    act.estado === "cumplida"
-      ? p.kind === "ok"
-        ? "Cumplida dentro del plazo"
-        : `Cumplida con ${-daysBetween(act.fechaCumplimiento ?? TODAY_ISO, act.fechaVencimiento)} día(s) de atraso`
-      : p.kind === "overdue"
-        ? `Vencida hace ${-(p.days ?? 0)} día(s)`
-        : p.kind === "today"
-          ? "Vence hoy"
-          : `${p.days} día(s) restantes`;
+  const s = map[info.tone];
   return (
     <div className={cn("flex items-start gap-3 rounded-lg p-3 ring-1 sm:items-center", s.bg, s.ring)}>
       <div className={cn("flex h-8 w-8 shrink-0 items-center justify-center rounded-md ring-1 bg-white", s.ring, s.text)}>
         <Icon name={s.icon} size={16} />
       </div>
       <div className="min-w-0 flex-1">
-        <div className={cn("break-words text-sm font-semibold", s.text)}>{heading}</div>
+        <div className={cn("break-words text-sm font-semibold", s.text)}>{info.text}</div>
         <div className="break-words text-xs text-slate-600">
-          {act.tipo === "reunion" ? "Reunión" : "Vencimiento"}: {fmtFechaLarga(act.fechaVencimiento)}
-          {act.tipo === "reunion" && fmtHora(act.fechaVencimiento) ? ` · ${fmtHora(act.fechaVencimiento)}` : ""}
+          {act.tipo === "reunion" ? "Fecha de la reunión" : "Fecha de fin"}: {fmtFechaLarga(act.fechaFin)}
+          {act.tipo === "reunion" && fmtHora(act.fechaFin) ? ` · ${fmtHora(act.fechaFin)}` : ""}
         </div>
       </div>
     </div>
@@ -171,10 +159,12 @@ export function DetailPanel({
     .filter((f): f is Funcionario => Boolean(f));
   const comp = competencias.find((c) => c.id === act.competenciaId);
   const entregable = entregables.find((e) => e.id === act.entregableId);
-  const p = plazoInfo(act, TODAY_ISO);
+  const fechaInfo = fechaFinInfo(act, TODAY_ISO);
   const esReunion = act.tipo === "reunion";
-  const hora = fmtHora(act.fechaVencimiento);
-  const canManage = isAdmin || act.funcionarioId === currentUser.funcionarioId;
+  const hora = fmtHora(act.fechaInicio);
+  const canEdit = isAdmin || canFuncionarioEditActivity(act, currentUser.funcionarioId);
+  const canDelete = isAdmin || canFuncionarioDeleteActivity(act, currentUser.funcionarioId);
+  const canManageParticipants = canDelete;
 
   function update(patch: Partial<Actividad>) {
     const nextActivities = activities.map((a) => (a.id === currentActivityId ? { ...a, ...patch } : a));
@@ -193,21 +183,17 @@ export function DetailPanel({
     setEditing(false);
     setDraft(null);
   }
-  // Guarda el borrador. En asignaciones el vencimiento se recalcula desde
-  // creación + plazo; en reuniones se conserva la fecha+hora elegida (que ya
-  // vive en draft.fechaVencimiento) y el plazo se deriva de ella. La fecha de
-  // cumplimiento se ajusta según el estado elegido (igual que el tablero).
   function saveEdit() {
     if (!draft) return;
-    if (!canManage) return;
+    if (!canEdit) return;
     const esReunion = draft.tipo === "reunion";
-    const responsableId = isAdmin ? draft.funcionarioId : currentUser.funcionarioId || act!.funcionarioId;
-    const plazo = esReunion
-      ? daysBetween(draft.fechaCreacion, draft.fechaVencimiento)
-      : Math.max(0, Number(draft.plazoDias) || 0);
-    const fechaVencimiento = esReunion
-      ? draft.fechaVencimiento
-      : iso(addDays(draft.fechaCreacion, plazo));
+    const responsableId = draft.funcionarioId;
+    const inicioDia = dateOnly(draft.fechaInicio);
+    const finDia = dateOnly(draft.fechaFin);
+    if (!inicioDia || (!esReunion && (!finDia || inicioDia > finDia))) return;
+    const reunionDateTime = withHora(inicioDia, fmtHora(draft.fechaInicio) || "09:00");
+    const fechaInicio = esReunion ? reunionDateTime : inicioDia;
+    const fechaFin = esReunion ? reunionDateTime : finDia;
     let fechaCumplimiento = draft.fechaCumplimiento;
     if (draft.estado === "cumplida") fechaCumplimiento = fechaCumplimiento ?? TODAY_ISO;
     else fechaCumplimiento = null;
@@ -220,8 +206,8 @@ export function DetailPanel({
       entregableId: draft.entregableId,
       estado: draft.estado,
       fechaCreacion: draft.fechaCreacion,
-      plazoDias: plazo,
-      fechaVencimiento,
+      fechaInicio,
+      fechaFin,
       fechaCumplimiento,
       observaciones: draft.observaciones.trim(),
       accionesPendientes: draft.accionesPendientes.trim(),
@@ -232,6 +218,7 @@ export function DetailPanel({
   }
 
   function eliminar() {
+    if (!canDelete) return;
     const nextActivities = activities.filter((a) => a.id !== act!.id);
     setActivities(nextActivities);
     saveNow?.(nextActivities);
@@ -274,7 +261,7 @@ export function DetailPanel({
               competencias={competencias}
               entregables={entregables}
               isAdmin={isAdmin}
-              currentUser={currentUser}
+              canManageParticipants={canManageParticipants}
             />
           ) : (
           <>
@@ -321,24 +308,23 @@ export function DetailPanel({
             </div>
           )}
 
-          {/* plazo grid */}
+          {/* fechas */}
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
             <MetaCell label="Creada" value={fmtFecha(act.fechaCreacion)} />
             {esReunion ? (
               <>
-                <MetaCell label="Fecha" value={fmtFecha(act.fechaVencimiento)} />
+                <MetaCell label="Fecha" value={fmtFecha(act.fechaInicio)} />
                 <MetaCell label="Hora" value={hora || "—"} />
               </>
             ) : (
               <>
-                <MetaCell label="Plazo" value={`${act.plazoDias} días`} />
-                <MetaCell label="Vence" value={fmtFecha(act.fechaVencimiento)} />
+                <MetaCell label="Inicio" value={fmtFecha(act.fechaInicio)} />
+                <MetaCell label="Fin" value={fmtFecha(act.fechaFin)} />
               </>
             )}
           </div>
 
-          {/* plazo banner */}
-          <PlazoBanner act={act} p={p} />
+          <FechaBanner act={act} info={fechaInfo} />
 
           {/* competencia */}
           <div>
@@ -378,7 +364,7 @@ export function DetailPanel({
                   icon="arrow"
                   tone="blue"
                   text="Movida a En progreso"
-                  when={fmtFecha(iso(addDays(new Date(act.fechaCreacion), 1)))}
+                  when={fmtFecha(act.fechaInicio)}
                 />
               )}
               {(act.estado === "en_revision" || act.estado === "cumplida") && (
@@ -386,14 +372,14 @@ export function DetailPanel({
                   icon="arrow"
                   tone="amber"
                   text="Enviada a revisión"
-                  when={fmtFecha(iso(addDays(new Date(act.fechaCreacion), Math.floor(act.plazoDias / 2))))}
+                  when={fmtFecha(act.fechaFin)}
                 />
               )}
               {act.estado === "cumplida" && (
                 <HistoryItem
                   icon="check"
-                  tone={p.kind === "ok" ? "green" : "red"}
-                  text={p.kind === "ok" ? "Marcada como cumplida en plazo" : "Marcada como cumplida fuera de plazo"}
+                  tone="green"
+                  text="Marcada como cumplida"
                   when={fmtFecha(act.fechaCumplimiento)}
                 />
               )}
@@ -418,7 +404,16 @@ export function DetailPanel({
               <Button variant="ghost" className="w-full sm:w-auto" onClick={cancelEdit}>
                 Cancelar
               </Button>
-              <Button className="w-full sm:w-auto" onClick={saveEdit} disabled={!draft?.titulo.trim()}>
+              <Button
+                className="w-full sm:w-auto"
+                onClick={saveEdit}
+                disabled={
+                  !draft?.titulo.trim() ||
+                  !dateOnly(draft.fechaInicio) ||
+                  (draft.tipo === "asignacion" &&
+                    (!dateOnly(draft.fechaFin) || dateOnly(draft.fechaInicio) > dateOnly(draft.fechaFin)))
+                }
+              >
                 <Icon name="check" size={14} /> Guardar cambios
               </Button>
             </>
@@ -428,7 +423,7 @@ export function DetailPanel({
                 <Button variant="ghost" className="flex-1 sm:flex-none" onClick={onClose}>
                   Cerrar
                 </Button>
-                {canManage && (
+                {canDelete && (
                   <Button
                     variant="ghost"
                     className="flex-1 text-red-600 hover:bg-red-50 sm:flex-none"
@@ -439,12 +434,12 @@ export function DetailPanel({
                 )}
               </div>
               <div className="flex w-full items-center gap-2 sm:w-auto">
-                {canManage && (
+                {canEdit && (
                   <Button variant="outline" className="flex-1 sm:flex-none" onClick={startEdit}>
                     <Icon name="edit" size={14} /> Editar
                   </Button>
                 )}
-                {canManage && (
+                {canEdit && (
                   act.estado !== "cumplida" ? (
                     <Button className="flex-1 sm:flex-none" onClick={marcarCumplida} aria-label="Marcar actividad como cumplida">
                       <Icon name="check" size={14} />
@@ -463,7 +458,7 @@ export function DetailPanel({
         </div>
       </aside>
 
-      {confirmDelete && (
+      {confirmDelete && canDelete && (
         <ConfirmDeleteDialog
           titulo={act.titulo}
           onCancel={() => setConfirmDelete(false)}
@@ -484,7 +479,7 @@ function EditForm({
   competencias,
   entregables,
   isAdmin,
-  currentUser,
+  canManageParticipants,
 }: {
   draft: Actividad;
   setDraft: React.Dispatch<React.SetStateAction<Actividad | null>>;
@@ -493,14 +488,20 @@ function EditForm({
   competencias: Competencia[];
   entregables: Entregable[];
   isAdmin: boolean;
-  currentUser: AuthUser;
+  canManageParticipants: boolean;
 }) {
   function set<K extends keyof Actividad>(key: K, value: Actividad[K]) {
     setDraft((d) => (d ? { ...d, [key]: value } : d));
   }
+  function setReunionDateTime(day: string, time: string) {
+    const nextDateTime = withHora(day, time);
+    setDraft((d) => (d ? { ...d, fechaInicio: nextDateTime, fechaFin: nextDateTime } : d));
+  }
   const esReunion = draft.tipo === "reunion";
-  const vence = iso(addDays(draft.fechaCreacion, Math.max(0, Number(draft.plazoDias) || 0)));
-  const currentFuncionario = funcionarios.find((f) => f.id === currentUser.funcionarioId);
+  const inicioDia = dateOnly(draft.fechaInicio);
+  const finDia = dateOnly(draft.fechaFin);
+  const fechasInvalidas = !esReunion && Boolean(inicioDia && finDia && inicioDia > finDia);
+  const responsable = funcionarios.find((f) => f.id === draft.funcionarioId);
 
   // gestionId es solo un filtro de UI para competencia/entregable; se deriva
   // una vez de la competencia actual (cada edición monta un EditForm nuevo,
@@ -583,7 +584,7 @@ function EditForm({
           <div className="space-y-1.5">
             <Label>Funcionario responsable</Label>
             <div className="flex min-h-11 min-w-0 items-center break-words rounded-lg bg-slate-50 px-3 py-2 text-sm font-medium text-slate-700 ring-1 ring-foreground/5 sm:min-h-9">
-              {currentFuncionario?.nombre || currentUser.email}
+              {responsable?.nombre || draft.funcionarioId}
             </div>
           </div>
         )}
@@ -649,10 +650,9 @@ function EditForm({
               <Input
                 id="edit-fecha-reunion"
                 type="date"
-                value={dateOnly(draft.fechaVencimiento)}
-                onChange={(e) =>
-                  set("fechaVencimiento", withHora(e.target.value, fmtHora(draft.fechaVencimiento) || "09:00"))
-                }
+                required
+                value={inicioDia}
+                onChange={(e) => setReunionDateTime(e.target.value, fmtHora(draft.fechaInicio) || "09:00")}
               />
             </div>
             <div className="space-y-1.5">
@@ -660,30 +660,42 @@ function EditForm({
               <Input
                 id="edit-hora-reunion"
                 type="time"
-                value={fmtHora(draft.fechaVencimiento) || "09:00"}
-                onChange={(e) => set("fechaVencimiento", withHora(draft.fechaVencimiento, e.target.value))}
+                required
+                value={fmtHora(draft.fechaInicio) || "09:00"}
+                onChange={(e) => setReunionDateTime(inicioDia, e.target.value)}
               />
             </div>
           </>
         ) : (
           <>
             <div className="space-y-1.5">
-              <Label htmlFor="edit-plazo">Plazo (días calendario)</Label>
+              <Label htmlFor="edit-fecha-inicio">Fecha de inicio</Label>
               <Input
-                id="edit-plazo"
-                type="number"
-                min={0}
-                max={365}
-                value={draft.plazoDias}
-                onChange={(e) => set("plazoDias", Number(e.target.value))}
+                id="edit-fecha-inicio"
+                type="date"
+                required
+                max={finDia || undefined}
+                value={inicioDia}
+                onChange={(e) => set("fechaInicio", e.target.value)}
               />
             </div>
             <div className="space-y-1.5">
-              <Label>Vence (calculado)</Label>
-              <div className="flex min-h-11 items-center gap-2 rounded-lg bg-slate-50 px-3 py-2 text-sm font-medium text-slate-700 ring-1 ring-foreground/5 sm:min-h-9">
-                <Icon name="calendar" size={14} className="text-slate-400" />
-                {fmtFechaLarga(vence)}
-              </div>
+              <Label htmlFor="edit-fecha-fin">Fecha de fin</Label>
+              <Input
+                id="edit-fecha-fin"
+                type="date"
+                required
+                min={inicioDia || undefined}
+                value={finDia}
+                aria-invalid={fechasInvalidas}
+                aria-describedby={fechasInvalidas ? "edit-fecha-fin-error" : undefined}
+                onChange={(e) => set("fechaFin", e.target.value)}
+              />
+              {fechasInvalidas && (
+                <p id="edit-fecha-fin-error" className="text-xs text-red-600" role="alert">
+                  La fecha de fin debe ser igual o posterior a la fecha de inicio.
+                </p>
+              )}
             </div>
           </>
         )}
@@ -691,6 +703,11 @@ function EditForm({
       {esReunion && (
         <div className="space-y-1.5">
           <Label>Participantes</Label>
+          {!canManageParticipants && (
+            <p className="text-xs text-slate-500">
+              Solo el responsable o un administrador puede cambiar los participantes.
+            </p>
+          )}
           <div className="max-h-44 overflow-y-auto rounded-lg border border-slate-200 bg-white p-2">
             {funcionarios.filter((f) => f.id !== draft.funcionarioId).length > 0 ? (
               <div className="space-y-1">
@@ -699,10 +716,14 @@ function EditForm({
                   .map((f) => (
                     <label
                       key={f.id}
-                      className="flex min-h-11 cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-sm text-slate-700 hover:bg-slate-50"
+                      className={cn(
+                        "flex min-h-11 items-center gap-2 rounded-md px-2 py-1.5 text-sm text-slate-700",
+                        canManageParticipants ? "cursor-pointer hover:bg-slate-50" : "cursor-default opacity-70",
+                      )}
                     >
                       <input
                         type="checkbox"
+                        disabled={!canManageParticipants}
                         className="h-5 w-5 shrink-0 rounded border-slate-300 text-slate-900 focus:ring-slate-900/20 sm:h-4 sm:w-4"
                         checked={(draft.participantesIds ?? []).includes(f.id)}
                         onChange={() =>

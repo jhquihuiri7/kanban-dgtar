@@ -61,29 +61,15 @@ function validDate(value: unknown): value is string {
   return date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day;
 }
 
-function meetingDate(value: unknown): string | null {
-  if (typeof value !== "string") return null;
+function validMeetingDateTime(value: unknown): value is string {
+  if (typeof value !== "string") return false;
   const match = /^(\d{4}-\d{2}-\d{2})T(\d{2}):(\d{2})$/.exec(value);
-  if (!match || !validDate(match[1]) || Number(match[2]) > 23 || Number(match[3]) > 59) return null;
-  return match[1];
-}
-
-function dateAtNoonUtc(value: string): Date {
-  const [year, month, day] = value.split("-").map(Number);
-  return new Date(Date.UTC(year, month - 1, day, 12));
-}
-
-function addDays(value: string, days: number): string {
-  const date = dateAtNoonUtc(value);
-  date.setUTCDate(date.getUTCDate() + days);
-  const year = date.getUTCFullYear();
-  const month = String(date.getUTCMonth() + 1).padStart(2, "0");
-  const day = String(date.getUTCDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-}
-
-function daysBetween(from: string, to: string): number {
-  return Math.round((dateAtNoonUtc(to).getTime() - dateAtNoonUtc(from).getTime()) / 86_400_000);
+  return Boolean(
+    match &&
+      validDate(match[1]) &&
+      Number(match[2]) <= 23 &&
+      Number(match[3]) <= 59,
+  );
 }
 
 function catalogById(
@@ -224,27 +210,29 @@ export function validateActivityDocument(data: ActivityDocumentInput): ActivityD
     }
 
     if (!validDate(value.fechaCreacion)) return invalid(`${prefix}.fechaCreacion no es una fecha válida.`);
-    if (!Number.isInteger(value.plazoDias)) return invalid(`${prefix}.plazoDias debe ser un entero.`);
     if (!Number.isInteger(value.orden) || (value.orden as number) < -2_147_483_648 || (value.orden as number) > 2_147_483_647) {
       return invalid(`${prefix}.orden debe ser un entero válido.`);
     }
 
     if (value.tipo === "asignacion") {
-      if ((value.plazoDias as number) < 0 || (value.plazoDias as number) > 365) {
-        return invalid(`${prefix}.plazoDias debe estar entre 0 y 365 para una asignación.`);
+      if (!validDate(value.fechaInicio)) {
+        return invalid(`${prefix}.fechaInicio no es una fecha válida.`);
       }
-      if (!validDate(value.fechaVencimiento)) {
-        return invalid(`${prefix}.fechaVencimiento no es una fecha válida.`);
+      if (!validDate(value.fechaFin)) {
+        return invalid(`${prefix}.fechaFin no es una fecha válida.`);
       }
-      if (value.fechaVencimiento !== addDays(value.fechaCreacion, value.plazoDias as number)) {
-        return invalid(`${prefix}.fechaVencimiento no coincide con fechaCreacion + plazoDias.`);
+      if (value.fechaInicio > value.fechaFin) {
+        return invalid(`${prefix}.fechaInicio no puede ser posterior a fechaFin.`);
       }
     } else {
-      const meetingDay = meetingDate(value.fechaVencimiento);
-      if (!meetingDay) return invalid(`${prefix}.fechaVencimiento no contiene una fecha y hora válidas.`);
-      const derivedDays = daysBetween(value.fechaCreacion, meetingDay);
-      if (derivedDays < -3650 || derivedDays > 3650 || value.plazoDias !== derivedDays) {
-        return invalid(`${prefix}.plazoDias no coincide con la fecha de la reunión.`);
+      if (!validMeetingDateTime(value.fechaInicio)) {
+        return invalid(`${prefix}.fechaInicio no contiene una fecha y hora válidas.`);
+      }
+      if (!validMeetingDateTime(value.fechaFin)) {
+        return invalid(`${prefix}.fechaFin no contiene una fecha y hora válidas.`);
+      }
+      if (value.fechaInicio !== value.fechaFin) {
+        return invalid(`${prefix}.fechaInicio y fechaFin deben ser exactamente iguales para una reunión.`);
       }
     }
 

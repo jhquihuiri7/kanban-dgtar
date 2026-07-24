@@ -16,13 +16,11 @@ import { requireUser } from "@/lib/auth-server";
 import { syncLatestGoogleCalendars } from "@/lib/google-calendar";
 import { validateActivityDocument, validateExistingActivityDocumentIds } from "@/lib/activity-document";
 import { errorTraceFields, logActivityTrace, requestIdFor, todayIsoGalapagos } from "@/lib/activity-create";
+import { mergeUserActivityChanges } from "@/lib/activity-access";
 import {
   ESTADOS,
   TIPOS,
   actividadIncludesFuncionario,
-  addDays,
-  daysBetween,
-  iso,
   type Actividad,
   type EstadoActividad,
   type TipoActividad,
@@ -243,35 +241,39 @@ function mergeUserWrite(current: DbData, posted: Actividad[], funcionarioId: str
 
   const today = todayIsoGalapagos();
 
-  const postedById = new Map(posted.map((a) => [a.id, a]));
   const competenciaIds = new Set(current.competencias.map((c) => c.id));
   const funcionarioIds = new Set(current.funcionarios.map((f) => f.id));
   const entregableIds = new Set(current.entregables.map((e) => e.id));
 
-  const nextExistingOwn = current.actividades
-    .filter((a) => a.funcionarioId === funcionarioId)
-    .flatMap((activity) => {
-      const draft = postedById.get(activity.id);
-      return draft
-        ? [sanitizeUserActivity(draft, funcionarioId, competenciaIds, funcionarioIds, entregableIds, activity.orden, today, activity)]
-        : [];
-    });
+  const actividades = mergeUserActivityChanges(
+    current.actividades,
+    posted,
+    funcionarioId,
+    (draft, activity) =>
+      sanitizeUserActivity(
+        draft,
+        activity.funcionarioId,
+        competenciaIds,
+        funcionarioIds,
+        entregableIds,
+        activity.orden,
+        today,
+        activity,
+      ),
+  );
 
   return {
     gestiones: current.gestiones,
     funcionarios: current.funcionarios,
     competencias: current.competencias,
     entregables: current.entregables,
-    actividades: [
-      ...current.actividades.filter((a) => a.funcionarioId !== funcionarioId),
-      ...nextExistingOwn,
-    ],
+    actividades,
   };
 }
 
 function sanitizeUserActivity(
   draft: Actividad,
-  funcionarioId: string,
+  responsableId: string,
   competenciaIds: Set<string>,
   funcionarioIds: Set<string>,
   entregableIds: Set<string>,
@@ -291,12 +293,7 @@ function sanitizeUserActivity(
   if (!competenciaId) throw new Error("No existe una competencia válida para crear la actividad.");
   const entregableId = cleanEntregableId(draft.entregableId, entregableIds);
 
-  const plazoDias =
-    tipo === "reunion"
-      ? daysBetween(fechaCreacion, sanitizeMeetingDateTime(draft.fechaVencimiento))
-      : clampDays(draft.plazoDias);
-  const fechaVencimiento =
-    tipo === "reunion" ? sanitizeMeetingDateTime(draft.fechaVencimiento) : iso(addDays(fechaCreacion, plazoDias));
+  const { fechaInicio, fechaFin } = sanitizeActivityDates(tipo, draft, current, today);
   const fechaCumplimiento =
     estado === "cumplida" ? cleanDate(draft.fechaCumplimiento) || current?.fechaCumplimiento || today : null;
 
@@ -305,15 +302,15 @@ function sanitizeUserActivity(
     tipo,
     titulo,
     descripcion: cleanText(draft.descripcion),
-    funcionarioId,
+    funcionarioId: responsableId,
     participantesIds:
-      tipo === "reunion" ? cleanParticipantes(draft.participantesIds, funcionarioId, funcionarioIds) : [],
+      tipo === "reunion" ? cleanParticipantes(draft.participantesIds, responsableId, funcionarioIds) : [],
     competenciaId,
     entregableId,
     estado,
     fechaCreacion,
-    plazoDias,
-    fechaVencimiento,
+    fechaInicio,
+    fechaFin,
     fechaCumplimiento,
     observaciones: cleanText(draft.observaciones),
     accionesPendientes: cleanText(draft.accionesPendientes),
@@ -340,10 +337,34 @@ function validEstado(value: unknown, fallback: EstadoActividad = "pendiente"): E
   return ESTADOS.some((estado) => estado.id === value) ? (value as EstadoActividad) : fallback;
 }
 
-function clampDays(value: unknown): number {
-  const days = Number(value);
-  if (!Number.isFinite(days)) return 7;
-  return Math.min(365, Math.max(0, Math.round(days)));
+function sanitizeActivityDates(
+  tipo: TipoActividad,
+  draft: Actividad,
+  current: Actividad | undefined,
+  today: string,
+): Pick<Actividad, "fechaInicio" | "fechaFin"> {
+  if (tipo === "reunion") {
+    const dateTime =
+      cleanMeetingDateTime(draft.fechaInicio) ||
+      cleanMeetingDateTime(draft.fechaFin) ||
+      cleanMeetingDateTime(current?.fechaInicio) ||
+      cleanMeetingDateTime(current?.fechaFin) ||
+      `${today}T09:00`;
+    return { fechaInicio: dateTime, fechaFin: dateTime };
+  }
+
+  const fechaInicio =
+    cleanDate(draft.fechaInicio) ||
+    (current?.tipo === "asignacion" ? cleanDate(current.fechaInicio) : "") ||
+    today;
+  const requestedFin =
+    cleanDate(draft.fechaFin) ||
+    (current?.tipo === "asignacion" ? cleanDate(current.fechaFin) : "") ||
+    fechaInicio;
+  return {
+    fechaInicio,
+    fechaFin: requestedFin >= fechaInicio ? requestedFin : fechaInicio,
+  };
 }
 
 function cleanDate(value: unknown): string {
@@ -352,12 +373,18 @@ function cleanDate(value: unknown): string {
   return /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : "";
 }
 
-function sanitizeMeetingDateTime(value: unknown): string {
-  const raw = typeof value === "string" ? value : "";
-  const [dateRaw, timeRaw] = raw.split("T");
-  const date = cleanDate(dateRaw) || todayIsoGalapagos();
-  const time = typeof timeRaw === "string" && /^\d{2}:\d{2}/.test(timeRaw) ? timeRaw.slice(0, 5) : "09:00";
-  return `${date}T${time}`;
+function cleanMeetingDateTime(value: unknown): string {
+  if (typeof value !== "string") return "";
+  const match = /^(\d{4}-\d{2}-\d{2})T(\d{2}):(\d{2})$/.exec(value);
+  if (
+    !match ||
+    !cleanDate(match[1]) ||
+    Number(match[2]) > 23 ||
+    Number(match[3]) > 59
+  ) {
+    return "";
+  }
+  return value;
 }
 
 function cleanParticipantes(value: unknown, responsableId: string, funcionarioIds: Set<string>): string[] {

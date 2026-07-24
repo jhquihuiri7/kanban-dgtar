@@ -24,13 +24,14 @@ const draft: ActivityDraft = {
   gestionId: "g1",
   competenciaId: "c1",
   entregableId: "",
-  plazoDias: "7",
+  fechaInicio: "2026-07-16",
+  fechaFin: "2026-07-23",
   fechaReunion: "2026-07-16",
   horaReunion: "09:00",
 };
 
 test("uses a versioned, user-scoped storage key", () => {
-  assert.equal(activityDraftStorageKey("user/1"), "kanban:new-activity-draft:2:user%2F1");
+  assert.equal(activityDraftStorageKey("user/1"), "kanban:new-activity-draft:3:user%2F1");
   assert.notEqual(activityDraftStorageKey("user/1"), activityDraftStorageKey("user/2"));
   assert.notEqual(activityDraftStorageKey("user/1", "tab-a"), activityDraftStorageKey("user/1", "tab-b"));
   assert.equal(isActivityDraftStorageKey(activityDraftStorageKey("user/1", "tab-a"), "user/1"), true);
@@ -44,6 +45,7 @@ test("round-trips raw form values and the idempotency key", () => {
 test("rejects malformed or incompatible drafts", () => {
   assert.equal(parseActivityDraft("not-json", draft.savedAt), null);
   assert.equal(parseActivityDraft(JSON.stringify({ ...draft, version: 1 }), draft.savedAt), null);
+  assert.equal(parseActivityDraft(JSON.stringify({ ...draft, version: 2 }), draft.savedAt), null);
   assert.equal(parseActivityDraft(JSON.stringify({ ...draft, clientRequestId: "" }), draft.savedAt), null);
   assert.equal(parseActivityDraft(JSON.stringify({ ...draft, competenciaId: null }), draft.savedAt), null);
   assert.equal(parseActivityDraft(JSON.stringify({ ...draft, estado: "archivada" }), draft.savedAt), null);

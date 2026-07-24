@@ -1,6 +1,7 @@
 -- Esquema del Kanban DGTAR. Idempotente: seguro de re-ejecutar.
--- Las fechas se guardan como texto ISO (YYYY-MM-DD) para preservar el valor
--- exacto sin desfases de zona horaria.
+-- Las fechas se guardan como texto ISO (YYYY-MM-DD en asignaciones y
+-- YYYY-MM-DDTHH:mm en reuniones) para preservar el valor exacto sin desfases
+-- de zona horaria.
 
 -- Gestiones: catálogo padre de competencias y entregables. Reemplaza el
 -- enum fijo UNIDADES que antes vivía solo en código.
@@ -118,8 +119,8 @@ CREATE TABLE IF NOT EXISTS actividades (
   entregable_id       text REFERENCES entregables(id) ON DELETE SET NULL,
   estado              text NOT NULL,
   fecha_creacion      text NOT NULL,
-  plazo_dias          integer NOT NULL DEFAULT 0,
-  fecha_vencimiento   text NOT NULL,
+  fecha_inicio        text NOT NULL,
+  fecha_fin           text NOT NULL,
   fecha_cumplimiento  text,
   observaciones       text NOT NULL DEFAULT '',
   acciones_pendientes text NOT NULL DEFAULT '',
@@ -128,6 +129,65 @@ CREATE TABLE IF NOT EXISTS actividades (
   created_at          timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at          timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+
+-- Migración de plazo/vencimiento al intervalo explícito de la actividad.
+-- Las columnas se agregan primero como nullable para permitir el backfill de
+-- tablas existentes. El bloque dinámico no referencia fecha_vencimiento en
+-- reejecuciones donde esa columna ya fue eliminada.
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conrelid = 'actividades'::regclass
+      AND conname = 'actividades_business_fields_check'
+  ) THEN
+    ALTER TABLE actividades DROP CONSTRAINT actividades_business_fields_check;
+  END IF;
+  IF EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conrelid = 'actividades'::regclass
+      AND conname = 'actividades_business_fields_check_v2'
+  ) THEN
+    ALTER TABLE actividades DROP CONSTRAINT actividades_business_fields_check_v2;
+  END IF;
+END $$;
+
+ALTER TABLE actividades ADD COLUMN IF NOT EXISTS fecha_inicio text;
+ALTER TABLE actividades ADD COLUMN IF NOT EXISTS fecha_fin text;
+
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'actividades'
+      AND column_name = 'fecha_vencimiento'
+  ) THEN
+    EXECUTE $migration$
+      UPDATE actividades
+      SET fecha_inicio = COALESCE(
+            fecha_inicio,
+            CASE
+              WHEN tipo = 'reunion' THEN fecha_vencimiento
+              ELSE fecha_creacion
+            END
+          ),
+          fecha_fin = COALESCE(fecha_fin, fecha_vencimiento)
+    $migration$;
+  END IF;
+END $$;
+
+-- Red de seguridad para una migración previa interrumpida que ya no conserve
+-- las columnas antiguas: nunca reemplaza valores nuevos que sí existan.
+UPDATE actividades
+SET fecha_inicio = COALESCE(fecha_inicio, fecha_creacion);
+
+UPDATE actividades
+SET fecha_fin = COALESCE(fecha_fin, fecha_inicio);
+
+ALTER TABLE actividades ALTER COLUMN fecha_inicio SET NOT NULL;
+ALTER TABLE actividades ALTER COLUMN fecha_fin SET NOT NULL;
+ALTER TABLE actividades DROP COLUMN IF EXISTS plazo_dias;
+ALTER TABLE actividades DROP COLUMN IF EXISTS fecha_vencimiento;
 
 -- Entregable opcional del formulario de actividad/reunión. Nullable: no
 -- todas las gestiones tienen entregables cargados (p.ej. DGTAR). SET NULL en
@@ -203,10 +263,6 @@ UPDATE actividades
 SET titulo = 'Actividad sin título'
 WHERE btrim(titulo) = '';
 
-UPDATE actividades
-SET plazo_dias = GREATEST(-3650, LEAST(3650, plazo_dias))
-WHERE plazo_dias NOT BETWEEN -3650 AND 3650;
-
 DO $$
 BEGIN
   IF EXISTS (
@@ -244,27 +300,17 @@ BEGIN
       );
   END IF;
 
-  -- Retira una única vez la versión NOT VALID usada durante el desarrollo.
-  IF EXISTS (
-    SELECT 1 FROM pg_constraint
-    WHERE conrelid = 'actividades'::regclass
-      AND conname = 'actividades_business_fields_check'
-  ) THEN
-    ALTER TABLE actividades DROP CONSTRAINT actividades_business_fields_check;
-  END IF;
-
   IF NOT EXISTS (
     SELECT 1 FROM pg_constraint
     WHERE conrelid = 'actividades'::regclass
-      AND conname = 'actividades_business_fields_check_v2'
+      AND conname = 'actividades_business_fields_check_v3'
   ) THEN
     ALTER TABLE actividades
-      ADD CONSTRAINT actividades_business_fields_check_v2
+      ADD CONSTRAINT actividades_business_fields_check_v3
       CHECK (
         tipo IN ('asignacion', 'reunion')
         AND estado IN ('pendiente', 'en_progreso', 'en_revision', 'cumplida', 'archivada')
         AND btrim(titulo) <> ''
-        AND plazo_dias BETWEEN -3650 AND 3650
       );
   END IF;
 END $$;
@@ -413,9 +459,8 @@ FROM funcionarios f
 WHERE u.funcionario_id IS NULL
   AND lower(u.email) = lower(f.email);
 
--- Upgrade de tablas existentes: 'asignacion' | 'reunion'. Para reuniones la
--- hora viaja dentro de fecha_vencimiento como "YYYY-MM-DDTHH:mm" (sin columna
--- nueva).
+-- Upgrade de tablas existentes: 'asignacion' | 'reunion'. Para reuniones,
+-- fecha_inicio y fecha_fin contienen el mismo "YYYY-MM-DDTHH:mm".
 ALTER TABLE actividades ADD COLUMN IF NOT EXISTS tipo text NOT NULL DEFAULT 'asignacion';
 
 -- Campos opcionales de seguimiento (texto libre).
