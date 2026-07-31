@@ -51,7 +51,7 @@ function documentWith(actividad: Actividad) {
 }
 
 test("the final legacy document accepts coherent assignment and meeting dates", () => {
-  assert.equal(validateActivityDocument(documentWith(activity())), null);
+  assert.equal(validateActivityDocument(documentWith(activity({ participantesIds: ["f2"] }))), null);
   assert.equal(
     validateActivityDocument(
       documentWith(
@@ -106,8 +106,8 @@ test("the final legacy document rejects invalid catalog references and state inv
     /fechaCumplimiento/,
   );
   assert.match(
-    validateActivityDocument(documentWith(activity({ participantesIds: ["f2"] })))?.message ?? "",
-    /asignación/,
+    validateActivityDocument(documentWith(activity({ participantesIds: ["missing"] })))?.message ?? "",
+    /inexistente/,
   );
 });
 
@@ -132,7 +132,18 @@ test("legacy assignments accept same-day, leap-day and multi-year intervals", ()
   );
 });
 
-test("meeting participants and identical date-times remain coherent", () => {
+test("assignment and meeting participants share the same document invariants", () => {
+  const assignment = activity({ participantesIds: ["f2"] });
+  assert.equal(validateActivityDocument(documentWith(assignment)), null);
+  assert.match(
+    validateActivityDocument(documentWith({ ...assignment, participantesIds: ["f1"] }))?.message ?? "",
+    /responsable/,
+  );
+  assert.match(
+    validateActivityDocument(documentWith({ ...assignment, participantesIds: ["f2", "f2"] }))?.message ?? "",
+    /duplicados/,
+  );
+
   const meeting = activity({
     tipo: "reunion",
     participantesIds: ["f2"],
@@ -144,6 +155,15 @@ test("meeting participants and identical date-times remain coherent", () => {
     validateActivityDocument(documentWith({ ...meeting, participantesIds: ["f1"] }))?.message ?? "",
     /responsable/,
   );
+});
+
+test("meeting start and end date-times remain identical", () => {
+  const meeting = activity({
+    tipo: "reunion",
+    participantesIds: ["f2"],
+    fechaInicio: "2026-07-15T00:00",
+    fechaFin: "2026-07-15T00:00",
+  });
   assert.match(
     validateActivityDocument(documentWith({ ...meeting, fechaFin: "2026-07-15T00:00:00" }))?.message ?? "",
     /fechaFin/,

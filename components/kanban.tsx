@@ -96,7 +96,7 @@ function KanbanCard({
 }) {
   const fecha: FechaInfo = fechaFinInfo(act, TODAY_ISO);
   const compact = density === "compact";
-  const participantesCount = act.tipo === "reunion" ? (act.participantesIds ?? []).length : 0;
+  const participantesCount = (act.participantesIds ?? []).length;
 
   const stripe = {
     green: "bg-green-500",

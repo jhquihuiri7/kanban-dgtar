@@ -1,6 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { fechaFinInfo, type Actividad } from "../lib/data";
+import {
+  actividadFuncionarioIds,
+  actividadIncludesFuncionario,
+  fechaFinInfo,
+  type Actividad,
+} from "../lib/data";
 
 const base: Actividad = {
   id: "a_dates",
@@ -21,6 +26,23 @@ const base: Actividad = {
   resultadosAlcanzados: "",
   orden: 0,
 };
+
+test("assignment and meeting participants have the same visibility as the responsible person", () => {
+  for (const tipo of ["asignacion", "reunion"] as const) {
+    const activity = {
+      ...base,
+      tipo,
+      participantesIds: ["f2", "f2"],
+      ...(tipo === "reunion"
+        ? { fechaInicio: "2026-07-21T09:00", fechaFin: "2026-07-21T09:00" }
+        : {}),
+    };
+    assert.deepEqual(actividadFuncionarioIds(activity), ["f1", "f2"]);
+    assert.equal(actividadIncludesFuncionario(activity, "f1"), true);
+    assert.equal(actividadIncludesFuncionario(activity, "f2"), true);
+    assert.equal(actividadIncludesFuncionario(activity, "f3"), false);
+  }
+});
 
 test("fechaFinInfo describes the end date without plazo semantics", () => {
   assert.deepEqual(fechaFinInfo(base, "2026-07-24"), {

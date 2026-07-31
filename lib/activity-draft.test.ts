@@ -51,12 +51,14 @@ test("rejects malformed or incompatible drafts", () => {
   assert.equal(parseActivityDraft(JSON.stringify({ ...draft, estado: "archivada" }), draft.savedAt), null);
 });
 
-test("deduplicates participant ids without changing their order", () => {
-  const parsed = parseActivityDraft(
-    serializeActivityDraft({ ...draft, tipo: "reunion", participantesIds: ["f2", "f2", "f3"] }),
-    draft.savedAt,
-  );
-  assert.deepEqual(parsed?.participantesIds, ["f2", "f3"]);
+test("deduplicates participant ids for assignments and meetings without changing their order", () => {
+  for (const tipo of ["asignacion", "reunion"] as const) {
+    const parsed = parseActivityDraft(
+      serializeActivityDraft({ ...draft, tipo, participantesIds: ["f2", "f2", "f3"] }),
+      draft.savedAt,
+    );
+    assert.deepEqual(parsed?.participantesIds, ["f2", "f3"]);
+  }
 });
 
 test("keeps an unverified draft after a long interruption", () => {

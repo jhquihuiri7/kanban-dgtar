@@ -35,6 +35,7 @@ test(
     const gestionId = `g_test_${suffix}`;
     const funcionarioId = `f_test_${suffix}`;
     const otherFuncionarioId = `f_other_${suffix}`;
+    const participantFuncionarioId = `f_participant_${suffix}`;
     const competenciaId = `c_test_${suffix}`;
     const userId = `u_test_${suffix}`;
     const clientRequestId = `activity_request_${suffix}`;
@@ -58,6 +59,10 @@ test(
       await db.query(
         "INSERT INTO funcionarios (id, nombre, email, cargo, gestion_id, color) VALUES ($1, $2, $3, $4, $5, $6)",
         [otherFuncionarioId, "Other", "other@example.invalid", "Test", gestionId, "#111"],
+      );
+      await db.query(
+        "INSERT INTO funcionarios (id, nombre, email, cargo, gestion_id, color) VALUES ($1, $2, $3, $4, $5, $6)",
+        [participantFuncionarioId, "Participant", "participant@example.invalid", "Test", gestionId, "#222"],
       );
       await db.query("INSERT INTO competencias (id, nombre, gestion_id) VALUES ($1, $2, $3)", [
         competenciaId,
@@ -179,7 +184,7 @@ test(
         titulo: "Creación concurrente",
         descripcion: "",
         funcionarioId,
-        participantesIds: [],
+        participantesIds: [participantFuncionarioId],
         competenciaId,
         entregableId: null,
         estado: "pendiente",
@@ -229,6 +234,15 @@ test(
       assert.notEqual(first.activity.fechaCreacion, "2020-01-01", "creation date must come from the server");
       assert.equal(first.activity.fechaInicio, "2020-01-01");
       assert.equal(first.activity.fechaFin, "2020-01-08");
+      assert.deepEqual(first.activity.participantesIds, [participantFuncionarioId]);
+      const persistedParticipants = await db.query(
+        "SELECT funcionario_id FROM actividad_participantes WHERE actividad_id = $1 ORDER BY funcionario_id",
+        [first.activity.id],
+      );
+      assert.deepEqual(
+        persistedParticipants.rows.map((row) => row.funcionario_id),
+        [participantFuncionarioId],
+      );
       assert.equal(await findVerifiedActivity(clientRequestId, user).then((activity) => activity?.id), first.activity.id);
 
       const noLongerVisible: AuthUser = { ...user, funcionarioId: otherFuncionarioId };
@@ -330,6 +344,9 @@ test(
       });
       await db.query("DELETE FROM funcionarios WHERE id = $1", [otherFuncionarioId]).catch((error) => {
         console.error("integration cleanup other funcionario failed", error);
+      });
+      await db.query("DELETE FROM funcionarios WHERE id = $1", [participantFuncionarioId]).catch((error) => {
+        console.error("integration cleanup participant funcionario failed", error);
       });
       await db.query("DELETE FROM competencias WHERE id = $1", [competenciaId]).catch((error) => {
         console.error("integration cleanup competencias failed", error);

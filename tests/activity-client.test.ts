@@ -275,6 +275,24 @@ test("optional empty fields and unordered participants compare canonically", () 
   assert.deepEqual(activityFieldMismatches({ ...meeting, competenciaId: "c2" }, meetingInput), ["competenciaId"]);
 });
 
+test("assignment verification compares participants with the same canonical rules", () => {
+  const assignmentInput: NewActivityPayload = {
+    ...input,
+    participantesIds: ["f3", "f2"],
+  };
+  const assignment: Actividad = {
+    id: "a_assignment_with_participants",
+    orden: 3,
+    ...assignmentInput,
+    participantesIds: ["f2", "f3", "f2"],
+  };
+  assert.equal(activityMatchesInput(assignment, assignmentInput), true);
+  assert.deepEqual(
+    activityFieldMismatches({ ...assignment, participantesIds: ["f2"] }, assignmentInput),
+    ["participantesIds"],
+  );
+});
+
 test("status classification is stable for UI error handling", () => {
   assert.equal(failureKindForStatus(400), "validation");
   assert.equal(failureKindForStatus(401), "authentication");

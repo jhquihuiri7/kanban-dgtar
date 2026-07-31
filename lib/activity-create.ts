@@ -224,9 +224,6 @@ export function normalizeActivityRequest(value: unknown): NormalizedActivityRequ
   const participantesIds = Array.from(
     new Set(participantesRaw.map((id) => entityId(id, "participantesIds") as string)),
   ).sort();
-  if (tipo !== "reunion" && participantesIds.length > 0) {
-    throw new ActivityRequestError(422, "VALIDATION_ERROR", "Una asignación no puede incluir participantes.");
-  }
 
   const fechaInicio =
     tipo === "reunion"
@@ -389,10 +386,7 @@ async function resolveAndValidateReferences(
     }
   }
 
-  const participantesIds =
-    request.tipo === "reunion"
-      ? request.participantesIds.filter((id) => id !== funcionarioId)
-      : [];
+  const participantesIds = request.participantesIds.filter((id) => id !== funcionarioId);
   if (participantesIds.length > 0) {
     const participantesResult = await client.query(
       "SELECT id FROM funcionarios WHERE id = ANY($1::text[])",

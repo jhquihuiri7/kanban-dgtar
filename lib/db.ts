@@ -471,10 +471,9 @@ export async function writeAll(
         ],
       );
 
-      const participantesIds =
-        a.tipo === "reunion"
-          ? Array.from(new Set((a.participantesIds ?? []).filter((id) => id && id !== a.funcionarioId)))
-          : [];
+      const participantesIds = Array.from(
+        new Set((a.participantesIds ?? []).filter((id) => id && id !== a.funcionarioId)),
+      );
       for (const funcionarioId of participantesIds) {
         await client.query(
           `INSERT INTO actividad_participantes (actividad_id, funcionario_id)

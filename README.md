@@ -176,10 +176,11 @@ esquema.
 La app requiere login con email y contraseña. Hay dos roles:
 
 - **admin** — ve todo, administra catálogos, usuarios, actividades, estados y fechas.
-- **user** — queda vinculado a un funcionario; ve sus actividades y las reuniones
-  donde participa. Puede crear y administrar actividades propias; además, como
-  participante puede editar el contenido, fecha y estado de una reunión. Solo el
-  responsable (o un admin) puede reasignarla, cambiar sus participantes o eliminarla.
+- **user** — queda vinculado a un funcionario; ve las actividades donde es
+  responsable o participante. Puede crear y administrar actividades propias;
+  además, como participante puede editar su contenido, fechas y estado. El
+  responsable (o un admin) puede cambiar los participantes o eliminar la actividad;
+  solo un admin puede reasignarla.
 
 Para crear el primer usuario admin:
 
@@ -203,8 +204,7 @@ Cada usuario puede vincular su propia cuenta de Google desde el encabezado de la
 app. La integración usa OAuth 2.0 y sincroniza las actividades visibles para ese
 usuario hacia su calendario principal (`primary`):
 
-- usuarios normales: actividades donde son responsables y reuniones donde constan
-  como participantes;
+- usuarios normales: actividades donde son responsables o participantes;
 - admins: todas las actividades visibles para el administrador.
 
 Las asignaciones se crean como eventos de día completo desde la fecha de inicio

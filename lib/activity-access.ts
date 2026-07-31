@@ -3,19 +3,19 @@ import type { Actividad } from "./data";
 export type ActivityEditAccess = "responsable" | "participante" | null;
 
 export function activityEditAccess(
-  activity: Pick<Actividad, "tipo" | "funcionarioId" | "participantesIds">,
+  activity: Pick<Actividad, "funcionarioId" | "participantesIds">,
   funcionarioId: string | null | undefined,
 ): ActivityEditAccess {
   if (!funcionarioId) return null;
   if (activity.funcionarioId === funcionarioId) return "responsable";
-  if (activity.tipo === "reunion" && (activity.participantesIds ?? []).includes(funcionarioId)) {
+  if ((activity.participantesIds ?? []).includes(funcionarioId)) {
     return "participante";
   }
   return null;
 }
 
 export function canFuncionarioEditActivity(
-  activity: Pick<Actividad, "tipo" | "funcionarioId" | "participantesIds">,
+  activity: Pick<Actividad, "funcionarioId" | "participantesIds">,
   funcionarioId: string | null | undefined,
 ): boolean {
   return activityEditAccess(activity, funcionarioId) !== null;
@@ -30,9 +30,9 @@ export function canFuncionarioDeleteActivity(
 
 /**
  * A normal user can never reassign an activity. A participant receives edit
- * access because the current row is a meeting, so a forged payload cannot use
- * that permission to turn another person's meeting into an assignment or to
- * change the participant list that grants access to other users.
+ * access from the current persisted row, so a forged payload cannot use that
+ * permission to change the activity type or the participant list that grants
+ * access to other users.
  */
 export function constrainUserActivityDraft(
   draft: Actividad,
@@ -61,7 +61,7 @@ export function mergeUserActivityChanges(
 
     const draft = postedById.get(current.id);
     // Omitting a row is the legacy delete operation. Edit access does not let
-    // a participant delete another person's meeting.
+    // a participant delete another person's activity.
     if (!draft) return access === "responsable" ? [] : [current];
 
     return [sanitize(constrainUserActivityDraft(draft, current, access), current)];

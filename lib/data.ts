@@ -149,14 +149,14 @@ export function initials(nombre: string): string {
     .toUpperCase();
 }
 
-export function actividadFuncionarioIds(act: Pick<Actividad, "tipo" | "funcionarioId" | "participantesIds">): string[] {
-  const ids = [act.funcionarioId];
-  if (act.tipo === "reunion") ids.push(...(act.participantesIds ?? []));
-  return Array.from(new Set(ids.filter(Boolean)));
+export function actividadFuncionarioIds(
+  act: Pick<Actividad, "funcionarioId" | "participantesIds">,
+): string[] {
+  return Array.from(new Set([act.funcionarioId, ...(act.participantesIds ?? [])].filter(Boolean)));
 }
 
 export function actividadIncludesFuncionario(
-  act: Pick<Actividad, "tipo" | "funcionarioId" | "participantesIds">,
+  act: Pick<Actividad, "funcionarioId" | "participantesIds">,
   funcionarioId: string | null | undefined,
 ): boolean {
   if (!funcionarioId) return false;

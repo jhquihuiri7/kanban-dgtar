@@ -29,6 +29,15 @@ function validMeeting(overrides: Record<string, unknown> = {}) {
   };
 }
 
+function validAssignment(overrides: Record<string, unknown> = {}) {
+  return validMeeting({
+    tipo: "asignacion",
+    fechaInicio: "2026-07-16",
+    fechaFin: "2026-07-23",
+    ...overrides,
+  });
+}
+
 test("normaliza una clave idempotente válida y rechaza claves débiles", () => {
   assert.equal(normalizeClientRequestId(" req_12345678 "), "req_12345678");
   assert.throws(
@@ -38,27 +47,17 @@ test("normaliza una clave idempotente válida y rechaza claves débiles", () => 
   assert.throws(() => normalizeClientRequestId("req con espacios"), ActivityRequestError);
 });
 
-test("normaliza texto y participantes de reunión de forma determinista", () => {
-  const normalized = normalizeActivityRequest(validMeeting());
-  assert.equal(normalized.titulo, "Reunión de seguimiento");
-  assert.equal(normalized.descripcion, "Alcance");
-  assert.deepEqual(normalized.participantesIds, ["f2", "f3"]);
-  assert.equal(normalized.accionesPendientes, "Acción");
+test("normaliza texto y participantes de asignaciones y reuniones de forma determinista", () => {
+  for (const input of [validAssignment(), validMeeting()]) {
+    const normalized = normalizeActivityRequest(input);
+    assert.equal(normalized.titulo, "Reunión de seguimiento");
+    assert.equal(normalized.descripcion, "Alcance");
+    assert.deepEqual(normalized.participantesIds, ["f2", "f3"]);
+    assert.equal(normalized.accionesPendientes, "Acción");
+  }
 });
 
-test("rechaza participantes en asignaciones y fechas inválidas", () => {
-  assert.throws(
-    () =>
-      normalizeActivityRequest(
-        validMeeting({
-          tipo: "asignacion",
-          participantesIds: ["f2"],
-          fechaInicio: "2026-07-16",
-          fechaFin: "2026-07-23",
-        }),
-      ),
-    (err) => err instanceof ActivityRequestError && err.status === 422,
-  );
+test("rechaza fechas inválidas aunque la actividad admita participantes", () => {
   assert.throws(
     () =>
       normalizeActivityRequest(
@@ -118,6 +117,17 @@ test("el fingerprint no depende del orden de participantes y cambia con el conte
   assert.equal(activityRequestFingerprint(first, "f1"), activityRequestFingerprint(reordered, "f1"));
   assert.notEqual(activityRequestFingerprint(first, "f1"), activityRequestFingerprint(changed, "f1"));
   assert.notEqual(activityRequestFingerprint(first, "f1"), activityRequestFingerprint(changedDate, "f1"));
+});
+
+test("el fingerprint de una asignación también canoniza participantes", () => {
+  const first = normalizeActivityRequest(validAssignment());
+  const reordered = normalizeActivityRequest(validAssignment({ participantesIds: ["f2", "f3"] }));
+  const changedParticipants = normalizeActivityRequest(validAssignment({ participantesIds: ["f2"] }));
+  assert.equal(activityRequestFingerprint(first, "f1"), activityRequestFingerprint(reordered, "f1"));
+  assert.notEqual(
+    activityRequestFingerprint(first, "f1"),
+    activityRequestFingerprint(changedParticipants, "f1"),
+  );
 });
 
 test("la fecha auditada del servidor usa Pacific/Galapagos", () => {

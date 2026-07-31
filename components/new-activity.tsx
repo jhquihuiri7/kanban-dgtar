@@ -458,13 +458,11 @@ export function NewActivityDialog({
       titulo: titulo.trim(),
       descripcion: descripcion.trim(),
       funcionarioId: responsibleId,
-      participantesIds: esReunion
-        ? cleanParticipantes(
-            participantesIds,
-            responsibleId,
-            new Set(funcionariosDisponibles.map((funcionario) => funcionario.id)),
-          )
-        : [],
+      participantesIds: cleanParticipantes(
+        participantesIds,
+        responsibleId,
+        new Set(funcionariosDisponibles.map((funcionario) => funcionario.id)),
+      ),
       competenciaId,
       entregableId: entregableId || null,
       estado: effectiveEstado,
@@ -906,38 +904,36 @@ export function NewActivityDialog({
                 </>
               )}
             </div>
-            {esReunion && (
-              <div className="space-y-1.5">
-                <Label>Participantes</Label>
-                <div className="max-h-36 overflow-y-auto rounded-lg border border-slate-200 bg-white p-2">
-                  {funcionariosDisponibles.filter((f) => f.id !== funcionarioId).length > 0 ? (
-                    <div className="space-y-1">
-                      {funcionariosDisponibles
-                        .filter((f) => f.id !== funcionarioId)
-                        .map((f) => (
-                          <label
-                            key={f.id}
-                            className="flex min-h-11 cursor-pointer items-center gap-2 rounded-md px-2 py-2 text-sm text-slate-700 hover:bg-slate-50 sm:min-h-0 sm:py-1.5"
-                          >
-                            <input
-                              type="checkbox"
-                              className="h-5 w-5 shrink-0 rounded border-slate-300 text-slate-900 focus:ring-slate-900/20 sm:h-4 sm:w-4"
-                              checked={participantesIds.includes(f.id)}
-                              onChange={() => setParticipantesIds((ids) => toggleId(ids, f.id))}
-                            />
-                            <span className="min-w-0 flex-1 truncate">{f.nombre}</span>
-                            <span className="max-w-[42%] shrink-0 truncate text-xs text-slate-400 sm:max-w-none">
-                              {gestionNombre(f.gestionId, gestiones)}
-                            </span>
-                          </label>
-                        ))}
-                    </div>
-                  ) : (
-                    <div className="px-2 py-3 text-sm text-slate-400">Sin participantes adicionales</div>
-                  )}
-                </div>
+            <div className="space-y-1.5">
+              <Label>Participantes adicionales (opcional)</Label>
+              <div className="max-h-36 overflow-y-auto rounded-lg border border-slate-200 bg-white p-2">
+                {funcionariosDisponibles.filter((f) => f.id !== funcionarioId).length > 0 ? (
+                  <div className="space-y-1">
+                    {funcionariosDisponibles
+                      .filter((f) => f.id !== funcionarioId)
+                      .map((f) => (
+                        <label
+                          key={f.id}
+                          className="flex min-h-11 cursor-pointer items-center gap-2 rounded-md px-2 py-2 text-sm text-slate-700 hover:bg-slate-50 sm:min-h-0 sm:py-1.5"
+                        >
+                          <input
+                            type="checkbox"
+                            className="h-5 w-5 shrink-0 rounded border-slate-300 text-slate-900 focus:ring-slate-900/20 sm:h-4 sm:w-4"
+                            checked={participantesIds.includes(f.id)}
+                            onChange={() => setParticipantesIds((ids) => toggleId(ids, f.id))}
+                          />
+                          <span className="min-w-0 flex-1 truncate">{f.nombre}</span>
+                          <span className="max-w-[42%] shrink-0 truncate text-xs text-slate-400 sm:max-w-none">
+                            {gestionNombre(f.gestionId, gestiones)}
+                          </span>
+                        </label>
+                      ))}
+                  </div>
+                ) : (
+                  <div className="px-2 py-3 text-sm text-slate-400">Sin participantes adicionales</div>
+                )}
               </div>
-            )}
+            </div>
             <div className="space-y-1.5">
               <Label htmlFor="acciones">Acciones pendientes y actividades programadas</Label>
               <Textarea

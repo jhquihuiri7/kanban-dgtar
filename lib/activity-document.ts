@@ -205,10 +205,6 @@ export function validateActivityDocument(data: ActivityDocumentInput): ActivityD
       }
       participantes.add(participanteId);
     }
-    if (value.tipo === "asignacion" && participantes.size > 0) {
-      return invalid(`${prefix}: una asignación no puede incluir participantes.`);
-    }
-
     if (!validDate(value.fechaCreacion)) return invalid(`${prefix}.fechaCreacion no es una fecha válida.`);
     if (!Number.isInteger(value.orden) || (value.orden as number) < -2_147_483_648 || (value.orden as number) > 2_147_483_647) {
       return invalid(`${prefix}.orden debe ser un entero válido.`);

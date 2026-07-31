@@ -29,70 +29,77 @@ const meeting: Actividad = {
   orden: 0,
 };
 
-test("responsible and meeting participants can edit, but outsiders cannot", () => {
-  assert.equal(activityEditAccess(meeting, "f_responsable"), "responsable");
-  assert.equal(activityEditAccess(meeting, "f_participante"), "participante");
-  assert.equal(canFuncionarioEditActivity(meeting, "f_participante"), true);
-  assert.equal(canFuncionarioEditActivity(meeting, "f_otro"), false);
-});
+const assignment: Actividad = {
+  ...meeting,
+  id: "a_assignment",
+  tipo: "asignacion",
+  titulo: "Asignación",
+  fechaInicio: "2026-07-25",
+  fechaFin: "2026-07-26",
+};
 
-test("participants do not gain edit access to assignments", () => {
-  const assignment = { ...meeting, tipo: "asignacion" as const };
-  assert.equal(activityEditAccess(assignment, "f_participante"), null);
-  assert.equal(canFuncionarioEditActivity(assignment, "f_participante"), false);
+test("responsible and participants can edit assignments and meetings, but outsiders cannot", () => {
+  for (const activity of [assignment, meeting]) {
+    assert.equal(activityEditAccess(activity, "f_responsable"), "responsable");
+    assert.equal(activityEditAccess(activity, "f_participante"), "participante");
+    assert.equal(canFuncionarioEditActivity(activity, "f_participante"), true);
+    assert.equal(canFuncionarioEditActivity(activity, "f_otro"), false);
+  }
 });
 
 test("deletion remains restricted to the responsible person", () => {
-  assert.equal(canFuncionarioDeleteActivity(meeting, "f_responsable"), true);
-  assert.equal(canFuncionarioDeleteActivity(meeting, "f_participante"), false);
+  for (const activity of [assignment, meeting]) {
+    assert.equal(canFuncionarioDeleteActivity(activity, "f_responsable"), true);
+    assert.equal(canFuncionarioDeleteActivity(activity, "f_participante"), false);
+  }
 });
 
-test("a participant edit preserves the responsible person and meeting type", () => {
-  const forgedDraft: Actividad = {
-    ...meeting,
-    tipo: "asignacion",
-    funcionarioId: "f_participante",
-    participantesIds: ["f_otro"],
-    titulo: "Título editado",
-  };
+test("a participant edit preserves the responsible person, type and participant list", () => {
+  for (const current of [assignment, meeting]) {
+    const forgedDraft: Actividad = {
+      ...current,
+      tipo: current.tipo === "reunion" ? "asignacion" : "reunion",
+      funcionarioId: "f_participante",
+      participantesIds: ["f_otro"],
+      titulo: "Título editado",
+    };
 
-  assert.deepEqual(constrainUserActivityDraft(forgedDraft, meeting, "participante"), {
-    ...forgedDraft,
-    tipo: "reunion",
-    funcionarioId: "f_responsable",
-    participantesIds: ["f_participante"],
-  });
+    assert.deepEqual(constrainUserActivityDraft(forgedDraft, current, "participante"), {
+      ...forgedDraft,
+      tipo: current.tipo,
+      funcionarioId: "f_responsable",
+      participantesIds: ["f_participante"],
+    });
+  }
 });
 
-test("participant changes merge only into their current meeting", () => {
+test("participant changes merge into their current assignments and meetings only", () => {
   const otherAssignment: Actividad = {
-    ...meeting,
+    ...assignment,
     id: "a_other",
-    tipo: "asignacion",
     funcionarioId: "f_otro",
     participantesIds: [],
     titulo: "Asignación ajena",
-    fechaInicio: "2026-07-25",
-    fechaFin: "2026-07-26",
   };
   const postedMeeting = { ...meeting, titulo: "Reunión editada" };
+  const postedAssignment = { ...assignment, titulo: "Asignación editada" };
   const forgedAssignment = { ...otherAssignment, titulo: "Cambio no autorizado" };
 
   assert.deepEqual(
     mergeUserActivityChanges(
-      [meeting, otherAssignment],
-      [postedMeeting, forgedAssignment],
+      [meeting, assignment, otherAssignment],
+      [postedMeeting, postedAssignment, forgedAssignment],
       "f_participante",
       (draft) => draft,
     ),
-    [postedMeeting, otherAssignment],
+    [postedMeeting, postedAssignment, otherAssignment],
   );
 });
 
-test("omitting a meeting does not let a participant delete it", () => {
+test("omitting an assignment or meeting does not let a participant delete it", () => {
   assert.deepEqual(
-    mergeUserActivityChanges([meeting], [], "f_participante", (draft) => draft),
-    [meeting],
+    mergeUserActivityChanges([assignment, meeting], [], "f_participante", (draft) => draft),
+    [assignment, meeting],
   );
 });
 
@@ -109,9 +116,11 @@ test("the responsible person can still edit and delete their own activities", ()
 });
 
 test("an outsider cannot grant themselves access through a forged draft", () => {
-  const forged = { ...meeting, participantesIds: [...meeting.participantesIds, "f_otro"] };
-  assert.deepEqual(
-    mergeUserActivityChanges([meeting], [forged], "f_otro", (draft) => draft),
-    [meeting],
-  );
+  for (const activity of [assignment, meeting]) {
+    const forged = { ...activity, participantesIds: [...activity.participantesIds, "f_otro"] };
+    assert.deepEqual(
+      mergeUserActivityChanges([activity], [forged], "f_otro", (draft) => draft),
+      [activity],
+    );
+  }
 });

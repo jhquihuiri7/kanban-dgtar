@@ -303,8 +303,7 @@ function sanitizeUserActivity(
     titulo,
     descripcion: cleanText(draft.descripcion),
     funcionarioId: responsableId,
-    participantesIds:
-      tipo === "reunion" ? cleanParticipantes(draft.participantesIds, responsableId, funcionarioIds) : [],
+    participantesIds: cleanParticipantes(draft.participantesIds, responsableId, funcionarioIds),
     competenciaId,
     entregableId,
     estado,

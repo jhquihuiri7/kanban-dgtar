@@ -201,7 +201,7 @@ export function DetailPanel({
       titulo: draft.titulo.trim() || act!.titulo,
       descripcion: draft.descripcion.trim(),
       funcionarioId: responsableId,
-      participantesIds: esReunion ? cleanParticipantes(draft.participantesIds ?? [], responsableId) : [],
+      participantesIds: cleanParticipantes(draft.participantesIds ?? [], responsableId),
       competenciaId: draft.competenciaId,
       entregableId: draft.entregableId,
       estado: draft.estado,
@@ -285,28 +285,26 @@ export function DetailPanel({
             <Badge variant={gestionTone(fun?.gestionId, gestiones)}>{gestionNombre(fun?.gestionId, gestiones)}</Badge>
           </div>
 
-          {esReunion && (
-            <div>
-              <Label className="mb-1.5 block uppercase tracking-wide text-slate-500">Participantes</Label>
-              <div className="rounded-lg border border-slate-200 p-3">
-                {participantes.length > 0 ? (
-                  <div className="flex flex-wrap gap-2">
-                    {participantes.map((f) => (
-                      <div
-                        key={f.id}
-                        className="inline-flex max-w-full items-center gap-2 rounded-md bg-slate-50 px-2.5 py-1.5 ring-1 ring-foreground/5"
-                      >
-                        <Avatar funcionario={f} useAvatars={useAvatars} size={22} />
-                        <span className="truncate text-sm font-medium text-slate-800">{f.nombre}</span>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="text-sm text-slate-400">Sin participantes adicionales</div>
-                )}
-              </div>
+          <div>
+            <Label className="mb-1.5 block uppercase tracking-wide text-slate-500">Participantes</Label>
+            <div className="rounded-lg border border-slate-200 p-3">
+              {participantes.length > 0 ? (
+                <div className="flex flex-wrap gap-2">
+                  {participantes.map((f) => (
+                    <div
+                      key={f.id}
+                      className="inline-flex max-w-full items-center gap-2 rounded-md bg-slate-50 px-2.5 py-1.5 ring-1 ring-foreground/5"
+                    >
+                      <Avatar funcionario={f} useAvatars={useAvatars} size={22} />
+                      <span className="truncate text-sm font-medium text-slate-800">{f.nombre}</span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-sm text-slate-400">Sin participantes adicionales</div>
+              )}
             </div>
-          )}
+          </div>
 
           {/* fechas */}
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
@@ -700,59 +698,57 @@ function EditForm({
           </>
         )}
       </div>
-      {esReunion && (
-        <div className="space-y-1.5">
-          <Label>Participantes</Label>
-          {!canManageParticipants && (
-            <p className="text-xs text-slate-500">
-              Solo el responsable o un administrador puede cambiar los participantes.
-            </p>
+      <div className="space-y-1.5">
+        <Label>Participantes adicionales</Label>
+        {!canManageParticipants && (
+          <p className="text-xs text-slate-500">
+            Solo el responsable o un administrador puede cambiar los participantes.
+          </p>
+        )}
+        <div className="max-h-44 overflow-y-auto rounded-lg border border-slate-200 bg-white p-2">
+          {funcionarios.filter((f) => f.id !== draft.funcionarioId).length > 0 ? (
+            <div className="space-y-1">
+              {funcionarios
+                .filter((f) => f.id !== draft.funcionarioId)
+                .map((f) => (
+                  <label
+                    key={f.id}
+                    className={cn(
+                      "flex min-h-11 items-center gap-2 rounded-md px-2 py-1.5 text-sm text-slate-700",
+                      canManageParticipants ? "cursor-pointer hover:bg-slate-50" : "cursor-default opacity-70",
+                    )}
+                  >
+                    <input
+                      type="checkbox"
+                      disabled={!canManageParticipants}
+                      className="h-5 w-5 shrink-0 rounded border-slate-300 text-slate-900 focus:ring-slate-900/20 sm:h-4 sm:w-4"
+                      checked={(draft.participantesIds ?? []).includes(f.id)}
+                      onChange={() =>
+                        setDraft((d) =>
+                          d
+                            ? {
+                                ...d,
+                                participantesIds: cleanParticipantes(
+                                  toggleId(d.participantesIds ?? [], f.id),
+                                  d.funcionarioId,
+                                ),
+                              }
+                            : d,
+                        )
+                      }
+                    />
+                    <span className="min-w-0 flex-1 truncate">{f.nombre}</span>
+                    <span className="max-w-[35%] shrink-0 truncate text-xs text-slate-400">
+                      {gestionNombre(f.gestionId, gestiones)}
+                    </span>
+                  </label>
+                ))}
+            </div>
+          ) : (
+            <div className="px-2 py-3 text-sm text-slate-400">Sin participantes adicionales</div>
           )}
-          <div className="max-h-44 overflow-y-auto rounded-lg border border-slate-200 bg-white p-2">
-            {funcionarios.filter((f) => f.id !== draft.funcionarioId).length > 0 ? (
-              <div className="space-y-1">
-                {funcionarios
-                  .filter((f) => f.id !== draft.funcionarioId)
-                  .map((f) => (
-                    <label
-                      key={f.id}
-                      className={cn(
-                        "flex min-h-11 items-center gap-2 rounded-md px-2 py-1.5 text-sm text-slate-700",
-                        canManageParticipants ? "cursor-pointer hover:bg-slate-50" : "cursor-default opacity-70",
-                      )}
-                    >
-                      <input
-                        type="checkbox"
-                        disabled={!canManageParticipants}
-                        className="h-5 w-5 shrink-0 rounded border-slate-300 text-slate-900 focus:ring-slate-900/20 sm:h-4 sm:w-4"
-                        checked={(draft.participantesIds ?? []).includes(f.id)}
-                        onChange={() =>
-                          setDraft((d) =>
-                            d
-                              ? {
-                                  ...d,
-                                  participantesIds: cleanParticipantes(
-                                    toggleId(d.participantesIds ?? [], f.id),
-                                    d.funcionarioId,
-                                  ),
-                                }
-                              : d,
-                          )
-                        }
-                      />
-                      <span className="min-w-0 flex-1 truncate">{f.nombre}</span>
-                      <span className="max-w-[35%] shrink-0 truncate text-xs text-slate-400">
-                        {gestionNombre(f.gestionId, gestiones)}
-                      </span>
-                    </label>
-                  ))}
-              </div>
-            ) : (
-              <div className="px-2 py-3 text-sm text-slate-400">Sin participantes adicionales</div>
-            )}
-          </div>
         </div>
-      )}
+      </div>
       <div className="space-y-1.5">
         <Label htmlFor="edit-obs">Observaciones</Label>
         <Textarea
