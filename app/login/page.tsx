@@ -113,28 +113,35 @@ export default function LoginPage() {
   }[mode];
 
   return (
-    <main className="grid min-h-svh bg-white text-slate-950 lg:grid-cols-2">
+    <main className="grid min-h-svh bg-white text-ink lg:grid-cols-2">
       <section className="flex min-h-svh flex-col gap-3 p-4 sm:gap-4 sm:p-6 md:p-10">
         <div className="flex justify-center gap-2 md:justify-start">
-          <a href="/" className="flex min-h-11 touch-manipulation items-center gap-2 font-medium sm:min-h-0">
-            <div className="flex size-6 items-center justify-center rounded-md bg-slate-900 text-white">
-              <Icon name="kanban" size={14} />
+          <a href="/" className="flex min-h-11 touch-manipulation items-center gap-[11px] sm:min-h-0">
+            <div className="flex h-[38px] w-[38px] items-center justify-center rounded-xl bg-ink text-white shadow-[0_2px_6px_rgba(18,18,26,.18)]">
+              <Icon name="kanban" size={19} />
             </div>
-            Kanban DGTAR
+            <div className="flex flex-col gap-px">
+              <div className="text-[14px] font-bold leading-[1.15] tracking-[-.02em]">Kanban DGTAR</div>
+              <div className="text-[10.5px] font-medium leading-[1.15] text-ink-faint">
+                Dirección de Planificación
+              </div>
+            </div>
           </a>
         </div>
 
         <div className="flex flex-1 items-center justify-center py-4 sm:py-0">
-          <div className="flex w-full max-w-xs flex-col gap-5 sm:gap-6">
-            <div className="flex flex-col items-center gap-1 text-center">
-              <h1 className="text-xl font-bold sm:text-2xl">{heading.title}</h1>
-              <p className="text-sm text-slate-500">{heading.description}</p>
+          <div className="flex w-full max-w-[360px] flex-col gap-5 sm:gap-6">
+            <div className="flex flex-col items-center gap-1.5 text-center">
+              <h1 className="text-[20px] font-extrabold leading-[1.15] tracking-[-.03em] sm:text-[23px]">
+                {heading.title}
+              </h1>
+              <p className="text-[12.5px] font-medium text-ink-faint">{heading.description}</p>
             </div>
 
             {mode === "login" && (
               <form className="flex flex-col gap-4 sm:gap-5" onSubmit={submitLogin}>
-                <div className="flex flex-col gap-2">
-                  <Label className="text-sm font-medium text-slate-900" htmlFor="email">
+                <div className="flex flex-col gap-[7px]">
+                  <Label htmlFor="email">
                     Correo electrónico
                   </Label>
                   <Input
@@ -146,18 +153,18 @@ export default function LoginPage() {
                     onChange={(e) => setEmail(e.target.value)}
                     autoComplete="username"
                     required
-                    className="bg-transparent px-3 sm:!h-8 sm:px-2.5"
+                    className="sm:!h-[42px] sm:!text-[13.5px]"
                   />
                 </div>
 
-                <div className="flex flex-col gap-2">
+                <div className="flex flex-col gap-[7px]">
                   <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-                    <Label className="text-sm font-medium text-slate-900" htmlFor="password">
+                    <Label htmlFor="password">
                       Contraseña
                     </Label>
                     <button
                       type="button"
-                      className="ml-auto inline-flex min-h-11 touch-manipulation items-center text-right text-sm underline-offset-4 hover:underline sm:min-h-0"
+                      className="ml-auto inline-flex min-h-11 touch-manipulation items-center text-right text-[11.5px] font-[650] text-accent underline-offset-4 hover:underline sm:min-h-0"
                       onClick={() => {
                         setMode("forgot");
                         setError("");
@@ -175,17 +182,20 @@ export default function LoginPage() {
                     onChange={(e) => setPassword(e.target.value)}
                     autoComplete="current-password"
                     required
-                    className="bg-transparent px-3 sm:!h-8 sm:px-2.5"
+                    className="sm:!h-[42px] sm:!text-[13.5px]"
                   />
                 </div>
 
                 {error && (
-                  <div role="alert" className="text-sm font-normal text-red-600">
+                  <div
+                    role="alert"
+                    className="rounded-input bg-estado-vencida-bg px-3.5 py-2.5 text-[12px] font-semibold text-estado-vencida-fg"
+                  >
                     {error}
                   </div>
                 )}
 
-                <Button className="w-full" type="submit" disabled={loading || !email || !password} aria-busy={loading}>
+                <Button className="w-full sm:!h-11 sm:!text-[13.5px]" type="submit" disabled={loading || !email || !password} aria-busy={loading}>
                   {loading && <Icon name="loader" size={14} className="animate-spin" />}
                   {loading ? "Iniciando sesión..." : "Iniciar sesión"}
                 </Button>
@@ -194,8 +204,8 @@ export default function LoginPage() {
 
             {mode === "forgot" && (
               <form className="flex flex-col gap-4 sm:gap-5" onSubmit={requestReset}>
-                <div className="flex flex-col gap-2">
-                  <Label className="text-sm font-medium text-slate-900" htmlFor="forgot-email">
+                <div className="flex flex-col gap-[7px]">
+                  <Label htmlFor="forgot-email">
                     Correo electrónico
                   </Label>
                   <Input
@@ -207,32 +217,38 @@ export default function LoginPage() {
                     onChange={(e) => setEmail(e.target.value)}
                     autoComplete="username"
                     required
-                    className="bg-transparent px-3 sm:!h-8 sm:px-2.5"
+                    className="sm:!h-[42px] sm:!text-[13.5px]"
                   />
                 </div>
 
                 {error && (
-                  <div role="alert" className="text-sm font-normal text-red-600">
+                  <div
+                    role="alert"
+                    className="rounded-input bg-estado-vencida-bg px-3.5 py-2.5 text-[12px] font-semibold text-estado-vencida-fg"
+                  >
                     {error}
                   </div>
                 )}
 
                 {message && (
-                  <div role="status" className="text-sm font-normal text-green-700">
+                  <div
+                    role="status"
+                    className="rounded-input bg-estado-cumplida-bg px-3.5 py-2.5 text-[12px] font-semibold text-estado-cumplida-fg"
+                  >
                     {message}
                     {resetUrl && (
-                      <a className="mt-2 block break-all underline underline-offset-4" href={resetUrl}>
+                      <a className="mt-2 block break-all font-mono text-[11.5px] underline underline-offset-4" href={resetUrl}>
                         Abrir enlace de recuperación
                       </a>
                     )}
                   </div>
                 )}
 
-                <Button className="w-full" type="submit" disabled={loading || !email} aria-busy={loading}>
+                <Button className="w-full sm:!h-11 sm:!text-[13.5px]" type="submit" disabled={loading || !email} aria-busy={loading}>
                   {loading && <Icon name="loader" size={14} className="animate-spin" />}
                   {loading ? "Generando enlace..." : "Generar enlace"}
                 </Button>
-                <Button type="button" variant="ghost" className="w-full" onClick={() => setMode("login")}>
+                <Button type="button" variant="ghost" className="w-full sm:!h-11 sm:!text-[13.5px]" onClick={() => setMode("login")}>
                   Volver al login
                 </Button>
               </form>
@@ -240,8 +256,8 @@ export default function LoginPage() {
 
             {mode === "reset" && (
               <form className="flex flex-col gap-4 sm:gap-5" onSubmit={submitReset}>
-                <div className="flex flex-col gap-2">
-                  <Label className="text-sm font-medium text-slate-900" htmlFor="new-password">
+                <div className="flex flex-col gap-[7px]">
+                  <Label htmlFor="new-password">
                     Nueva contraseña
                   </Label>
                   <Input
@@ -253,23 +269,29 @@ export default function LoginPage() {
                     onChange={(e) => setNewPassword(e.target.value)}
                     autoComplete="new-password"
                     required
-                    className="bg-transparent px-3 sm:!h-8 sm:px-2.5"
+                    className="sm:!h-[42px] sm:!text-[13.5px]"
                   />
                 </div>
 
                 {error && (
-                  <div role="alert" className="text-sm font-normal text-red-600">
+                  <div
+                    role="alert"
+                    className="rounded-input bg-estado-vencida-bg px-3.5 py-2.5 text-[12px] font-semibold text-estado-vencida-fg"
+                  >
                     {error}
                   </div>
                 )}
 
                 {message && (
-                  <div role="status" className="text-sm font-normal text-green-700">
+                  <div
+                    role="status"
+                    className="rounded-input bg-estado-cumplida-bg px-3.5 py-2.5 text-[12px] font-semibold text-estado-cumplida-fg"
+                  >
                     {message}
                   </div>
                 )}
 
-                <Button className="w-full" type="submit" disabled={loading || newPassword.length < 8} aria-busy={loading}>
+                <Button className="w-full sm:!h-11 sm:!text-[13.5px]" type="submit" disabled={loading || newPassword.length < 8} aria-busy={loading}>
                   {loading && <Icon name="loader" size={14} className="animate-spin" />}
                   {loading ? "Actualizando contraseña..." : "Actualizar contraseña"}
                 </Button>
@@ -279,7 +301,7 @@ export default function LoginPage() {
         </div>
       </section>
 
-      <section className="relative hidden bg-slate-100 lg:block">
+      <section className="relative hidden bg-app lg:block">
         <Image
           src="/imgs/geo/login.png"
           alt="Vista aérea costera del geoportal ambiental"

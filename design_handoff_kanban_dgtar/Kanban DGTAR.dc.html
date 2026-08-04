@@ -1,0 +1,2214 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous" />
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#F4F4F6;color:#12121A;font-family:'Plus Jakarta Sans',ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;-webkit-font-smoothing:antialiased;font-variant-numeric:tabular-nums}
+a{color:#6D28D9;text-decoration:none}
+a:hover{color:#5B21B6;text-decoration:underline}
+button{font:inherit;cursor:pointer;border:0;background:none;color:inherit}
+input,select,textarea{font:inherit}
+::-webkit-scrollbar{width:10px;height:10px}
+::-webkit-scrollbar-thumb{background:#D7D7DE;border-radius:999px;border:2px solid transparent;background-clip:padding-box}
+::-webkit-scrollbar-thumb:hover{background-color:#B9B9C4;background-clip:padding-box}
+</style>
+</helmet>
+
+<div data-screen-label="App" style="min-height:100vh;background:#F4F4F6">
+
+  <header style="position:sticky;top:0;z-index:30;background:rgba(244,244,246,.86);backdrop-filter:blur(14px);border-bottom:1px solid #E9E9ED">
+    <div style="max-width:1500px;min-width:1500px;margin:0 auto;padding:12px 24px;display:flex;align-items:center;gap:18px">
+
+      <div style="display:flex;align-items:center;gap:11px;flex-shrink:0">
+        <div style="width:38px;height:38px;border-radius:12px;background:#12121A;color:#fff;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 6px rgba(18,18,26,.18)">
+          <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 5v11"></path><path d="M12 5v6"></path><path d="M18 5v14"></path></svg>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:1px">
+          <div style="font-size:14px;font-weight:700;letter-spacing:-.02em;line-height:1.15">Kanban DGTAR</div>
+          <div style="font-size:10.5px;font-weight:500;color:#8A8A99;line-height:1.15">Dirección de Planificación</div>
+        </div>
+      </div>
+
+      <nav style="display:flex;align-items:center;gap:4px;padding:4px;border-radius:999px;background:#EDEDF1;flex-shrink:0" aria-label="Navegación principal">
+        <button type="button" onClick="{{ goBoard }}" style="{{ tabBoard }}">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 5v11"></path><path d="M12 5v6"></path><path d="M18 5v14"></path></svg>Tablero</button>
+        <button type="button" onClick="{{ goStats }}" style="{{ tabStats }}">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"></path><path d="M18 17V9"></path><path d="M13 17V5"></path><path d="M8 17v-3"></path></svg>Estadísticas</button>
+        <sc-if value="{{ isAdmin }}" hint-placeholder-val="{{ true }}">
+          <button type="button" onClick="{{ goCatalogs }}" style="{{ tabCatalogs }}">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 12h.01"></path><path d="M3 18h.01"></path><path d="M3 6h.01"></path><path d="M8 12h13"></path><path d="M8 18h13"></path><path d="M8 6h13"></path></svg>Catálogos</button>
+          <button type="button" onClick="{{ goUsers }}" style="{{ tabUsers }}">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M22 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>Usuarios</button>
+        </sc-if>
+      </nav>
+
+      <div style="flex:1 1 220px;display:flex;justify-content:center;min-width:220px">
+        <div style="display:flex;align-items:center;gap:9px;width:100%;max-width:340px;height:38px;padding:0 6px 0 14px;border-radius:999px;background:#fff;border:1px solid #E9E9ED;box-shadow:0 1px 2px rgba(18,18,26,.03)">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#8A8A99" stroke-width="2" stroke-linecap="round" style="flex-shrink:0"><circle cx="11" cy="11" r="8"></circle><path d="m21 21-4.3-4.3"></path></svg>
+          <input type="text" value="{{ query }}" onInput="{{ onQuery }}" placeholder="Buscar actividad…" aria-label="Buscar actividad" style="flex:1;min-width:0;height:100%;border:0;outline:none;background:transparent;font-size:13px;font-weight:500;color:#12121A" />
+          <sc-if value="{{ buscando }}">
+            <button type="button" onClick="{{ clearQuery }}" aria-label="Limpiar búsqueda" style="flex-shrink:0;width:24px;height:24px;border-radius:999px;background:#F2F2F5;display:flex;align-items:center;justify-content:center;color:#5B5B69" style-hover="background:#E7E7EC;color:#12121A">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M18 6 6 18"></path><path d="m6 6 12 12"></path></svg></button>
+          </sc-if>
+          <sc-if value="{{ noBuscando }}" hint-placeholder-val="{{ true }}">
+            <span style="flex-shrink:0;padding:3px 8px;border-radius:999px;background:#F2F2F5;font-size:10.5px;font-weight:600;color:#8A8A99">⌘ K</span>
+          </sc-if>
+        </div>
+      </div>
+
+      <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">
+        <div style="display:flex;align-items:center;gap:6px;height:32px;padding:0 11px;border-radius:999px;background:#E7F8F1;color:#0B7A5A;font-size:11.5px;font-weight:650;white-space:nowrap;flex-shrink:0">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="m9 12 2 2 4-4"></path></svg>Guardado
+        </div>
+        <div style="position:relative;flex-shrink:0">
+          <button type="button" onClick="{{ toggleGoogleMenu }}" title="Google Calendar vinculado a acevallos@dgtar.gob.ec" aria-label="Google Calendar vinculado" style="position:relative;width:34px;height:34px;border-radius:999px;background:#fff;border:1px solid #E9E9ED;display:flex;align-items:center;justify-content:center" style-hover="background:#FAFAFB;border-color:#DCDCE3">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#6D28D9" stroke-width="2" stroke-linecap="round"><path d="M8 2v4"></path><path d="M16 2v4"></path><rect width="18" height="18" x="3" y="4" rx="2"></rect><path d="M3 10h18"></path></svg>
+            <span style="position:absolute;top:-1px;right:-1px;width:9px;height:9px;border-radius:999px;background:#10B981;box-shadow:0 0 0 2px #F4F4F6"></span>
+          </button>
+          <sc-if value="{{ menuGoogle }}">
+            <div onClick="{{ closeMenu }}" style="position:fixed;inset:0;z-index:55"></div>
+            <div style="position:absolute;top:calc(100% + 9px);right:0;z-index:60;width:292px;padding:15px;border-radius:16px;background:#fff;border:1px solid #ECECEF;box-shadow:0 14px 38px rgba(18,18,26,.16)">
+              <div style="display:flex;align-items:center;justify-content:space-between;gap:10px">
+                <span style="font-size:10px;font-weight:750;letter-spacing:.06em;text-transform:uppercase;color:#B4B4C2">Google Calendar</span>
+                <span style="display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border-radius:999px;background:#E7F8F1;color:#0B7A5A;font-size:10.5px;font-weight:700">
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"></path></svg>Vinculado</span>
+              </div>
+              <div style="margin-top:10px;font-size:13.5px;font-weight:700;letter-spacing:-.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">acevallos@dgtar.gob.ec</div>
+              <div style="margin-top:4px;font-size:11.5px;font-weight:500;color:#8A8A99">Última sincronización: 18 jun, 09:42</div>
+              <div style="margin-top:13px;display:flex;align-items:center;gap:8px">
+                <button type="button" style="flex:1;display:flex;align-items:center;justify-content:center;gap:7px;height:34px;border-radius:10px;border:1px solid #E4E4E9;background:#fff;font-size:12.5px;font-weight:650;color:#12121A" style-hover="background:#FAFAFB;border-color:#DCDCE3">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"></path><path d="M21 3v5h-5"></path><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"></path><path d="M8 16H3v5"></path></svg>Sincronizar</button>
+                <button type="button" style="display:flex;align-items:center;justify-content:center;gap:7px;height:34px;padding:0 13px;border-radius:10px;font-size:12.5px;font-weight:650;color:#C81E45" style-hover="background:#FEECEF">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M18 6 6 18"></path><path d="m6 6 12 12"></path></svg>Desvincular</button>
+              </div>
+            </div>
+          </sc-if>
+        </div>
+
+        <button type="button" onClick="{{ openExport }}" style="display:flex;align-items:center;gap:6px;height:34px;padding:0 13px;border-radius:999px;background:#fff;border:1px solid #E9E9ED;font-size:12.5px;font-weight:650;color:#12121A;white-space:nowrap;flex-shrink:0" style-hover="background:#FAFAFB;border-color:#DCDCE3">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" x2="12" y1="15" y2="3"></line></svg>Exportar
+        </button>
+        <button type="button" onClick="{{ openNew }}" style="display:flex;align-items:center;gap:6px;height:34px;padding:0 15px;border-radius:999px;background:#12121A;color:#fff;font-size:12.5px;font-weight:650;white-space:nowrap;flex-shrink:0;box-shadow:0 2px 8px rgba(18,18,26,.22)" style-hover="background:#26262F">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M5 12h14"></path><path d="M12 5v14"></path></svg>Nueva actividad
+        </button>
+        <div style="position:relative;flex-shrink:0">
+          <button type="button" onClick="{{ togglePerfil }}" title="Andrea Cevallos · Directora de Planificación" aria-label="Cuenta de Andrea Cevallos" style="{{ perfilBtn }}">AC</button>
+          <sc-if value="{{ menuPerfil }}">
+            <div onClick="{{ closeMenu }}" style="position:fixed;inset:0;z-index:55"></div>
+            <div style="position:absolute;top:calc(100% + 9px);right:0;z-index:60;width:262px;padding:7px;border-radius:16px;background:#fff;border:1px solid #ECECEF;box-shadow:0 14px 38px rgba(18,18,26,.16)">
+              <div style="display:flex;align-items:center;gap:11px;padding:10px 11px 12px">
+                <span style="width:38px;height:38px;flex-shrink:0;border-radius:999px;background:linear-gradient(135deg,#0ea5e9,#0284c7);color:#fff;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700">AC</span>
+                <div style="min-width:0">
+                  <div style="font-size:13.5px;font-weight:700;letter-spacing:-.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Andrea Cevallos</div>
+                  <div style="font-size:11px;font-weight:500;color:#9C9CAA;font-family:ui-monospace,Menlo,monospace;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">acevallos@dgtar.gob.ec</div>
+                </div>
+              </div>
+              <div style="display:flex;align-items:center;gap:7px;padding:0 11px 11px">
+                <span style="display:inline-flex;padding:3px 9px;border-radius:999px;background:#E9F1FE;color:#1D4ED8;font-size:10.5px;font-weight:700">Admin</span>
+                <span style="display:inline-flex;padding:3px 9px;border-radius:999px;background:#EAF7FE;color:#0369A1;font-size:10.5px;font-weight:700">DGTAR</span>
+              </div>
+              <div style="border-top:1px solid #F1F1F4;padding-top:6px">
+                <button type="button" onClick="{{ closeMenu }}" style="width:100%;display:flex;align-items:center;gap:10px;padding:10px 11px;border-radius:10px;font-size:13px;font-weight:600;color:#C81E45;text-align:left" style-hover="background:#FEECEF">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m16 17 5-5-5-5"></path><path d="M21 12H9"></path><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path></svg>Cerrar sesión</button>
+              </div>
+            </div>
+          </sc-if>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main style="max-width:1500px;min-width:1500px;margin:0 auto;padding:22px 24px 56px">
+
+    <sc-if value="{{ isBoard }}" hint-placeholder-val="{{ true }}">
+    <div data-screen-label="Tablero" style="display:flex;flex-direction:column;gap:18px">
+
+      <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:20px;flex-wrap:wrap">
+        <div>
+          <h1 style="margin:0;font-size:23px;font-weight:800;letter-spacing:-.03em;line-height:1.15">Tablero de Actividades</h1>
+          <div style="margin-top:6px;display:flex;align-items:center;gap:11px;font-size:12.5px;font-weight:500;color:#8A8A99">
+            <span>{{ boardTotal }}</span>
+            <span style="width:3px;height:3px;border-radius:999px;background:#D0D0D8"></span>
+            <span><b style="color:#E11D48;font-weight:700">{{ boardVencidas }}</b> con fecha fin superada</span>
+            <span style="width:3px;height:3px;border-radius:999px;background:#D0D0D8"></span>
+            <span><b style="color:#4B4B57;font-weight:700">{{ boardCumplidas }}</b> {{ boardCumplidasLabel }}</span>
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;gap:4px;padding:4px;border-radius:999px;background:#EDEDF1">
+          <button type="button" onClick="{{ setColumns }}" style="{{ segColumns }}">Columnas</button>
+          <button type="button" onClick="{{ setWeek }}" style="{{ segWeek }}">Semana</button>
+          <button type="button" onClick="{{ setMonth }}" style="{{ segMonth }}">Mes</button>
+        </div>
+      </div>
+
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        <div style="display:flex;align-items:center;gap:6px;height:36px;padding:0 6px 0 7px;border-radius:999px;background:#fff;border:1px solid #ECECEF;flex-shrink:0">
+          <button type="button" onClick="{{ boardPrev }}" aria-label="Mes anterior" style="width:26px;height:26px;border-radius:999px;display:flex;align-items:center;justify-content:center;color:#5B5B69" style-hover="background:#F2F2F5;color:#12121A">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"></path></svg></button>
+          <span style="min-width:104px;text-align:center;font-size:12.5px;font-weight:700;letter-spacing:-.01em;white-space:nowrap">{{ boardMes }}</span>
+          <button type="button" onClick="{{ boardNext }}" aria-label="Mes siguiente" style="width:26px;height:26px;border-radius:999px;display:flex;align-items:center;justify-content:center;color:#5B5B69" style-hover="background:#F2F2F5;color:#12121A">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"></path></svg></button>
+          <button type="button" onClick="{{ boardHoy }}" title="{{ boardHoyTip }}" style="{{ boardHoyBtn }}">Hoy</button>
+        </div>
+        <div style="{{ boardSearch }}">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#9C9CAA" stroke-width="2" stroke-linecap="round" style="flex-shrink:0"><circle cx="11" cy="11" r="8"></circle><path d="m21 21-4.3-4.3"></path></svg>
+          <input type="text" value="{{ query }}" onInput="{{ onQuery }}" placeholder="Buscar actividad…" aria-label="Buscar en el tablero" style="flex:1;min-width:0;height:100%;border:0;outline:none;background:transparent;font-size:12.5px;font-weight:500;color:#12121A" />
+          <sc-if value="{{ buscando }}">
+            <button type="button" onClick="{{ clearQuery }}" aria-label="Limpiar búsqueda" style="flex-shrink:0;width:22px;height:22px;border-radius:999px;background:#F2F2F5;display:flex;align-items:center;justify-content:center;color:#5B5B69" style-hover="background:#E7E7EC;color:#12121A">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M18 6 6 18"></path><path d="m6 6 12 12"></path></svg></button>
+          </sc-if>
+        </div>
+        <sc-if value="{{ buscando }}">
+          <span style="display:inline-flex;align-items:center;gap:6px;height:36px;padding:0 13px;border-radius:999px;background:#F1EBFF;color:#6D28D9;font-size:12px;font-weight:700;white-space:nowrap">{{ resultados }}</span>
+        </sc-if>
+        <button type="button" style="display:flex;align-items:center;gap:7px;height:36px;padding:0 14px;border-radius:999px;background:#fff;border:1px solid #ECECEF;font-size:12.5px;font-weight:600;color:#2B2B36" style-hover="border-color:#DCDCE3;background:#FAFAFB">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#8A8A99" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle></svg>
+          Todos los funcionarios
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#9C9CAA" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"></path></svg>
+        </button>
+        <button type="button" style="display:flex;align-items:center;gap:7px;height:36px;padding:0 14px;border-radius:999px;background:#fff;border:1px solid #ECECEF;font-size:12.5px;font-weight:600;color:#2B2B36" style-hover="border-color:#DCDCE3;background:#FAFAFB">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#8A8A99" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M16 20V4a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path><rect width="20" height="14" x="2" y="6" rx="2"></rect></svg>
+          Todas las competencias
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#9C9CAA" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"></path></svg>
+        </button>
+        <div style="margin-left:auto;display:flex;align-items:center;gap:14px;font-size:11px;font-weight:600;color:#9C9CAA">
+          <span style="display:inline-flex;align-items:center;gap:6px"><span style="width:7px;height:7px;border-radius:999px;background:#F43F5E"></span>Fin superado</span>
+          <span style="display:inline-flex;align-items:center;gap:6px"><span style="width:7px;height:7px;border-radius:999px;background:#F59E0B"></span>Finaliza pronto</span>
+          <span style="display:inline-flex;align-items:center;gap:6px"><span style="width:7px;height:7px;border-radius:999px;background:#A5A5B3"></span>Fin futuro</span>
+          <span style="display:inline-flex;align-items:center;gap:6px"><span style="width:7px;height:7px;border-radius:999px;background:#10B981"></span>Cumplida</span>
+        </div>
+      </div>
+
+      <sc-if value="{{ isColumns }}" hint-placeholder-val="{{ true }}">
+      <div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;align-items:start">
+        <sc-for list="{{ columnas }}" as="col" hint-placeholder-count="4">
+        <section style="display:flex;flex-direction:column;gap:10px">
+          <div style="display:flex;align-items:center;padding:0 4px">
+            <div style="display:flex;align-items:center;gap:8px">
+              <span style="{{ col.dot }}"></span>
+              <span style="font-size:13.5px;font-weight:700;letter-spacing:-.01em">{{ col.nombre }}</span>
+              <span style="min-width:20px;text-align:center;padding:2px 7px;border-radius:999px;background:#E7E7EC;font-size:11px;font-weight:700;color:#4B4B57">{{ col.total }}</span>
+            </div>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:10px;padding:10px;border-radius:16px;background:#EFEFF2;min-height:220px">
+            <sc-for list="{{ col.items }}" as="it" hint-placeholder-count="3">
+              <article onClick="{{ openDetail }}" style="position:relative;overflow:hidden;border-radius:14px;background:#fff;border:1px solid #ECECEF;padding:13px 14px 12px 16px;cursor:pointer;box-shadow:0 1px 2px rgba(18,18,26,.04)" style-hover="border-color:#DCDCE3;box-shadow:0 4px 14px rgba(18,18,26,.07)">
+                <span style="{{ it.accent }}"></span>
+                <div style="display:flex;align-items:flex-start;gap:10px">
+                  <div style="min-width:0;flex:1">
+                    <div style="display:flex;flex-wrap:wrap;gap:5px">
+                      <sc-if value="{{ it.esReunion }}">
+                        <span style="display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:999px;background:#F1EBFF;color:#6D28D9;font-size:10.5px;font-weight:700">
+                          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle></svg>Reunión</span>
+                      </sc-if>
+                      <span style="{{ it.gestStyle }}">{{ it.gestNombre }}</span>
+                    </div>
+                    <div style="margin-top:8px;font-size:13.5px;font-weight:650;line-height:1.35;letter-spacing:-.01em">{{ it.titulo }}</div>
+                  </div>
+                  <div style="display:flex;align-items:center;gap:5px;flex-shrink:0">
+                    <div style="{{ it.avatar }}">{{ it.iniciales }}</div>
+                    <sc-if value="{{ it.hasExtra }}">
+                      <span style="padding:3px 7px;border-radius:999px;background:#F2F2F5;font-size:10px;font-weight:700;color:#5B5B69">{{ it.extra }}</span>
+                    </sc-if>
+                  </div>
+                </div>
+                <div style="margin-top:11px;display:flex;align-items:center;justify-content:space-between;gap:8px">
+                  <span style="display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:550;color:#8A8A99;white-space:nowrap">
+                    <sc-if value="{{ it.esReunion }}">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                    </sc-if>
+                    <sc-if value="{{ it.esTarea }}" hint-placeholder-val="{{ true }}">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M8 2v4"></path><path d="M16 2v4"></path><rect width="18" height="18" x="3" y="4" rx="2"></rect><path d="M3 10h18"></path></svg>
+                    </sc-if>{{ it.fecha }}</span>
+                  <sc-if value="{{ it.fuera }}">
+                    <span style="display:inline-flex;align-items:center;padding:3px 7px;border-radius:999px;background:#F7F2FF;color:#6D28D9;font-size:10px;font-weight:750;white-space:nowrap">{{ it.fueraTexto }}</span>
+                  </sc-if>
+                  <span style="{{ it.badge }}">
+                    <sc-if value="{{ it.alerta }}">
+                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"></path><path d="M12 9v4"></path><path d="M12 17h.01"></path></svg>
+                    </sc-if>
+                    <sc-if value="{{ it.check }}">
+                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"></path></svg>
+                    </sc-if>{{ it.badgeText }}</span>
+                </div>
+              </article>
+            </sc-for>
+            <sc-if value="{{ col.vacio }}">
+              <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;padding:24px 12px;text-align:center">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#C4C4CE" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"></circle><path d="m21 21-4.3-4.3"></path></svg>
+                <span style="font-size:11.5px;font-weight:600;color:#A5A5B3">{{ col.vacioTexto }}</span>
+              </div>
+            </sc-if>
+          </div>
+        </section>
+        </sc-for>
+      </div>
+      </sc-if>
+
+      <sc-if value="{{ isWeek }}">
+      <div data-screen-label="Calendario · Semana" style="background:#fff;border:1px solid #ECECEF;border-radius:20px;padding:20px;box-shadow:0 1px 2px rgba(18,18,26,.03)">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap">
+          <div style="display:flex;align-items:baseline;gap:9px">
+            <span style="font-size:19px;font-weight:800;letter-spacing:-.03em">{{ weekLabel }}</span>
+            <span style="font-size:19px;font-weight:500;color:#A5A5B3;letter-spacing:-.03em">{{ weekYear }}</span>
+            <span style="{{ rangeHint }}">{{ weekHint }}</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px">
+            <button type="button" onClick="{{ prevPeriod }}" aria-label="Semana anterior" data-nav="prev" style="width:32px;height:32px;border-radius:999px;background:#fff;border:1px solid #ECECEF;display:flex;align-items:center;justify-content:center;color:#5B5B69" style-hover="background:#FAFAFB;border-color:#DCDCE3">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"></path></svg></button>
+            <button type="button" onClick="{{ nextPeriod }}" aria-label="Semana siguiente" data-nav="next" style="width:32px;height:32px;border-radius:999px;background:#fff;border:1px solid #ECECEF;display:flex;align-items:center;justify-content:center;color:#5B5B69" style-hover="background:#FAFAFB;border-color:#DCDCE3">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"></path></svg></button>
+            <button type="button" onClick="{{ goToday }}" title="{{ todayTip }}" style="{{ todayBtn }}">Hoy</button>
+          </div>
+        </div>
+
+        <div style="margin-top:18px;display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:10px">
+          <sc-for list="{{ weekDays }}" as="d" hint-placeholder-count="7">
+            <div style="display:flex;flex-direction:column;gap:10px">
+              <div style="{{ d.head }}"><span style="{{ d.dow }}">{{ d.dowText }}</span><span style="{{ d.num }}">{{ d.numText }}</span></div>
+              <div style="{{ d.body }}">
+                <sc-for list="{{ d.items }}" as="it" hint-placeholder-count="2">
+                  <sc-if value="{{ it.isMeeting }}">
+                    <div style="border-radius:13px;background:linear-gradient(135deg,#8B5CF6,#6D28D9);padding:11px 8px 8px;box-shadow:0 4px 14px rgba(109,40,217,.22)">
+                      <div style="font-size:9.5px;font-weight:750;letter-spacing:.05em;text-transform:uppercase;color:rgba(255,255,255,.86);padding:0 4px 8px">Reunión</div>
+                      <div style="border-radius:10px;background:#fff;padding:9px;box-shadow:0 2px 8px rgba(18,18,26,.10)">
+                        <div style="font-size:11.5px;font-weight:650;line-height:1.3">{{ it.titulo }}</div>
+                        <div style="margin-top:6px;display:inline-flex;padding:2px 7px;border-radius:999px;background:#F2F2F5;color:#5B5B69;font-size:9.5px;font-weight:700">{{ it.hora }}</div>
+                        <div style="margin-top:8px;display:flex;align-items:center;gap:5px">
+                          <span style="width:19px;height:19px;border-radius:999px;background:linear-gradient(135deg,#0ea5e9,#0284c7);color:#fff;display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:700;box-shadow:0 0 0 1.5px #fff">AC</span>
+                          <span style="width:19px;height:19px;border-radius:999px;background:linear-gradient(135deg,#22c55e,#16a34a);color:#fff;display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:700;box-shadow:0 0 0 1.5px #fff;margin-left:-9px">MV</span>
+                          <span style="width:19px;height:19px;border-radius:999px;background:linear-gradient(135deg,#a855f7,#9333ea);color:#fff;display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:700;box-shadow:0 0 0 1.5px #fff;margin-left:-9px">PJ</span>
+                          <span style="font-size:9.5px;font-weight:700;color:#8A8A99;margin-left:2px">+2</span>
+                        </div>
+                      </div>
+                    </div>
+                  </sc-if>
+                  <sc-if value="{{ it.isTask }}" hint-placeholder-val="{{ true }}">
+                    <div onClick="{{ openDetail }}" style="{{ it.card }}" style-hover="border-color:#DCDCE3">
+                      <span style="{{ it.accent }}"></span>
+                      <div style="font-size:11.5px;font-weight:650;line-height:1.3">{{ it.titulo }}</div>
+                      <div style="margin-top:7px;display:flex;align-items:center;justify-content:space-between;gap:6px">
+                        <span style="{{ it.badge }}">{{ it.badgeText }}</span>
+                        <span style="{{ it.avatar }}">{{ it.iniciales }}</span>
+                      </div>
+                    </div>
+                  </sc-if>
+                </sc-for>
+                <sc-if value="{{ d.hasMore }}">
+                  <a href="#" style="font-size:10.5px;font-weight:650;padding-left:2px">{{ d.moreText }}</a>
+                </sc-if>
+                <sc-if value="{{ d.empty }}">
+                  <div style="flex:1;display:flex;align-items:center;justify-content:center;font-size:10.5px;font-weight:600;color:#C4C4CE">Sin actividades</div>
+                </sc-if>
+              </div>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+      </sc-if>
+
+      <sc-if value="{{ isMonth }}">
+      <div data-screen-label="Calendario · Mes" style="background:#fff;border:1px solid #ECECEF;border-radius:20px;padding:20px;box-shadow:0 1px 2px rgba(18,18,26,.03)">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap">
+          <div style="display:flex;align-items:baseline;gap:8px">
+            <span style="font-size:19px;font-weight:800;letter-spacing:-.03em">{{ monthLabel }}</span>
+            <span style="font-size:19px;font-weight:500;color:#A5A5B3;letter-spacing:-.03em">{{ monthYear }}</span>
+            <span style="{{ rangeHint }}">{{ monthHint }}</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px">
+            <button type="button" onClick="{{ prevPeriod }}" aria-label="Mes anterior" data-nav="prev" style="width:32px;height:32px;border-radius:999px;background:#fff;border:1px solid #ECECEF;display:flex;align-items:center;justify-content:center;color:#5B5B69" style-hover="background:#FAFAFB;border-color:#DCDCE3">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"></path></svg></button>
+            <button type="button" onClick="{{ nextPeriod }}" aria-label="Mes siguiente" data-nav="next" style="width:32px;height:32px;border-radius:999px;background:#fff;border:1px solid #ECECEF;display:flex;align-items:center;justify-content:center;color:#5B5B69" style-hover="background:#FAFAFB;border-color:#DCDCE3">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"></path></svg></button>
+            <button type="button" onClick="{{ goToday }}" title="{{ todayTip }}" style="{{ todayBtn }}">Hoy</button>
+          </div>
+        </div>
+
+        <div style="margin-top:18px;display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:8px">
+          <div style="padding:0 4px 6px;font-size:10.5px;font-weight:750;letter-spacing:.05em;text-transform:uppercase;color:#8A8A99">lun</div>
+          <div style="padding:0 4px 6px;font-size:10.5px;font-weight:750;letter-spacing:.05em;text-transform:uppercase;color:#8A8A99">mar</div>
+          <div style="padding:0 4px 6px;font-size:10.5px;font-weight:750;letter-spacing:.05em;text-transform:uppercase;color:#8A8A99">mié</div>
+          <div style="padding:0 4px 6px;font-size:10.5px;font-weight:750;letter-spacing:.05em;text-transform:uppercase;color:#8A8A99">jue</div>
+          <div style="padding:0 4px 6px;font-size:10.5px;font-weight:750;letter-spacing:.05em;text-transform:uppercase;color:#8A8A99">vie</div>
+          <div style="padding:0 4px 6px;font-size:10.5px;font-weight:750;letter-spacing:.05em;text-transform:uppercase;color:#A5A5B3">sáb</div>
+          <div style="padding:0 4px 6px;font-size:10.5px;font-weight:750;letter-spacing:.05em;text-transform:uppercase;color:#A5A5B3">dom</div>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:8px">
+        <sc-for list="{{ monthCells }}" as="cell" hint-placeholder-count="35">
+          <div style="{{ cell.box }}">
+            <div style="display:flex;align-items:center;justify-content:space-between">
+              <span style="{{ cell.num }}">{{ cell.day }}</span>
+              <span style="font-size:9.5px;font-weight:700;color:#B4B4C2">{{ cell.count }}</span>
+            </div>
+            <div style="margin-top:5px;display:flex;flex-direction:column;gap:3px">
+              <sc-for list="{{ cell.items }}" as="it" hint-placeholder-count="0">
+                <div style="display:flex;align-items:center;gap:5px">
+                  <span style="{{ it.dot }}"></span>
+                  <span style="font-size:10px;font-weight:550;color:#5B5B69;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ it.title }}</span>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+        </sc-for>
+        </div>
+      </div>
+      </sc-if>
+    </div>
+    </sc-if>
+
+    <sc-if value="{{ isStats }}">
+    <div data-screen-label="Estadísticas" style="display:flex;flex-direction:column;gap:18px">
+
+      <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:20px;flex-wrap:wrap">
+        <div>
+          <h1 style="margin:0;font-size:23px;font-weight:800;letter-spacing:-.03em;line-height:1.15">Estadísticas</h1>
+          <div style="margin-top:6px;font-size:12.5px;font-weight:500;color:#8A8A99">{{ statsResumen }}</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <div style="position:relative">
+            <button type="button" onClick="{{ toggleRango }}" style="{{ rangoBtn }}">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#8A8A99" stroke-width="2" stroke-linecap="round"><path d="M8 2v4"></path><path d="M16 2v4"></path><rect width="18" height="18" x="3" y="4" rx="2"></rect><path d="M3 10h18"></path></svg>{{ statsRango }}
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#9C9CAA" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"></path></svg></button>
+            <sc-if value="{{ menuRango }}">
+              <div onClick="{{ closeMenu }}" style="position:fixed;inset:0;z-index:55"></div>
+              <div style="position:absolute;top:calc(100% + 9px);right:0;z-index:60;width:320px;padding:16px;border-radius:16px;background:#fff;border:1px solid #ECECEF;box-shadow:0 14px 38px rgba(18,18,26,.16)">
+                <div style="font-size:10px;font-weight:750;letter-spacing:.06em;text-transform:uppercase;color:#B4B4C2">Período</div>
+                <div style="margin-top:11px;display:grid;grid-template-columns:1fr 1fr;gap:10px">
+                  <div style="display:flex;flex-direction:column;gap:6px">
+                    <label style="font-size:11px;font-weight:700;color:#4B4B57">Desde</label>
+                    <input type="date" value="{{ statsIni }}" onInput="{{ onStatsIni }}" style="height:38px;padding:0 11px;border-radius:10px;border:1px solid #E4E4E9;background:#fff;font-size:12.5px;color:#12121A;outline:none;width:100%" />
+                  </div>
+                  <div style="display:flex;flex-direction:column;gap:6px">
+                    <label style="font-size:11px;font-weight:700;color:#4B4B57">Hasta</label>
+                    <input type="date" value="{{ statsFin }}" onInput="{{ onStatsFin }}" style="{{ finInput }}" />
+                  </div>
+                </div>
+                <sc-if value="{{ rangoInvertido }}">
+                  <div style="margin-top:9px;display:flex;align-items:center;gap:7px;padding:8px 10px;border-radius:9px;background:#F7F2FF;color:#6D28D9;font-size:11px;font-weight:650">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m17 2 4 4-4 4"></path><path d="M3 6h18"></path><path d="m7 22-4-4 4-4"></path><path d="M21 18H3"></path></svg>Fechas invertidas: se aplica {{ statsRango }}</div>
+                </sc-if>
+                <div style="margin-top:13px;font-size:10px;font-weight:750;letter-spacing:.06em;text-transform:uppercase;color:#B4B4C2">Atajos</div>
+                <div style="margin-top:9px;display:grid;grid-template-columns:1fr 1fr;gap:7px">
+                  <sc-for list="{{ atajos }}" as="a" hint-placeholder-count="6">
+                    <button type="button" onClick="{{ a.aplicar }}" style="{{ a.estilo }}">{{ a.label }}</button>
+                  </sc-for>
+                </div>
+                <div style="margin-top:13px;padding-top:12px;border-top:1px solid #F1F1F4;display:flex;align-items:center;justify-content:space-between;gap:10px">
+                  <span style="font-size:11.5px;font-weight:600;color:#8A8A99">{{ rangoDias }}</span>
+                  <button type="button" onClick="{{ closeMenu }}" style="height:34px;padding:0 15px;border-radius:10px;background:#12121A;color:#fff;font-size:12.5px;font-weight:650">Listo</button>
+                </div>
+              </div>
+            </sc-if>
+          </div>
+          <button type="button" onClick="{{ openExport }}" style="display:flex;align-items:center;gap:6px;height:34px;padding:0 15px;border-radius:999px;background:#12121A;color:#fff;font-size:12.5px;font-weight:650;box-shadow:0 2px 8px rgba(18,18,26,.22)" style-hover="background:#26262F">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" x2="12" y1="15" y2="3"></line></svg>Exportar</button>
+        </div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:14px">
+        <div style="background:#fff;border:1px solid #ECECEF;border-radius:16px;padding:18px 20px;box-shadow:0 1px 2px rgba(18,18,26,.03)">
+          <div style="display:flex;align-items:center;gap:9px"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#8A8A99" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"></polyline><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"></path></svg><span style="font-size:13px;font-weight:650;color:#2B2B36">Totales</span></div>
+          <div style="margin-top:12px;font-size:30px;font-weight:800;letter-spacing:-.035em;line-height:1">{{ st.total }}</div>
+          <div style="margin-top:5px;font-size:11px;font-weight:550;color:#9C9CAA">{{ st.subTotal }}</div>
+        </div>
+        <div style="background:#fff;border:1px solid #ECECEF;border-radius:16px;padding:18px 20px;box-shadow:0 1px 2px rgba(18,18,26,.03)">
+          <div style="display:flex;align-items:center;gap:9px"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#3B82F6" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z"></path></svg><span style="font-size:13px;font-weight:650;color:#2B2B36">En progreso</span></div>
+          <div style="margin-top:12px;font-size:30px;font-weight:800;letter-spacing:-.035em;line-height:1;color:#1D4ED8">{{ st.progreso }}</div>
+          <div style="margin-top:5px;font-size:11px;font-weight:550;color:#9C9CAA">{{ st.subProgreso }}</div>
+        </div>
+        <div style="background:#fff;border:1px solid #ECECEF;border-radius:16px;padding:18px 20px;box-shadow:0 1px 2px rgba(18,18,26,.03)">
+          <div style="display:flex;align-items:center;gap:9px"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#10B981" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="m9 12 2 2 4-4"></path></svg><span style="font-size:13px;font-weight:650;color:#2B2B36">Cumplidas</span></div>
+          <div style="margin-top:12px;font-size:30px;font-weight:800;letter-spacing:-.035em;line-height:1;color:#0B7A5A">{{ st.cumplidas }}</div>
+          <div style="margin-top:5px;font-size:11px;font-weight:550;color:#9C9CAA">{{ st.subCumplidas }}</div>
+        </div>
+        <div style="background:#fff;border:1px solid #ECECEF;border-radius:16px;padding:18px 20px;box-shadow:0 1px 2px rgba(18,18,26,.03)">
+          <div style="display:flex;align-items:center;gap:9px"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#F43F5E" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"></path><path d="M12 9v4"></path><path d="M12 17h.01"></path></svg><span style="font-size:13px;font-weight:650;color:#2B2B36">Fin superado</span></div>
+          <div style="margin-top:12px;font-size:30px;font-weight:800;letter-spacing:-.035em;line-height:1;color:#C81E45">{{ st.vencidas }}</div>
+          <div style="margin-top:5px;font-size:11px;font-weight:550;color:#9C9CAA">{{ st.subVencidas }}</div>
+        </div>
+        <div style="background:#fff;border:1px solid #ECECEF;border-radius:16px;padding:18px 20px;box-shadow:0 1px 2px rgba(18,18,26,.03)">
+          <div style="display:flex;align-items:center;gap:9px"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#F59E0B" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"></path></svg><span style="font-size:13px;font-weight:650;color:#2B2B36">Finalizan pronto</span></div>
+          <div style="margin-top:12px;font-size:30px;font-weight:800;letter-spacing:-.035em;line-height:1;color:#B45309">{{ st.pronto }}</div>
+          <div style="margin-top:5px;font-size:11px;font-weight:550;color:#9C9CAA">{{ st.subPronto }}</div>
+        </div>
+      </div>
+      </div>
+
+      <section style="background:#fff;border:1px solid #ECECEF;border-radius:20px;padding:20px;box-shadow:0 1px 2px rgba(18,18,26,.03)">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap">
+          <div>
+            <h2 style="margin:0;font-size:16px;font-weight:750;letter-spacing:-.02em">Diagrama de Gantt</h2>
+            <div style="margin-top:3px;font-size:12px;font-weight:500;color:#8A8A99">{{ ganttSub }}</div>
+          </div>
+          <sc-if value="{{ ganttLleno }}" hint-placeholder-val="{{ true }}">
+          <button type="button" onClick="{{ ganttToggleAll }}" style="display:flex;align-items:center;gap:7px;height:32px;padding:0 13px;border-radius:999px;background:#fff;border:1px solid #ECECEF;font-size:12px;font-weight:650;color:#2B2B36;white-space:nowrap" style-hover="background:#FAFAFB;border-color:#DCDCE3">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#8A8A99" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m7 15 5 5 5-5"></path><path d="m7 9 5-5 5 5"></path></svg>{{ ganttToggleAllLabel }}</button>
+          <div style="display:flex;align-items:center;gap:13px;font-size:11px;font-weight:650;color:#8A8A99">
+            <span style="display:inline-flex;align-items:center;gap:6px"><span style="width:16px;height:7px;border-radius:999px;background:#A5A5B3"></span>Pendiente</span>
+            <span style="display:inline-flex;align-items:center;gap:6px"><span style="width:16px;height:7px;border-radius:999px;background:#3B82F6"></span>En progreso</span>
+            <span style="display:inline-flex;align-items:center;gap:6px"><span style="width:16px;height:7px;border-radius:999px;background:#F59E0B"></span>En revisión</span>
+            <span style="display:inline-flex;align-items:center;gap:6px"><span style="width:16px;height:7px;border-radius:999px;background:#10B981"></span>Cumplida</span>
+          </div>
+          </sc-if>
+        </div>
+
+        <div style="margin-top:16px;border:1px solid #ECECEF;border-radius:16px;overflow:hidden">
+          <div style="display:grid;grid-template-columns:280px 1fr;border-bottom:1px solid #ECECEF;background:#FAFAFB">
+            <div style="padding:11px 18px;font-size:12px;font-weight:700;color:#2B2B36;border-right:1px solid #ECECEF">Gestión / funcionario</div>
+            <div style="{{ ganttHeadGrid }}">
+              <sc-for list="{{ ganttDays }}" as="d" hint-placeholder-count="30">
+                <div style="{{ d.style }}">{{ d.n }}</div>
+              </sc-for>
+            </div>
+          </div>
+
+          <div style="position:relative">
+            <sc-if value="{{ ganttHoyVisible }}"><div style="{{ ganttHoyLinea }}"></div></sc-if>
+            <sc-if value="{{ ganttVacio }}">
+              <div style="padding:16px">
+                <div style="display:flex;flex-direction:column;align-items:center;gap:8px;padding:30px 20px;border-radius:13px;background:#FAFAFB;border:1px dashed #E4E4E9">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#C4C4CE" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6h10"></path><path d="M6 12h9"></path><path d="M11 18h7"></path></svg>
+                  <span style="font-size:12.5px;font-weight:600;color:#9C9CAA">Sin actividades en el período seleccionado</span>
+                </div>
+              </div>
+            </sc-if>
+            <sc-for list="{{ ganttRows }}" as="row" hint-placeholder-count="16">
+              <div style="{{ row.wrap }}" onClick="{{ row.toggle }}" title="{{ row.tip }}">
+                <div style="{{ row.label }}">
+                  <sc-if value="{{ row.isGestion }}" hint-placeholder-val="{{ true }}">
+                    <span style="{{ row.chev }}"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"></path></svg></span>
+                    <span style="{{ row.dot }}"></span>
+                    <span style="min-width:0;flex:1;font-size:12.5px;font-weight:750;letter-spacing:-.015em;line-height:1.25;text-wrap:pretty">{{ row.nombre }}</span>
+                  </sc-if>
+                  <sc-if value="{{ row.isFuncionario }}">
+                    <span style="{{ row.chev }}"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"></path></svg></span>
+                    <div style="min-width:0;flex:1">
+                      <div style="font-size:12px;font-weight:650;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ row.nombre }}</div>
+                      <div style="font-size:10.5px;color:#9C9CAA;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ row.cargo }}</div>
+                    </div>
+                  </sc-if>
+                </div>
+                <div style="{{ row.track }}">
+                  <sc-if value="{{ row.hasBar }}">
+                    <div style="{{ row.bar }}">{{ row.titulo }}</div>
+                  </sc-if>
+                  <sc-for list="{{ row.mini }}" as="m" hint-placeholder-count="0">
+                    <div style="{{ m.style }}" title="{{ m.t }}"></div>
+                  </sc-for>
+                </div>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+      </section>
+
+      <div style="display:grid;grid-template-columns:1fr 2fr;gap:14px;align-items:start">
+
+        <section style="background:#fff;border:1px solid #ECECEF;border-radius:20px;padding:20px;box-shadow:0 1px 2px rgba(18,18,26,.03)">
+          <h2 style="margin:0;font-size:16px;font-weight:750;letter-spacing:-.02em">Distribución por estado</h2>
+          <div style="margin-top:3px;font-size:12px;font-weight:500;color:#8A8A99">{{ donaSub }}</div>
+          <sc-if value="{{ donaVacia }}">
+            <div style="margin-top:14px;display:flex;align-items:center;gap:8px;padding:9px 12px;border-radius:10px;background:#FAFAFB;border:1px dashed #E4E4E9;font-size:11.5px;font-weight:600;color:#9C9CAA">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#C4C4CE" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"></circle><path d="M12 8v4"></path><path d="M12 16h.01"></path></svg>Sin actividades en el período seleccionado</div>
+          </sc-if>
+          <div style="margin-top:18px;display:flex;justify-content:center;position:relative">
+            <svg width="180" height="180" viewBox="0 0 120 120" role="img" aria-label="Distribución por estado">
+              <circle cx="60" cy="60" r="42" fill="none" stroke="#F2F2F5" stroke-width="15"></circle>
+              <sc-for list="{{ dona }}" as="s" hint-placeholder-count="4">
+                <circle cx="60" cy="60" r="42" fill="none" stroke="{{ s.color }}" stroke-width="15" stroke-dasharray="{{ s.dash }}" stroke-dashoffset="{{ s.offset }}" transform="rotate(-90 60 60)"></circle>
+              </sc-for>
+              <text x="60" y="57" text-anchor="middle" font-size="22" font-weight="800" fill="#12121A" font-family="'Plus Jakarta Sans',sans-serif">{{ st.total }}</text>
+              <text x="60" y="71" text-anchor="middle" font-size="8" font-weight="600" fill="#9C9CAA" font-family="'Plus Jakarta Sans',sans-serif">actividades</text>
+            </svg>
+          </div>
+          <ul style="margin:18px 0 0;padding:0;list-style:none;display:flex;flex-direction:column;gap:9px">
+            <sc-for list="{{ dona }}" as="s" hint-placeholder-count="4">
+              <li style="display:flex;align-items:center;justify-content:space-between;font-size:12.5px"><span style="display:inline-flex;align-items:center;gap:8px;font-weight:550;color:#4B4B57"><span style="{{ s.punto }}"></span>{{ s.label }}</span><span style="font-weight:750">{{ s.n }}</span></li>
+            </sc-for>
+          </ul>
+        </section>
+
+        <section style="background:#fff;border:1px solid #ECECEF;border-radius:20px;padding:20px;box-shadow:0 1px 2px rgba(18,18,26,.03)">
+          <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:14px">
+            <div>
+              <h2 style="margin:0;font-size:16px;font-weight:750;letter-spacing:-.02em">Gestiones, competencias y entregables</h2>
+              <div style="margin-top:3px;font-size:12px;font-weight:500;color:#8A8A99">El grosor de cada flujo representa el número de actividades</div>
+            </div>
+          <span style="display:inline-flex;padding:4px 11px;border-radius:999px;background:#F1EBFF;color:#6D28D9;font-size:11.5px;font-weight:700;white-space:nowrap">{{ st.totalLabel }}</span>
+        </div>
+
+        <div style="margin-top:14px;display:flex;justify-content:space-between;font-size:10px;font-weight:750;letter-spacing:.05em;text-transform:uppercase;color:#B4B4C2"><span>Gestión responsable</span><span>Competencia</span><span>Entregable</span></div>
+
+          <sc-if value="{{ sankeyVacio }}">
+            <div style="margin-top:20px;padding:34px 20px;border-radius:14px;background:#FAFAFB;border:1px dashed #E4E4E9;display:flex;flex-direction:column;align-items:center;gap:8px">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#C4C4CE" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"></path><path d="M18 17V9"></path><path d="M13 17V5"></path><path d="M8 17v-3"></path></svg>
+              <span style="font-size:12.5px;font-weight:600;color:#9C9CAA">Sin actividades en el período seleccionado</span>
+            </div>
+          </sc-if>
+          <sc-if value="{{ sankeyLleno }}" hint-placeholder-val="{{ true }}">
+          <svg viewBox="0 0 700 292" width="100%" height="300" role="img" aria-label="Diagrama de Sankey de gestiones, competencias y entregables" style="margin-top:6px;overflow:visible">
+            <sc-for list="{{ sankeyLinks }}" as="k" hint-placeholder-count="5">
+              <path d="{{ k.d }}" fill="none" stroke="{{ k.color }}" stroke-width="{{ k.w }}" stroke-opacity=".26"></path>
+            </sc-for>
+            <sc-for list="{{ sankeyNodos }}" as="n" hint-placeholder-count="12">
+              <rect x="{{ n.x }}" y="{{ n.y }}" width="10" height="{{ n.h }}" rx="3" fill="{{ n.color }}"></rect>
+            </sc-for>
+            <sc-for list="{{ sankeyTextos }}" as="t" hint-placeholder-count="8">
+              <text x="{{ t.x }}" y="{{ t.y }}" text-anchor="{{ t.anchor }}" font-size="{{ t.size }}" font-weight="650" fill="{{ t.fill }}" font-family="'Plus Jakarta Sans',sans-serif">{{ t.label }}</text>
+            </sc-for>
+          </svg>
+          </sc-if>
+
+          <div style="margin-top:14px;padding-top:14px;border-top:1px solid #F1F1F4">
+            <div style="font-size:10px;font-weight:750;letter-spacing:.05em;text-transform:uppercase;color:#B4B4C2">Competencias del Estatuto</div>
+            <ol style="margin:10px 0 0;padding:0;list-style:none;display:grid;grid-template-columns:1fr 1fr;gap:8px">
+              <sc-for list="{{ compRanking }}" as="c" hint-placeholder-count="5">
+                <li style="display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:9px;padding:8px 10px;border-radius:10px;background:#FAFAFB"><span style="padding:2px 7px;border-radius:6px;background:#F1EBFF;color:#6D28D9;font-size:10px;font-weight:800">{{ c.codigo }}</span><span style="font-size:11.5px;font-weight:550;color:#4B4B57">{{ c.nombre }}</span><span style="{{ c.numEstilo }}">{{ c.n }}</span></li>
+              </sc-for>
+            </ol>
+          </div>
+          </div>
+        </section>
+      </div>
+
+      <section style="background:#fff;border:1px solid #ECECEF;border-radius:20px;box-shadow:0 1px 2px rgba(18,18,26,.03);overflow:hidden">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:14px;padding:20px 20px 14px">
+          <div>
+            <h2 style="margin:0;font-size:16px;font-weight:750;letter-spacing:-.02em">Cumplimiento por funcionario</h2>
+            <div style="margin-top:3px;font-size:12px;font-weight:500;color:#8A8A99">Total asignadas, cumplidas y porcentaje de cumplimiento</div>
+          </div>
+          <span style="display:inline-flex;padding:4px 11px;border-radius:999px;background:#F2F2F5;color:#5B5B69;font-size:11.5px;font-weight:700">{{ rankingLabel }}</span>
+        </div>
+        <table style="width:100%;border-collapse:collapse;font-size:13px">
+          <thead>
+            <tr style="border-top:1px solid #F1F1F4;border-bottom:1px solid #F1F1F4;background:#FAFAFB">
+              <th style="padding:9px 20px;text-align:left;font-size:11px;font-weight:700;color:#8A8A99;letter-spacing:.02em">Funcionario</th>
+              <th style="padding:9px 10px;text-align:right;font-size:11px;font-weight:700;color:#8A8A99">Total</th>
+              <th style="padding:9px 10px;text-align:right;font-size:11px;font-weight:700;color:#8A8A99">Cumplidas</th>
+              <th style="padding:9px 10px;text-align:right;font-size:11px;font-weight:700;color:#8A8A99">Fin superado</th>
+              <th style="padding:9px 20px;text-align:left;font-size:11px;font-weight:700;color:#8A8A99;width:230px">% Cumplimiento</th>
+            </tr>
+          </thead>
+          <tbody>
+            <sc-if value="{{ rankingVacio }}">
+              <tr><td colspan="5" style="padding:34px 20px;text-align:center">
+                <div style="display:flex;flex-direction:column;align-items:center;gap:8px">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#C4C4CE" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M22 21v-2a4 4 0 0 0-3-3.87"></path></svg>
+                  <span style="font-size:12.5px;font-weight:600;color:#9C9CAA">Ningún funcionario tiene actividades en el período</span>
+                </div>
+              </td></tr>
+            </sc-if>
+            <sc-for list="{{ ranking }}" as="r" hint-placeholder-count="6">
+            <tr style="{{ r.row }}">
+              <td style="padding:11px 20px"><div style="display:flex;align-items:center;gap:11px"><span style="{{ r.avatar }}">{{ r.iniciales }}</span><div><div style="font-weight:650">{{ r.nombre }}</div><div style="font-size:11px;color:#9C9CAA">{{ r.cargo }}</div></div></div></td>
+              <td style="padding:11px 10px;text-align:right;font-weight:700">{{ r.total }}</td>
+              <td style="padding:11px 10px;text-align:right;color:#4B4B57">{{ r.cumplidas }}</td>
+              <td style="{{ r.vencEstilo }}">{{ r.vencidas }}</td>
+              <td style="padding:11px 20px"><div style="display:flex;align-items:center;gap:10px"><div style="flex:1;height:6px;border-radius:999px;background:#F2F2F5;overflow:hidden"><div style="{{ r.barra }}"></div></div><span style="width:34px;text-align:right;font-size:12px;font-weight:700">{{ r.pct }}</span></div></td>
+            </tr>
+            </sc-for>
+          </tbody>
+        </table>
+      </section>
+    </div>
+    </sc-if>
+
+    <sc-if value="{{ isCatalogs }}">
+    <div data-screen-label="Catálogos" style="display:flex;flex-direction:column;gap:18px">
+      <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:20px;flex-wrap:wrap">
+        <div>
+          <h1 style="margin:0;font-size:23px;font-weight:800;letter-spacing:-.03em;line-height:1.15">Catálogos</h1>
+          <div style="margin-top:6px;font-size:12.5px;font-weight:500;color:#8A8A99">Cada gestión define sus competencias; cada competencia, sus entregables</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:9px;padding:7px 13px;border-radius:12px;background:#fff;border:1px solid #ECECEF;font-size:11.5px;font-weight:650;color:#8A8A99">
+          <span style="color:#12121A">Gestión</span>
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#C4C4CE" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"></path></svg>
+          <span style="color:#12121A">Competencia</span>
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#C4C4CE" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"></path></svg>
+          <span style="color:#12121A">Entregable</span>
+        </div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:320px 1fr;gap:14px;align-items:start">
+
+        <section style="background:#fff;border:1px solid #ECECEF;border-radius:20px;box-shadow:0 1px 2px rgba(18,18,26,.03);overflow:hidden">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:17px 18px 13px">
+            <h2 style="margin:0;font-size:15px;font-weight:750;letter-spacing:-.02em">Gestiones</h2>
+            <span style="padding:2px 8px;border-radius:999px;background:#F2F2F5;font-size:11px;font-weight:700;color:#5B5B69">4</span>
+          </div>
+          <sc-for list="{{ gestiones }}" as="g" hint-placeholder-count="4">
+            <div onClick="{{ g.select }}" style="{{ g.row }}">
+              <span style="{{ g.dot }}"></span>
+              <div style="min-width:0;flex:1">
+                <div style="font-size:13px;font-weight:700;letter-spacing:-.01em;line-height:1.25">{{ g.nombre }}</div>
+                <div style="margin-top:3px;font-size:11px;font-weight:500;color:#9C9CAA">{{ g.resumen }}</div>
+              </div>
+              <sc-if value="{{ g.activa }}">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#6D28D9" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><path d="m9 18 6-6-6-6"></path></svg>
+              </sc-if>
+            </div>
+          </sc-for>
+          <div style="padding:12px 14px 14px">
+            <button type="button" onClick="{{ nuevaGestion }}" style="width:100%;display:flex;align-items:center;justify-content:center;gap:6px;height:36px;border-radius:11px;background:#12121A;color:#fff;font-size:12.5px;font-weight:650;box-shadow:0 2px 8px rgba(18,18,26,.22)" style-hover="background:#26262F">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M5 12h14"></path><path d="M12 5v14"></path></svg>Nueva gestión</button>
+          </div>
+        </section>
+
+        <section style="background:#fff;border:1px solid #ECECEF;border-radius:20px;box-shadow:0 1px 2px rgba(18,18,26,.03);overflow:hidden">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:14px;padding:17px 20px 14px">
+            <div style="display:flex;align-items:center;gap:10px;min-width:0">
+              <span style="{{ activaDot }}"></span>
+              <div style="min-width:0">
+                <h2 style="margin:0;font-size:15px;font-weight:750;letter-spacing:-.02em">{{ activaNombre }}</h2>
+                <div style="margin-top:2px;font-size:11.5px;font-weight:500;color:#8A8A99">{{ activaResumen }}</div>
+              </div>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">
+              <button type="button" onClick="{{ editarGestion }}" aria-label="Editar gestión" style="width:34px;height:34px;border-radius:10px;border:1px solid #ECECEF;background:#fff;display:flex;align-items:center;justify-content:center;color:#5B5B69" style-hover="background:#FAFAFB;border-color:#DCDCE3">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"></path><path d="m15 5 4 4"></path></svg></button>
+              <button type="button" onClick="{{ nuevaCompetencia }}" style="display:flex;align-items:center;gap:6px;height:34px;padding:0 14px;border-radius:10px;background:#12121A;color:#fff;font-size:12.5px;font-weight:650;box-shadow:0 2px 8px rgba(18,18,26,.22)" style-hover="background:#26262F">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M5 12h14"></path><path d="M12 5v14"></path></svg>Nueva competencia</button>
+            </div>
+          </div>
+
+          <sc-for list="{{ competencias }}" as="c" hint-placeholder-count="2">
+            <div style="border-top:1px solid #F1F1F4">
+              <div onClick="{{ c.toggle }}" style="display:flex;align-items:center;gap:11px;padding:13px 20px;cursor:pointer" style-hover="background:#FAFAFB">
+                <span style="{{ c.chev }}"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"></path></svg></span>
+                <span style="flex-shrink:0;padding:2px 8px;border-radius:7px;background:#F1EBFF;color:#6D28D9;font-size:10px;font-weight:800">{{ c.codigo }}</span>
+                <div style="min-width:0;flex:1">
+                  <div style="font-size:13.5px;font-weight:700;letter-spacing:-.01em;line-height:1.3">{{ c.nombre }}</div>
+                  <div style="margin-top:3px;font-size:11px;font-weight:500;color:#9C9CAA">{{ c.resumen }}</div>
+                </div>
+                <div style="display:flex;gap:7px;flex-shrink:0">
+                  <button type="button" onClick="{{ c.editar }}" aria-label="Editar competencia" style="width:30px;height:30px;border-radius:9px;border:1px solid #ECECEF;background:#fff;display:flex;align-items:center;justify-content:center;color:#5B5B69" style-hover="background:#FAFAFB;border-color:#DCDCE3"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"></path><path d="m15 5 4 4"></path></svg></button>
+                  <button type="button" onClick="{{ c.borrar }}" aria-label="Borrar competencia" title="Elimina también sus entregables" style="width:30px;height:30px;border-radius:9px;background:#F43F5E;display:flex;align-items:center;justify-content:center;color:#fff" style-hover="background:#E11D48"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"></path><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path></svg></button>
+                </div>
+              </div>
+              <sc-if value="{{ c.abierta }}">
+                <div style="padding:0 20px 14px 60px">
+                  <div style="position:relative;padding-left:18px;border-left:1.5px dashed #E4E4E9;display:flex;flex-direction:column;gap:7px">
+                    <sc-for list="{{ c.entregables }}" as="e" hint-placeholder-count="2">
+                      <div style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:11px;background:#FAFAFB;border:1px solid #F1F1F4">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#9C9CAA" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"></path><path d="M14 2v4a2 2 0 0 0 2 2h4"></path></svg>
+                        <span style="min-width:0;flex:1;font-size:12.5px;font-weight:650">{{ e.nombre }}</span>
+                        <div style="display:flex;gap:6px;flex-shrink:0">
+                          <button type="button" onClick="{{ e.editar }}" aria-label="Editar entregable" style="width:27px;height:27px;border-radius:8px;border:1px solid #ECECEF;background:#fff;display:flex;align-items:center;justify-content:center;color:#5B5B69" style-hover="background:#F4F4F6"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"></path><path d="m15 5 4 4"></path></svg></button>
+                          <button type="button" aria-label="Borrar entregable" style="width:27px;height:27px;border-radius:8px;background:#F43F5E;display:flex;align-items:center;justify-content:center;color:#fff" style-hover="background:#E11D48"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"></path><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path></svg></button>
+                        </div>
+                      </div>
+                    </sc-for>
+                    <button type="button" onClick="{{ c.nuevoEntregable }}" style="display:flex;align-items:center;gap:7px;padding:9px 12px;border-radius:11px;border:1.5px dashed #DCDCE3;background:#fff;font-size:12px;font-weight:650;color:#5B5B69" style-hover="border-color:#B9A6F0;color:#6D28D9;background:#FCFAFF">
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M5 12h14"></path><path d="M12 5v14"></path></svg>Nuevo entregable en {{ c.codigo }}</button>
+                  </div>
+                </div>
+              </sc-if>
+            </div>
+          </sc-for>
+        </section>
+      </div>
+    </div>
+    </sc-if>
+
+    <sc-if value="{{ isUsers }}">
+    <div data-screen-label="Usuarios" style="display:flex;flex-direction:column;gap:18px">
+      <div>
+        <h1 style="margin:0;font-size:23px;font-weight:800;letter-spacing:-.03em;line-height:1.15">Usuarios</h1>
+        <div style="margin-top:6px;font-size:12.5px;font-weight:500;color:#8A8A99">Funcionarios de la Dirección, su gestión y su rol en la plataforma</div>
+      </div>
+      <section style="background:#fff;border:1px solid #ECECEF;border-radius:20px;box-shadow:0 1px 2px rgba(18,18,26,.03);overflow:hidden">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:14px;padding:18px 20px 14px">
+          <div style="display:flex;align-items:baseline;gap:10px">
+            <h2 style="margin:0;font-size:16px;font-weight:750;letter-spacing:-.02em">6 funcionarios</h2>
+            <span style="font-size:12px;font-weight:600;color:#8A8A99">2 administradores · 4 usuarios</span>
+          </div>
+          <button type="button" onClick="{{ openFunc }}" style="display:flex;align-items:center;gap:6px;height:34px;padding:0 15px;border-radius:10px;background:#12121A;color:#fff;font-size:12.5px;font-weight:650;box-shadow:0 2px 8px rgba(18,18,26,.22)" style-hover="background:#26262F">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M5 12h14"></path><path d="M12 5v14"></path></svg>Nuevo funcionario</button>
+        </div>
+        <table style="width:100%;border-collapse:collapse;font-size:13px">
+          <thead><tr style="border-top:1px solid #F1F1F4;border-bottom:1px solid #F1F1F4;background:#FAFAFB">
+            <th style="padding:9px 20px;text-align:left;font-size:11px;font-weight:700;color:#8A8A99">Funcionario</th>
+            <th style="padding:9px 10px;text-align:left;font-size:11px;font-weight:700;color:#8A8A99">Gestión</th>
+            <th style="padding:9px 10px;text-align:left;font-size:11px;font-weight:700;color:#8A8A99">Email</th>
+            <th style="padding:9px 10px;text-align:left;font-size:11px;font-weight:700;color:#8A8A99">Acceso</th>
+            <th style="padding:9px 20px;text-align:right;font-size:11px;font-weight:700;color:#8A8A99">Acciones</th>
+          </tr></thead>
+          <tbody>
+            <sc-for list="{{ funcionarios }}" as="f" hint-placeholder-count="6">
+            <tr style="{{ f.row }}">
+              <td style="padding:11px 20px"><div style="display:flex;align-items:center;gap:11px"><span style="{{ f.avatar }}">{{ f.iniciales }}</span><div><div style="font-weight:650">{{ f.nombre }}</div><div style="font-size:11px;color:#9C9CAA">{{ f.cargo }}</div></div></div></td>
+              <td style="padding:11px 10px"><span style="{{ f.gestStyle }}">{{ f.gestion }}</span></td>
+              <td style="padding:11px 10px;font-size:11.5px;color:#9C9CAA;font-family:ui-monospace,Menlo,monospace">{{ f.email }}</td>
+              <td style="padding:11px 10px"><span style="{{ f.accesoStyle }}">{{ f.acceso }}</span></td>
+              <td style="padding:11px 20px"><div style="display:flex;justify-content:flex-end;gap:7px">
+                <button type="button" onClick="{{ f.edit }}" aria-label="Editar" style="width:30px;height:30px;border-radius:9px;border:1px solid #ECECEF;background:#fff;display:flex;align-items:center;justify-content:center;color:#5B5B69" style-hover="background:#FAFAFB;border-color:#DCDCE3"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"></path><path d="m15 5 4 4"></path></svg></button>
+                <button type="button" aria-label="{{ f.delLabel }}" title="{{ f.delTitle }}" style="{{ f.delBtn }}"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"></path><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path></svg></button>
+              </div></td>
+            </tr>
+            </sc-for>
+          </tbody>
+        </table>
+      </section>
+    </div>
+    </sc-if>
+
+  </main>
+
+  <sc-if value="{{ overlayDetail }}">
+  <div data-screen-label="Panel de detalle" style="position:fixed;inset:0;z-index:40;display:flex;justify-content:flex-end">
+    <div onClick="{{ closeOverlay }}" style="position:absolute;inset:0;background:rgba(18,18,26,.28);backdrop-filter:blur(3px)"></div>
+    <aside style="position:relative;z-index:10;display:flex;flex-direction:column;width:100%;max-width:540px;height:100vh;background:#fff;box-shadow:-18px 0 48px rgba(18,18,26,.16);overflow-y:auto">
+      <div style="position:sticky;top:0;z-index:10;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 22px;background:rgba(255,255,255,.94);backdrop-filter:blur(10px);border-bottom:1px solid #F1F1F4">
+        <div style="display:flex;flex-wrap:wrap;align-items:center;gap:7px">
+          <span style="display:inline-flex;padding:3px 10px;border-radius:999px;background:#EAF7FE;color:#0369A1;font-size:11px;font-weight:700">DGTAR</span>
+          <span style="display:inline-flex;padding:3px 10px;border-radius:999px;background:#E9F1FE;color:#1D4ED8;font-size:11px;font-weight:700">En progreso</span>
+        </div>
+        <button type="button" onClick="{{ closeOverlay }}" aria-label="Cerrar detalle" style="width:32px;height:32px;border-radius:10px;display:flex;align-items:center;justify-content:center;color:#8A8A99" style-hover="background:#F2F2F5;color:#12121A">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M18 6 6 18"></path><path d="m6 6 12 12"></path></svg></button>
+      </div>
+
+      <div style="flex:1;padding:22px;display:flex;flex-direction:column;gap:22px">
+        <sc-if value="{{ detailReading }}" hint-placeholder-val="{{ true }}">
+        <div style="display:flex;flex-direction:column;gap:22px">
+          <div>
+            <h2 style="margin:0;font-size:19px;font-weight:750;line-height:1.3;letter-spacing:-.025em">Seguimiento trimestral al Plan Galápagos</h2>
+            <p style="margin:9px 0 0;font-size:13.5px;line-height:1.6;color:#5B5B69">Consolidar el avance de los compromisos del Plan Galápagos correspondientes al segundo trimestre y remitir el informe a la Secretaría Técnica del Régimen Especial.</p>
+          </div>
+
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:13px 15px;border-radius:14px;background:#FAFAFB;border:1px solid #F1F1F4">
+            <div style="display:flex;align-items:center;gap:12px">
+              <span style="width:38px;height:38px;border-radius:999px;background:linear-gradient(135deg,#0ea5e9,#0284c7);color:#fff;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700">AC</span>
+              <div><div style="font-size:13.5px;font-weight:700">Andrea Cevallos</div><div style="font-size:11.5px;color:#8A8A99">Directora de Planificación · DGTAR</div></div>
+            </div>
+            <span style="display:inline-flex;padding:3px 10px;border-radius:999px;background:#EAF7FE;color:#0369A1;font-size:11px;font-weight:700">Responsable</span>
+          </div>
+
+          <div>
+            <div style="font-size:10px;font-weight:750;letter-spacing:.06em;text-transform:uppercase;color:#B4B4C2;margin-bottom:9px">Participantes</div>
+            <div style="display:flex;flex-wrap:wrap;gap:8px;padding:12px;border-radius:14px;border:1px solid #F1F1F4">
+              <span style="display:inline-flex;align-items:center;gap:8px;padding:6px 12px 6px 6px;border-radius:999px;background:#FAFAFB;border:1px solid #F1F1F4"><span style="width:24px;height:24px;border-radius:999px;background:linear-gradient(135deg,#a855f7,#9333ea);color:#fff;display:flex;align-items:center;justify-content:center;font-size:9.5px;font-weight:700">PJ</span><span style="font-size:12.5px;font-weight:600">Paola Jaramillo</span></span>
+              <span style="display:inline-flex;align-items:center;gap:8px;padding:6px 12px 6px 6px;border-radius:999px;background:#FAFAFB;border:1px solid #F1F1F4"><span style="width:24px;height:24px;border-radius:999px;background:linear-gradient(135deg,#22c55e,#16a34a);color:#fff;display:flex;align-items:center;justify-content:center;font-size:9.5px;font-weight:700">MV</span><span style="font-size:12.5px;font-weight:600">Marco Villacís</span></span>
+            </div>
+          </div>
+
+          <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px">
+            <div style="padding:11px 13px;border-radius:12px;background:#FAFAFB;border:1px solid #F1F1F4"><div style="font-size:9.5px;font-weight:750;letter-spacing:.06em;text-transform:uppercase;color:#B4B4C2">Creada</div><div style="margin-top:3px;font-size:13px;font-weight:700">10 may</div></div>
+            <div style="padding:11px 13px;border-radius:12px;background:#FAFAFB;border:1px solid #F1F1F4"><div style="font-size:9.5px;font-weight:750;letter-spacing:.06em;text-transform:uppercase;color:#B4B4C2">Inicio</div><div style="margin-top:3px;font-size:13px;font-weight:700">15 may</div></div>
+            <div style="padding:11px 13px;border-radius:12px;background:#FAFAFB;border:1px solid #F1F1F4"><div style="font-size:9.5px;font-weight:750;letter-spacing:.06em;text-transform:uppercase;color:#B4B4C2">Fin</div><div style="margin-top:3px;font-size:13px;font-weight:700">17 jun</div></div>
+          </div>
+
+          <div style="display:flex;align-items:center;gap:13px;padding:14px;border-radius:14px;background:#FEECEF;border:1px solid #FBD5DC">
+            <div style="width:36px;height:36px;flex-shrink:0;border-radius:11px;background:#fff;border:1px solid #FBD5DC;color:#C81E45;display:flex;align-items:center;justify-content:center">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"></path><path d="M12 9v4"></path><path d="M12 17h.01"></path></svg>
+            </div>
+            <div><div style="font-size:13.5px;font-weight:750;color:#C81E45">Fin superado 1d</div><div style="font-size:12px;color:#7A5560">Fecha de fin: 17 de junio de 2026</div></div>
+          </div>
+
+          <div>
+            <div style="font-size:10px;font-weight:750;letter-spacing:.06em;text-transform:uppercase;color:#B4B4C2;margin-bottom:9px">Competencia</div>
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:13px 15px;border-radius:14px;border:1px solid #F1F1F4">
+              <div><div style="font-size:13.5px;font-weight:700">Seguimiento al Plan Galápagos</div><div style="font-size:11.5px;color:#8A8A99">Estatuto del Régimen Especial</div><div style="margin-top:4px;font-size:11.5px;color:#8A8A99">Entregable: <span style="font-weight:700;color:#4B4B57">Informe técnico trimestral</span></div></div>
+              <span style="display:inline-flex;padding:3px 10px;border-radius:999px;background:#EAF7FE;color:#0369A1;font-size:11px;font-weight:700;white-space:nowrap">DGTAR</span>
+            </div>
+          </div>
+
+          <div>
+            <div style="font-size:10px;font-weight:750;letter-spacing:.06em;text-transform:uppercase;color:#B4B4C2;margin-bottom:12px">Historial</div>
+            <ol style="margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:14px">
+              <li style="display:flex;align-items:flex-start;gap:12px"><span style="width:26px;height:26px;flex-shrink:0;border-radius:999px;background:#F2F2F5;color:#5B5B69;display:flex;align-items:center;justify-content:center"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M5 12h14"></path><path d="M12 5v14"></path></svg></span><div><div style="font-size:13px">Actividad creada por <b style="font-weight:750">Andrea</b></div><div style="font-size:11px;color:#9C9CAA">10 may</div></div></li>
+              <li style="display:flex;align-items:flex-start;gap:12px"><span style="width:26px;height:26px;flex-shrink:0;border-radius:999px;background:#E9F1FE;color:#1D4ED8;display:flex;align-items:center;justify-content:center"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"></path><path d="m12 5 7 7-7 7"></path></svg></span><div><div style="font-size:13px">Movida a En progreso</div><div style="font-size:11px;color:#9C9CAA">15 may</div></div></li>
+            </ol>
+          </div>
+
+          <div>
+            <div style="font-size:10px;font-weight:750;letter-spacing:.06em;text-transform:uppercase;color:#B4B4C2;margin-bottom:9px">Observaciones</div>
+            <div style="padding:13px 15px;border-radius:12px;background:#FAFAFB;border:1px solid #F1F1F4;font-size:13px;line-height:1.6;color:#4B4B57">Falta la validación de dos indicadores por parte de la Gestión Territorial.</div>
+          </div>
+          <div>
+            <div style="font-size:10px;font-weight:750;letter-spacing:.06em;text-transform:uppercase;color:#B4B4C2;margin-bottom:9px">Acciones pendientes y actividades programadas</div>
+            <div style="padding:13px 15px;border-radius:12px;background:#FAFAFB;border:1px solid #F1F1F4;font-size:13px;line-height:1.6;color:#4B4B57">Reunión de cierre con la Secretaría Técnica el 24 de junio.</div>
+          </div>
+          <div>
+            <div style="font-size:10px;font-weight:750;letter-spacing:.06em;text-transform:uppercase;color:#B4B4C2;margin-bottom:9px">Resultados alcanzados</div>
+            <div style="padding:13px 15px;border-radius:12px;background:#FAFAFB;border:1px solid #F1F1F4;font-size:13px;line-height:1.6;color:#9C9CAA">—</div>
+          </div>
+        </div>
+        </sc-if>
+
+        <sc-if value="{{ detailEditing }}">
+        <div style="display:flex;flex-direction:column;gap:14px">
+          <div style="display:flex;flex-direction:column;gap:7px"><label style="font-size:11.5px;font-weight:700;color:#4B4B57">Título</label><input value="Seguimiento trimestral al Plan Galápagos" style="height:40px;padding:0 13px;border-radius:11px;border:1px solid #E4E4E9;background:#fff;font-size:13.5px;color:#12121A;outline:none;width:100%" /></div>
+          <div style="display:flex;flex-direction:column;gap:7px"><label style="font-size:11.5px;font-weight:700;color:#4B4B57">Descripción</label><textarea rows="3" style="padding:11px 13px;border-radius:11px;border:1px solid #E4E4E9;background:#fff;font-size:13.5px;color:#12121A;outline:none;width:100%;resize:vertical;line-height:1.55">Consolidar el avance de los compromisos del Plan Galápagos correspondientes al segundo trimestre.</textarea></div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+            <div style="display:flex;flex-direction:column;gap:7px"><label style="font-size:11.5px;font-weight:700;color:#4B4B57">Gestión</label><select style="height:40px;padding:0 11px;border-radius:11px;border:1px solid #E4E4E9;background:#fff;font-size:13.5px;outline:none;width:100%"><option>DGTAR</option><option>Gestión Territorial</option><option>Gestión y Saneamiento Ambiental</option><option>Gestión de Riesgos</option></select></div>
+            <div style="display:flex;flex-direction:column;gap:7px"><label style="font-size:11.5px;font-weight:700;color:#4B4B57">Funcionario responsable</label><select style="height:40px;padding:0 11px;border-radius:11px;border:1px solid #E4E4E9;background:#fff;font-size:13.5px;outline:none;width:100%"><option>Andrea Cevallos — DGTAR</option><option>Paola Jaramillo — DGTAR</option></select></div>
+            <div style="display:flex;flex-direction:column;gap:7px"><label style="font-size:11.5px;font-weight:700;color:#4B4B57">Competencia</label><select style="height:40px;padding:0 11px;border-radius:11px;border:1px solid #E4E4E9;background:#fff;font-size:13.5px;outline:none;width:100%"><option>Seguimiento al Plan Galápagos</option></select></div>
+            <div style="display:flex;flex-direction:column;gap:7px"><label style="font-size:11.5px;font-weight:700;color:#4B4B57">Entregable (opcional)</label><select style="height:40px;padding:0 11px;border-radius:11px;border:1px solid #E4E4E9;background:#fff;font-size:13.5px;outline:none;width:100%"><option>Informe técnico trimestral</option></select></div>
+            <div style="display:flex;flex-direction:column;gap:7px"><label style="font-size:11.5px;font-weight:700;color:#4B4B57">Estado</label><select style="height:40px;padding:0 11px;border-radius:11px;border:1px solid #E4E4E9;background:#fff;font-size:13.5px;outline:none;width:100%"><option>En progreso</option><option>Pendiente</option><option>En revisión</option><option>Cumplida</option></select></div>
+            <div style="display:flex;flex-direction:column;gap:7px"><label style="font-size:11.5px;font-weight:700;color:#4B4B57">Fecha de creación</label><div style="display:flex;align-items:center;gap:8px;height:40px;padding:0 13px;border-radius:11px;background:#FAFAFB;border:1px solid #F1F1F4;font-size:13px;font-weight:600;color:#8A8A99"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#B4B4C2" stroke-width="2" stroke-linecap="round"><path d="M8 2v4"></path><path d="M16 2v4"></path><rect width="18" height="18" x="3" y="4" rx="2"></rect><path d="M3 10h18"></path></svg>10 de mayo de 2026</div></div>
+            <div style="display:flex;flex-direction:column;gap:7px"><label style="font-size:11.5px;font-weight:700;color:#4B4B57">Fecha de inicio</label><input type="date" value="2026-05-15" style="height:40px;padding:0 13px;border-radius:11px;border:1px solid #E4E4E9;background:#fff;font-size:13.5px;outline:none;width:100%" /></div>
+            <div style="display:flex;flex-direction:column;gap:7px"><label style="font-size:11.5px;font-weight:700;color:#4B4B57">Fecha de fin</label><input type="date" value="2026-06-17" style="height:40px;padding:0 13px;border-radius:11px;border:1px solid #E4E4E9;background:#fff;font-size:13.5px;outline:none;width:100%" /></div>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:7px">
+            <label style="font-size:11.5px;font-weight:700;color:#4B4B57">Participantes adicionales</label>
+            <div style="max-height:168px;overflow-y:auto;padding:7px;border-radius:12px;border:1px solid #E4E4E9;display:flex;flex-direction:column;gap:2px">
+              <label style="display:flex;align-items:center;gap:10px;padding:8px 9px;border-radius:9px;font-size:13px;cursor:pointer" style-hover="background:#FAFAFB"><input type="checkbox" checked="checked" style="width:16px;height:16px;accent-color:#12121A" /><span style="flex:1">Paola Jaramillo</span><span style="font-size:11px;color:#B4B4C2">DGTAR</span></label>
+              <label style="display:flex;align-items:center;gap:10px;padding:8px 9px;border-radius:9px;font-size:13px;cursor:pointer" style-hover="background:#FAFAFB"><input type="checkbox" checked="checked" style="width:16px;height:16px;accent-color:#12121A" /><span style="flex:1">Marco Villacís</span><span style="font-size:11px;color:#B4B4C2">G. Territorial</span></label>
+              <label style="display:flex;align-items:center;gap:10px;padding:8px 9px;border-radius:9px;font-size:13px;cursor:pointer" style-hover="background:#FAFAFB"><input type="checkbox" style="width:16px;height:16px;accent-color:#12121A" /><span style="flex:1">Lucía Naranjo</span><span style="font-size:11px;color:#B4B4C2">G. y Saneamiento</span></label>
+              <label style="display:flex;align-items:center;gap:10px;padding:8px 9px;border-radius:9px;font-size:13px;cursor:pointer" style-hover="background:#FAFAFB"><input type="checkbox" style="width:16px;height:16px;accent-color:#12121A" /><span style="flex:1">Daniel Ortega</span><span style="font-size:11px;color:#B4B4C2">G. de Riesgos</span></label>
+            </div>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:7px"><label style="font-size:11.5px;font-weight:700;color:#4B4B57">Observaciones</label><textarea rows="3" style="padding:11px 13px;border-radius:11px;border:1px solid #E4E4E9;background:#fff;font-size:13.5px;outline:none;width:100%;resize:vertical;line-height:1.55">Falta la validación de dos indicadores por parte de la Gestión Territorial.</textarea></div>
+          <div style="display:flex;flex-direction:column;gap:7px"><label style="font-size:11.5px;font-weight:700;color:#4B4B57">Acciones pendientes y actividades programadas</label><textarea rows="3" style="padding:11px 13px;border-radius:11px;border:1px solid #E4E4E9;background:#fff;font-size:13.5px;outline:none;width:100%;resize:vertical;line-height:1.55">Reunión de cierre con la Secretaría Técnica el 24 de junio.</textarea></div>
+          <div style="display:flex;flex-direction:column;gap:7px"><label style="font-size:11.5px;font-weight:700;color:#4B4B57">Resultados alcanzados</label><textarea rows="3" placeholder="—" style="padding:11px 13px;border-radius:11px;border:1px solid #E4E4E9;background:#fff;font-size:13.5px;outline:none;width:100%;resize:vertical;line-height:1.55"></textarea></div>
+        </div>
+        </sc-if>
+      </div>
+
+      <div style="position:sticky;bottom:0;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:14px 22px;background:#fff;border-top:1px solid #F1F1F4">
+        <sc-if value="{{ detailReading }}" hint-placeholder-val="{{ true }}">
+        <div style="display:flex;align-items:center;gap:8px;width:100%">
+          <button type="button" onClick="{{ closeOverlay }}" style="height:38px;padding:0 15px;border-radius:10px;font-size:13px;font-weight:650;color:#5B5B69" style-hover="background:#F2F2F5">Cerrar</button>
+          <button type="button" style="display:flex;align-items:center;gap:6px;height:38px;padding:0 14px;border-radius:10px;font-size:13px;font-weight:650;color:#C81E45" style-hover="background:#FEECEF">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"></path><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path></svg>Eliminar</button>
+          <div style="flex:1"></div>
+          <button type="button" onClick="{{ startEdit }}" style="display:flex;align-items:center;gap:6px;height:38px;padding:0 15px;border-radius:10px;border:1px solid #E4E4E9;background:#fff;font-size:13px;font-weight:650" style-hover="background:#FAFAFB;border-color:#DCDCE3">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"></path><path d="m15 5 4 4"></path></svg>Editar</button>
+          <button type="button" style="display:flex;align-items:center;gap:6px;height:38px;padding:0 16px;border-radius:10px;background:#12121A;color:#fff;font-size:13px;font-weight:650;box-shadow:0 2px 8px rgba(18,18,26,.22)" style-hover="background:#26262F">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"></path></svg>Marcar cumplida</button>
+        </div>
+        </sc-if>
+        <sc-if value="{{ detailEditing }}">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%">
+          <button type="button" onClick="{{ cancelEdit }}" style="height:38px;padding:0 15px;border-radius:10px;font-size:13px;font-weight:650;color:#5B5B69" style-hover="background:#F2F2F5">Cancelar</button>
+          <button type="button" onClick="{{ cancelEdit }}" style="display:flex;align-items:center;gap:6px;height:38px;padding:0 16px;border-radius:10px;background:#12121A;color:#fff;font-size:13px;font-weight:650;box-shadow:0 2px 8px rgba(18,18,26,.22)" style-hover="background:#26262F">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"></path></svg>Guardar cambios</button>
+        </div>
+        </sc-if>
+      </div>
+    </aside>
+  </div>
+  </sc-if>
+
+  <sc-if value="{{ overlayNew }}">
+  <div data-screen-label="Nueva actividad" style="position:fixed;inset:0;z-index:50;display:flex;align-items:center;justify-content:center;padding:24px">
+    <div onClick="{{ closeOverlay }}" style="position:absolute;inset:0;background:rgba(18,18,26,.32);backdrop-filter:blur(3px)"></div>
+    <div style="position:relative;z-index:10;width:100%;max-width:720px;max-height:calc(100vh - 48px);overflow-y:auto;border-radius:22px;background:#fff;box-shadow:0 24px 64px rgba(18,18,26,.24);padding:24px">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:14px">
+        <div>
+          <div style="font-size:18px;font-weight:800;letter-spacing:-.025em">Nueva actividad</div>
+          <div style="margin-top:3px;font-size:12.5px;color:#8A8A99">Define responsable, competencia y fechas de inicio y fin</div>
+        </div>
+        <button type="button" onClick="{{ closeOverlay }}" aria-label="Cerrar" style="width:32px;height:32px;border-radius:10px;display:flex;align-items:center;justify-content:center;color:#8A8A99" style-hover="background:#F2F2F5;color:#12121A">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M18 6 6 18"></path><path d="m6 6 12 12"></path></svg></button>
+      </div>
+
+      <div style="margin-top:20px;display:flex;flex-direction:column;gap:14px">
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <label style="font-size:11.5px;font-weight:700;color:#4B4B57">Tipo</label>
+          <div style="display:inline-flex;align-self:flex-start;gap:4px;padding:4px;border-radius:999px;background:#EDEDF1">
+            <span style="height:30px;padding:0 18px;border-radius:999px;background:#fff;color:#12121A;font-size:12.5px;font-weight:650;display:inline-flex;align-items:center;box-shadow:0 1px 3px rgba(18,18,26,.10)">Asignación</span>
+            <span style="height:30px;padding:0 18px;border-radius:999px;color:#7A7A88;font-size:12.5px;font-weight:650;display:inline-flex;align-items:center;cursor:pointer">Reunión</span>
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:7px"><label style="font-size:11.5px;font-weight:700;color:#4B4B57">Título</label><input placeholder="p. ej. Levantamiento de uso de suelo en Puerto Ayora" style="height:42px;padding:0 14px;border-radius:11px;border:1px solid #E4E4E9;background:#fff;font-size:13.5px;outline:none;width:100%" /></div>
+        <div style="display:flex;flex-direction:column;gap:7px"><label style="font-size:11.5px;font-weight:700;color:#4B4B57">Descripción</label><textarea rows="3" placeholder="Alcance, productos esperados y área involucrada" style="padding:12px 14px;border-radius:11px;border:1px solid #E4E4E9;background:#fff;font-size:13.5px;outline:none;width:100%;resize:vertical;line-height:1.55"></textarea></div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+          <div style="display:flex;flex-direction:column;gap:7px"><label style="font-size:11.5px;font-weight:700;color:#4B4B57">Gestión</label><select style="height:42px;padding:0 12px;border-radius:11px;border:1px solid #E4E4E9;background:#fff;font-size:13.5px;outline:none;width:100%"><option>Gestión Territorial</option><option>DGTAR</option><option>Gestión y Saneamiento Ambiental</option><option>Gestión de Riesgos</option></select></div>
+          <div style="display:flex;flex-direction:column;gap:7px"><label style="font-size:11.5px;font-weight:700;color:#4B4B57">Funcionario responsable</label><select style="height:42px;padding:0 12px;border-radius:11px;border:1px solid #E4E4E9;background:#fff;font-size:13.5px;outline:none;width:100%"><option>Marco Villacís — Gestión Territorial</option><option>Andrea Cevallos — DGTAR</option></select></div>
+          <div style="display:flex;flex-direction:column;gap:7px"><label style="font-size:11.5px;font-weight:700;color:#4B4B57">Competencia</label><select style="height:42px;padding:0 12px;border-radius:11px;border:1px solid #E4E4E9;background:#fff;font-size:13.5px;outline:none;width:100%"><option>Planificación territorial del Régimen Especial</option></select></div>
+          <div style="display:flex;flex-direction:column;gap:7px"><label style="font-size:11.5px;font-weight:700;color:#4B4B57">Entregable (opcional)</label><select style="height:42px;padding:0 12px;border-radius:11px;border:1px solid #E4E4E9;background:#fff;font-size:13.5px;outline:none;width:100%"><option>Plan de manejo actualizado</option></select></div>
+          <div style="display:flex;flex-direction:column;gap:7px"><label style="font-size:11.5px;font-weight:700;color:#4B4B57">Estado inicial</label><select style="height:42px;padding:0 12px;border-radius:11px;border:1px solid #E4E4E9;background:#fff;font-size:13.5px;outline:none;width:100%"><option>Pendiente</option><option>En progreso</option><option>En revisión</option><option>Cumplida</option></select></div>
+          <div></div>
+          <div style="display:flex;flex-direction:column;gap:7px"><label style="font-size:11.5px;font-weight:700;color:#4B4B57">Fecha de inicio</label><input type="date" value="2026-06-22" style="height:42px;padding:0 13px;border-radius:11px;border:1px solid #E4E4E9;background:#fff;font-size:13.5px;outline:none;width:100%" /></div>
+          <div style="display:flex;flex-direction:column;gap:7px"><label style="font-size:11.5px;font-weight:700;color:#4B4B57">Fecha de fin</label><input type="date" value="2026-07-10" style="height:42px;padding:0 13px;border-radius:11px;border:1px solid #E4E4E9;background:#fff;font-size:13.5px;outline:none;width:100%" /></div>
+        </div>
+
+        <div style="display:flex;flex-direction:column;gap:7px">
+          <label style="font-size:11.5px;font-weight:700;color:#4B4B57">Participantes adicionales</label>
+          <div style="max-height:150px;overflow-y:auto;padding:7px;border-radius:12px;border:1px solid #E4E4E9;display:flex;flex-direction:column;gap:2px">
+            <label style="display:flex;align-items:center;gap:10px;padding:8px 9px;border-radius:9px;font-size:13px;cursor:pointer" style-hover="background:#FAFAFB"><input type="checkbox" style="width:16px;height:16px;accent-color:#12121A" /><span style="flex:1">Andrea Cevallos</span><span style="font-size:11px;color:#B4B4C2">DGTAR</span></label>
+            <label style="display:flex;align-items:center;gap:10px;padding:8px 9px;border-radius:9px;font-size:13px;cursor:pointer" style-hover="background:#FAFAFB"><input type="checkbox" style="width:16px;height:16px;accent-color:#12121A" /><span style="flex:1">Paola Jaramillo</span><span style="font-size:11px;color:#B4B4C2">DGTAR</span></label>
+            <label style="display:flex;align-items:center;gap:10px;padding:8px 9px;border-radius:9px;font-size:13px;cursor:pointer" style-hover="background:#FAFAFB"><input type="checkbox" style="width:16px;height:16px;accent-color:#12121A" /><span style="flex:1">Kevin Zambrano</span><span style="font-size:11px;color:#B4B4C2">G. y Saneamiento</span></label>
+          </div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+          <div style="display:flex;flex-direction:column;gap:7px"><label style="font-size:11.5px;font-weight:700;color:#4B4B57">Acciones pendientes y actividades programadas</label><textarea rows="2" style="padding:12px 14px;border-radius:11px;border:1px solid #E4E4E9;background:#fff;font-size:13.5px;outline:none;width:100%;resize:vertical;line-height:1.55"></textarea></div>
+          <div style="display:flex;flex-direction:column;gap:7px"><label style="font-size:11.5px;font-weight:700;color:#4B4B57">Resultados alcanzados</label><textarea rows="2" style="padding:12px 14px;border-radius:11px;border:1px solid #E4E4E9;background:#fff;font-size:13.5px;outline:none;width:100%;resize:vertical;line-height:1.55"></textarea></div>
+        </div>
+      </div>
+
+      <div style="margin-top:22px;display:flex;align-items:center;justify-content:flex-end;gap:10px">
+        <button type="button" onClick="{{ closeOverlay }}" style="height:40px;padding:0 17px;border-radius:11px;border:1px solid #E4E4E9;background:#fff;font-size:13.5px;font-weight:650" style-hover="background:#FAFAFB;border-color:#DCDCE3">Cancelar</button>
+        <button type="button" onClick="{{ closeOverlay }}" style="display:flex;align-items:center;gap:7px;height:40px;padding:0 19px;border-radius:11px;background:#12121A;color:#fff;font-size:13.5px;font-weight:650;box-shadow:0 2px 10px rgba(18,18,26,.24)" style-hover="background:#26262F">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"></path></svg>Crear actividad</button>
+      </div>
+    </div>
+  </div>
+  </sc-if>
+
+  <sc-if value="{{ overlayNombre }}">
+  <div data-screen-label="Nombre de catálogo" style="position:fixed;inset:0;z-index:50;display:flex;align-items:center;justify-content:center;padding:24px">
+    <div onClick="{{ closeOverlay }}" style="position:absolute;inset:0;background:rgba(18,18,26,.32);backdrop-filter:blur(3px)"></div>
+    <div style="position:relative;z-index:10;width:100%;max-width:440px;border-radius:22px;background:#fff;box-shadow:0 24px 64px rgba(18,18,26,.24);padding:24px">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:14px">
+        <div>
+          <div style="font-size:18px;font-weight:800;letter-spacing:-.025em">{{ nombreTitulo }}</div>
+          <div style="margin-top:3px;font-size:12.5px;color:#8A8A99">{{ nombreContexto }}</div>
+        </div>
+        <button type="button" onClick="{{ closeOverlay }}" aria-label="Cerrar" style="width:32px;height:32px;flex-shrink:0;border-radius:10px;display:flex;align-items:center;justify-content:center;color:#8A8A99" style-hover="background:#F2F2F5;color:#12121A">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M18 6 6 18"></path><path d="m6 6 12 12"></path></svg></button>
+      </div>
+
+      <div style="margin-top:20px;display:flex;flex-direction:column;gap:7px">
+        <label style="font-size:11.5px;font-weight:700;color:#4B4B57">Nombre <span style="color:#C81E45">*</span></label>
+        <input type="text" value="{{ nombreValor }}" onInput="{{ onNombre }}" placeholder="{{ nombrePlaceholder }}" style="height:42px;padding:0 14px;border-radius:11px;border:1px solid #E4E4E9;background:#fff;font-size:13.5px;color:#12121A;outline:none;width:100%" />
+      </div>
+
+      <div style="margin-top:22px;display:flex;align-items:center;justify-content:flex-end;gap:10px">
+        <button type="button" onClick="{{ closeOverlay }}" style="height:40px;padding:0 17px;border-radius:11px;border:1px solid #E4E4E9;background:#fff;font-size:13.5px;font-weight:650" style-hover="background:#FAFAFB;border-color:#DCDCE3">Cancelar</button>
+        <button type="button" onClick="{{ nombreSubmit }}" disabled="{{ nombreInvalido }}" style="{{ nombreSaveBtn }}">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"></path></svg>{{ nombreSaveLabel }}</button>
+      </div>
+    </div>
+  </div>
+  </sc-if>
+
+  <sc-if value="{{ overlayFunc }}">
+  <div data-screen-label="Nuevo funcionario" style="position:fixed;inset:0;z-index:50;display:flex;align-items:center;justify-content:center;padding:24px">
+    <div onClick="{{ closeOverlay }}" style="position:absolute;inset:0;background:rgba(18,18,26,.32);backdrop-filter:blur(3px)"></div>
+    <div style="position:relative;z-index:10;width:100%;max-width:600px;max-height:calc(100vh - 48px);overflow-y:auto;border-radius:22px;background:#fff;box-shadow:0 24px 64px rgba(18,18,26,.24);padding:24px">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:14px">
+        <div>
+          <div style="font-size:18px;font-weight:800;letter-spacing:-.025em">{{ funcTitle }}</div>
+          <div style="margin-top:3px;font-size:12.5px;color:#8A8A99">{{ funcSub }}</div>
+        </div>
+        <button type="button" onClick="{{ closeOverlay }}" aria-label="Cerrar" style="width:32px;height:32px;flex-shrink:0;border-radius:10px;display:flex;align-items:center;justify-content:center;color:#8A8A99" style-hover="background:#F2F2F5;color:#12121A">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M18 6 6 18"></path><path d="m6 6 12 12"></path></svg></button>
+      </div>
+
+      <div style="margin-top:20px;display:flex;flex-direction:column;gap:14px">
+        <div style="font-size:10px;font-weight:750;letter-spacing:.06em;text-transform:uppercase;color:#B4B4C2">Datos del funcionario</div>
+        <div style="display:flex;flex-direction:column;gap:7px">
+          <label style="font-size:11.5px;font-weight:700;color:#4B4B57">Nombre <span style="color:#C81E45">*</span></label>
+          <input type="text" value="{{ funcNombre }}" onInput="{{ onFuncNombre }}" placeholder="p. ej. Kevin Zambrano" style="height:42px;padding:0 14px;border-radius:11px;border:1px solid #E4E4E9;background:#fff;font-size:13.5px;color:#12121A;outline:none;width:100%" />
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+          <div style="display:flex;flex-direction:column;gap:7px">
+            <label style="font-size:11.5px;font-weight:700;color:#4B4B57">Cargo</label>
+            <input type="text" value="{{ funcCargo }}" onInput="{{ onFuncCargo }}" placeholder="p. ej. Especialista de Saneamiento" style="height:42px;padding:0 14px;border-radius:11px;border:1px solid #E4E4E9;background:#fff;font-size:13.5px;color:#12121A;outline:none;width:100%" />
+          </div>
+          <div style="display:flex;flex-direction:column;gap:7px">
+            <label style="font-size:11.5px;font-weight:700;color:#4B4B57">Gestión</label>
+            <select value="{{ funcGestion }}" onChange="{{ onFuncGestion }}" style="height:42px;padding:0 12px;border-radius:11px;border:1px solid #E4E4E9;background:#fff;font-size:13.5px;color:#12121A;outline:none;width:100%">
+              <option value="DGTAR">DGTAR</option>
+              <option value="Gestión Territorial">Gestión Territorial</option>
+              <option value="G. y Saneamiento Ambiental">Gestión y Saneamiento Ambiental</option>
+              <option value="Gestión de Riesgos">Gestión de Riesgos</option>
+            </select>
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:7px">
+          <label style="font-size:11.5px;font-weight:700;color:#4B4B57">Email institucional <span style="color:#C81E45">*</span></label>
+          <input type="email" value="{{ funcEmail }}" onInput="{{ onFuncEmail }}" placeholder="nombre@dgtar.gob.ec" style="height:42px;padding:0 14px;border-radius:11px;border:1px solid #E4E4E9;background:#fff;font-size:13.5px;color:#12121A;outline:none;width:100%;font-family:ui-monospace,Menlo,monospace" />
+          <div style="font-size:11px;color:#9C9CAA">También es el correo con el que inicia sesión.</div>
+        </div>
+
+        <div style="margin-top:4px;padding-top:16px;border-top:1px solid #F1F1F4">
+          <div style="font-size:10px;font-weight:750;letter-spacing:.06em;text-transform:uppercase;color:#B4B4C2">Acceso a la plataforma</div>
+          <div style="margin-top:4px;font-size:11.5px;font-weight:500;color:#8A8A99">Inicia sesión con su email institucional y aparece como <b style="font-weight:700;color:#4B4B57">{{ funcVisible }}</b></div>
+        </div>
+
+        <div style="display:flex;flex-direction:column;gap:14px;padding:16px;border-radius:14px;background:#FAFAFB;border:1px solid #F1F1F4">
+          <div style="display:flex;flex-direction:column;gap:8px">
+            <label style="font-size:11.5px;font-weight:700;color:#4B4B57">Rol</label>
+            <div style="display:inline-flex;align-self:flex-start;gap:4px;padding:4px;border-radius:11px;background:#EDEDF1">
+              <button type="button" onClick="{{ setRolUser }}" style="{{ segRolUser }}">User</button>
+              <button type="button" onClick="{{ setRolAdmin }}" style="{{ segRolAdmin }}">Admin</button>
+            </div>
+            <div style="font-size:11px;color:#9C9CAA">{{ rolHint }}</div>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:7px">
+            <label style="font-size:11.5px;font-weight:700;color:#4B4B57">{{ passLabel }}</label>
+            <input type="password" value="{{ funcPass }}" onInput="{{ onFuncPass }}" placeholder="Mínimo 8 caracteres" style="{{ passInput }}" />
+            <div style="{{ passHintStyle }}">{{ passHint }}</div>
+          </div>
+        </div>
+      </div>
+
+      <div style="margin-top:22px;display:flex;align-items:center;justify-content:space-between;gap:10px">
+        <sc-if value="{{ funcEditando }}">
+          <button type="button" style="display:flex;align-items:center;gap:6px;height:40px;padding:0 14px;border-radius:11px;font-size:13px;font-weight:650;color:#C81E45" style-hover="background:#FEECEF">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"></path><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path></svg>Eliminar</button>
+        </sc-if>
+        <div style="flex:1"></div>
+        <button type="button" onClick="{{ closeOverlay }}" style="height:40px;padding:0 17px;border-radius:11px;border:1px solid #E4E4E9;background:#fff;font-size:13.5px;font-weight:650" style-hover="background:#FAFAFB;border-color:#DCDCE3">Cancelar</button>
+        <button type="button" onClick="{{ funcSubmit }}" disabled="{{ funcInvalido }}" title="{{ funcTip }}" style="{{ funcSaveBtn }}">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"></path></svg>{{ funcSaveLabel }}</button>
+      </div>
+    </div>
+  </div>
+  </sc-if>
+
+  <sc-if value="{{ overlayExport }}">
+  <div data-screen-label="Exportar" style="position:fixed;inset:0;z-index:50;display:flex;align-items:center;justify-content:center;padding:24px">
+    <div onClick="{{ closeOverlay }}" style="position:absolute;inset:0;background:rgba(18,18,26,.32);backdrop-filter:blur(3px)"></div>
+    <div style="position:relative;z-index:10;width:100%;max-width:460px;border-radius:22px;background:#fff;box-shadow:0 24px 64px rgba(18,18,26,.24);padding:24px">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:14px">
+        <div>
+          <div style="font-size:18px;font-weight:800;letter-spacing:-.025em">Exportar actividades</div>
+          <div style="margin-top:4px;font-size:12.5px;line-height:1.5;color:#8A8A99">Incluye las actividades cuyo rango se solapa con el período y descarga un archivo CSV compatible con Excel.</div>
+        </div>
+        <button type="button" onClick="{{ closeOverlay }}" aria-label="Cerrar" style="width:32px;height:32px;flex-shrink:0;border-radius:10px;display:flex;align-items:center;justify-content:center;color:#8A8A99" style-hover="background:#F2F2F5;color:#12121A">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M18 6 6 18"></path><path d="m6 6 12 12"></path></svg></button>
+      </div>
+
+      <div style="margin-top:20px;display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div style="display:flex;flex-direction:column;gap:7px"><label style="font-size:11.5px;font-weight:700;color:#4B4B57">Desde</label><input value="01/06/2026" placeholder="dd/mm/aaaa" inputmode="numeric" style="height:42px;padding:0 14px;border-radius:11px;border:1px solid #E4E4E9;background:#fff;font-size:13.5px;outline:none;width:100%" /></div>
+        <div style="display:flex;flex-direction:column;gap:7px"><label style="font-size:11.5px;font-weight:700;color:#4B4B57">Hasta</label><input value="18/06/2026" placeholder="dd/mm/aaaa" inputmode="numeric" style="height:42px;padding:0 14px;border-radius:11px;border:1px solid #E4E4E9;background:#fff;font-size:13.5px;outline:none;width:100%" /></div>
+      </div>
+
+      <div style="margin-top:16px;display:flex;align-items:center;gap:11px;padding:13px 15px;border-radius:13px;background:#FAFAFB;border:1px solid #F1F1F4">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#8A8A99" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v4"></path><path d="M16 2v4"></path><rect width="18" height="18" x="3" y="4" rx="2"></rect><path d="M3 10h18"></path></svg>
+        <span style="font-size:13px;color:#4B4B57"><b style="font-weight:750;color:#12121A">9</b> actividades en el rango</span>
+      </div>
+
+      <div style="margin-top:20px;display:flex;align-items:center;justify-content:flex-end;gap:10px">
+        <button type="button" onClick="{{ closeOverlay }}" style="height:40px;padding:0 17px;border-radius:11px;border:1px solid #E4E4E9;background:#fff;font-size:13.5px;font-weight:650" style-hover="background:#FAFAFB;border-color:#DCDCE3">Cancelar</button>
+        <button type="button" onClick="{{ closeOverlay }}" style="display:flex;align-items:center;gap:7px;height:40px;padding:0 19px;border-radius:11px;background:#12121A;color:#fff;font-size:13.5px;font-weight:650;box-shadow:0 2px 10px rgba(18,18,26,.24)" style-hover="background:#26262F">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" x2="12" y1="15" y2="3"></line></svg>Exportar CSV</button>
+      </div>
+    </div>
+  </div>
+  </sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;rol&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;Administrador&quot;,&quot;Funcionario&quot;],&quot;default&quot;:&quot;Administrador&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Sesión&quot;},&quot;pantalla&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;Tablero&quot;,&quot;Estadísticas&quot;,&quot;Catálogos&quot;,&quot;Usuarios&quot;],&quot;default&quot;:&quot;Tablero&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Sesión&quot;}}">
+class Component extends DCLogic {
+  state = {
+    tab: "tablero",
+    view: "columns",
+    collapsed: {},
+    menu: null,
+    periodOffset: 0,
+    boardOffset: 0,
+    statsIni: "2026-06-01",
+    statsFin: "2026-06-30",
+    query: "",
+    funcEditing: false,
+    funcCuenta: false,
+    funcRol: "user",
+    funcNombre: "",
+    funcCargo: "",
+    funcEmail: "",
+    funcGestion: "DGTAR",
+    funcVisible: "",
+    funcVisibleEdit: false,
+    funcPass: "",
+    gestionSel: "g-dgtar",
+    nombreTipo: "gestión",
+    nombreEditando: false,
+    nombreValor: "",
+    nombreContexto: "",
+    calMode: "week",
+    overlay: null,
+    detailEditing: false,
+  };
+
+  componentDidMount() {
+    const p = this.props.pantalla;
+    const map = { "Tablero": "tablero", "Estadísticas": "stats", "Catálogos": "catalogs", "Usuarios": "users" };
+    if (p && map[p] && map[p] !== this.state.tab) this.setState({ tab: map[p] });
+  }
+
+  pill(active) {
+    return {
+      display: "inline-flex", alignItems: "center", gap: "7px",
+      height: "32px", padding: "0 15px", borderRadius: "999px",
+      fontSize: "13px", fontWeight: 650, letterSpacing: "-.01em",
+      transition: "background .15s, color .15s, box-shadow .15s",
+      background: active ? "#F1EBFF" : "transparent",
+      color: active ? "#6D28D9" : "#5B5B69",
+      boxShadow: active ? "0 0 0 1px rgba(109,40,217,.18), 0 2px 10px rgba(109,40,217,.16)" : "none",
+    };
+  }
+
+  seg(active) {
+    return {
+      height: "30px", padding: "0 15px", borderRadius: "999px",
+      fontSize: "12.5px", fontWeight: 650, letterSpacing: "-.01em",
+      transition: "background .15s, color .15s",
+      background: active ? "#fff" : "transparent",
+      color: active ? "#12121A" : "#7A7A88",
+      boxShadow: active ? "0 1px 3px rgba(18,18,26,.10)" : "none",
+    };
+  }
+
+  CATALOGO() {
+    return [
+      { id: "g-dgtar", nombre: "DGTAR", color: "#0ea5e9", comps: [
+        { id: "c1", codigo: "C1", nombre: "Seguimiento al Plan Galápagos", ents: ["Informe técnico trimestral", "Matriz de indicadores del Plan"] },
+      ] },
+      { id: "g-terr", nombre: "Gestión Territorial", color: "#22c55e", comps: [
+        { id: "c2", codigo: "C2", nombre: "Planificación territorial del Régimen Especial", ents: ["Plan de uso y gestión de suelo"] },
+      ] },
+      { id: "g-amb", nombre: "Gestión y Saneamiento Ambiental", color: "#8b5cf6", comps: [
+        { id: "c3", codigo: "C3", nombre: "Manejo integral de desechos sólidos", ents: ["Plan de manejo actualizado"] },
+        { id: "c4", codigo: "C4", nombre: "Control de calidad de agua", ents: ["Matriz de monitoreo de calidad de agua"] },
+      ] },
+      { id: "g-riesgo", nombre: "Gestión de Riesgos", color: "#14b8a6", comps: [
+        { id: "c5", codigo: "C5", nombre: "Gestión de riesgos y contingencias", ents: ["Protocolo de respuesta ante emergencias", "Mapa de amenazas actualizado"] },
+      ] },
+    ];
+  }
+
+  plural(n, uno, varios) { return n + " " + (n === 1 ? uno : varios); }
+
+  abrirNombre(o) {
+    this.setState({
+      overlay: "nombre", nombreTipo: o.tipo,
+      nombreEditando: !!o.valor, nombreValor: o.valor || "",
+      nombreContexto: o.contexto || "",
+    });
+  }
+
+  buildCatalogo() {
+    const sel = this.state.gestionSel || "g-dgtar";
+    const data = this.CATALOGO();
+    const activa = data.filter((g) => g.id === sel)[0] || data[0];
+    const resumen = (g) => {
+      const e = g.comps.reduce((s, c) => s + c.ents.length, 0);
+      return this.plural(g.comps.length, "competencia", "competencias") + " · " + this.plural(e, "entregable", "entregables");
+    };
+    return {
+      gestiones: data.map((g) => ({
+        nombre: g.nombre, resumen: resumen(g), activa: g.id === activa.id,
+        select: () => this.setState({ gestionSel: g.id }),
+        row: {
+          display: "flex", alignItems: "center", gap: "11px", padding: "13px 18px 13px 15px",
+          cursor: "pointer", borderTop: "1px solid #F4F4F6",
+          borderLeft: "3px solid " + (g.id === activa.id ? "#6D28D9" : "transparent"),
+          background: g.id === activa.id ? "#F7F2FF" : "transparent",
+        },
+        dot: { width: "10px", height: "10px", flexShrink: 0, borderRadius: "999px", background: g.color },
+      })),
+      activaNombre: activa.nombre,
+      activaResumen: resumen(activa),
+      nuevaGestion: () => this.abrirNombre({ tipo: "gestión", contexto: "Se creará vacía: luego le añades competencias" }),
+      editarGestion: () => this.abrirNombre({ tipo: "gestión", valor: activa.nombre, contexto: "Sus competencias y entregables no cambian" }),
+      nuevaCompetencia: () => this.abrirNombre({ tipo: "competencia", contexto: "Pertenecerá a " + activa.nombre }),
+      activaDot: { width: "10px", height: "10px", flexShrink: 0, borderRadius: "999px", background: activa.color },
+      competencias: activa.comps.map((c) => {
+        const abierta = !this.state.collapsed[c.id];
+        return {
+          codigo: c.codigo, nombre: c.nombre, abierta: abierta,
+          resumen: this.plural(c.ents.length, "entregable", "entregables"),
+          toggle: () => this.toggleNode(c.id),
+          chev: {
+            display: "inline-flex", alignItems: "center", justifyContent: "center",
+            width: "18px", height: "18px", flexShrink: 0, color: "#B4B4C2",
+            transform: abierta ? "rotate(90deg)" : "rotate(0deg)", transition: "transform .18s ease",
+          },
+          editar: (ev) => { if (ev) ev.stopPropagation(); this.abrirNombre({ tipo: "competencia", valor: c.nombre, contexto: c.codigo + " · " + activa.nombre }); },
+          borrar: (ev) => { if (ev) ev.stopPropagation(); },
+          nuevoEntregable: () => this.abrirNombre({ tipo: "entregable", contexto: "Pertenecerá a " + c.codigo + " · " + c.nombre }),
+          entregables: c.ents.map((n) => ({
+            nombre: n,
+            editar: () => this.abrirNombre({ tipo: "entregable", valor: n, contexto: c.codigo + " · " + c.nombre }),
+          })),
+        };
+      }),
+    };
+  }
+
+  ganttCols() {
+    const M3 = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
+    const r = this.statsRango();
+    const t = this.TODAY();
+    const cell = (label, hoy, ancho) => ({
+      n: label,
+      style: {
+        display: "flex", alignItems: "center", justifyContent: "center",
+        height: "38px", fontSize: "10.5px", fontWeight: hoy ? 800 : 650,
+        borderLeft: "1px solid #F1F1F4",
+        background: hoy ? "#F1EBFF" : "transparent",
+        color: hoy ? "#6D28D9" : "#9C9CAA",
+        gridColumn: ancho ? "span " + ancho : "auto",
+        overflow: "hidden", whiteSpace: "nowrap",
+      },
+    });
+    if (r.dias <= 31) {
+      const out = [];
+      for (let k = 0; k < r.dias; k++) {
+        const d = new Date(r.ini.getFullYear(), r.ini.getMonth(), r.ini.getDate() + k);
+        out.push(cell(String(d.getDate()), this.key(d) === this.key(t), 1));
+      }
+      return out;
+    }
+    const grupos = [];
+    for (let k = 0; k < r.dias; k++) {
+      const d = new Date(r.ini.getFullYear(), r.ini.getMonth(), r.ini.getDate() + k);
+      const key = d.getFullYear() + "-" + d.getMonth();
+      const last = grupos[grupos.length - 1];
+      if (last && last.key === key) { last.n += 1; last.hoy = last.hoy || this.key(d) === this.key(t); }
+      else grupos.push({ key: key, n: 1, label: M3[d.getMonth()], hoy: this.key(d) === this.key(t) });
+    }
+    return grupos.map((g) => cell(g.n >= 3 ? g.label : "", g.hoy, g.n));
+  }
+
+  ganttData() {
+    const COL = { pendiente: "#A5A5B3", progreso: "#3B82F6", revision: "#F59E0B", cumplida: "#10B981" };
+    const r = this.statsRango();
+    const acts = this.statsActs();
+    const funcs = this.FUNCIONARIOS();
+    const orden = ["DGTAR", "Gestión Territorial", "G. y Saneamiento Ambiental", "Gestión de Riesgos"];
+    const out = [];
+    orden.forEach((gn, gi) => {
+      const míos = funcs.filter((f) => f.g.n === gn);
+      const grupo = { id: "g" + gi, nombre: gn, color: (this.CATALOGO()[gi] || {}).color || "#A5A5B3", funcs: [] };
+      míos.forEach((f, fi) => {
+        const suyas = acts.filter((a) => a.resp === f.nombre).slice().sort((a, b) => this.d(a.ini) - this.d(b.ini));
+        if (!suyas.length) return;
+        grupo.funcs.push({
+          id: "g" + gi + "f" + fi, nombre: f.nombre, cargo: f.cargo,
+          acts: suyas.map((a) => {
+            const ini = this.d(a.ini), fin = this.d(a.fin);
+            const desde = Math.max(0, this.days(r.ini, ini));
+            const hasta = Math.min(r.dias, this.days(r.ini, fin) + 1);
+            return {
+              t: a.t, ini: a.ini,
+              left: (desde / r.dias) * 100,
+              width: Math.max(1.2, ((hasta - desde) / r.dias) * 100),
+              c: COL[a.e],
+            };
+          }),
+        });
+      });
+      if (grupo.funcs.length) out.push(grupo);
+    });
+    return out;
+  }
+
+  toggleNode(id) {
+    this.setState((s) => {
+      const next = Object.assign({}, s.collapsed);
+      if (next[id]) delete next[id]; else next[id] = true;
+      return { collapsed: next };
+    });
+  }
+
+  buildGantt() {
+    const SHADOW = {
+      "#3B82F6": "0 2px 6px rgba(59,130,246,.28)",
+      "#10B981": "0 2px 6px rgba(16,185,129,.28)",
+      "#F59E0B": "0 2px 6px rgba(245,158,11,.28)",
+      "#A5A5B3": "0 2px 6px rgba(18,18,26,.14)",
+    };
+    const track = {
+      position: "relative", height: "42px",
+      backgroundImage: "repeating-linear-gradient(to right,#F4F4F6 0 1px,transparent 1px calc(100%/" + (this.statsRango().dias <= 31 ? this.statsRango().dias : Math.round(this.statsRango().dias / 7)) + "))",
+    };
+    const chev = (open, color) => ({
+      display: "inline-flex", alignItems: "center", justifyContent: "center",
+      width: "18px", height: "18px", flexShrink: 0, borderRadius: "6px", color,
+      transform: open ? "rotate(90deg)" : "rotate(0deg)",
+      transition: "transform .18s ease",
+    });
+    const badge = (strong) => ({
+      minWidth: "20px", flexShrink: 0, textAlign: "center", padding: "2px 7px", borderRadius: "999px",
+      background: strong ? "#E4E4E9" : "#F2F2F5", color: strong ? "#4B4B57" : "#8A8A99",
+      fontSize: "10.5px", fontWeight: 700,
+    });
+
+    const col = this.state.collapsed;
+    const rows = [];
+    this.ganttData().forEach((g) => {
+      const open = !col[g.id];
+      const total = g.funcs.reduce((s, f) => s + f.acts.length, 0);
+      rows.push({
+        key: g.id, isGestion: true, nombre: g.nombre, n: String(total),
+        tip: open ? "Contraer " + g.nombre : "Expandir " + g.nombre,
+        toggle: () => this.toggleNode(g.id),
+        wrap: {
+          display: "grid", gridTemplateColumns: "280px 1fr", cursor: "pointer",
+          background: open ? "#F4F4F6" : "#EFEFF2", borderTop: "1px solid #E4E4E9",
+        },
+        label: {
+          display: "flex", alignItems: "center", gap: "9px", padding: "11px 18px",
+          borderRight: "1px solid #E4E4E9",
+        },
+        chev: chev(open, "#8A8A99"),
+        dot: { width: "8px", height: "8px", flexShrink: 0, borderRadius: "999px", background: g.color },
+        count: badge(true),
+        track: { height: "auto" },
+        mini: [],
+      });
+      if (!open) return;
+
+      g.funcs.forEach((f) => {
+        const fOpen = !col[f.id];
+        rows.push({
+          key: f.id, isFuncionario: true, nombre: f.nombre, cargo: f.cargo, n: String(f.acts.length),
+          tip: fOpen ? "Contraer actividades de " + f.nombre : "Expandir actividades de " + f.nombre,
+          toggle: () => this.toggleNode(f.id),
+          wrap: {
+            display: "grid", gridTemplateColumns: "280px 1fr", cursor: "pointer",
+            borderTop: "1px solid #F1F1F4", background: fOpen ? "transparent" : "#FCFCFD",
+          },
+          label: {
+            display: "flex", alignItems: "center", gap: "8px", padding: "8px 18px 8px 30px",
+            borderRight: "1px solid #F1F1F4",
+          },
+          chev: chev(fOpen, "#B4B4C2"),
+          count: badge(false),
+          track: track,
+          mini: fOpen ? [] : f.acts.map((a) => ({
+            t: a.t,
+            style: {
+              position: "absolute", top: "18px", left: a.left + "%", width: a.width + "%",
+              height: "7px", borderRadius: "999px", background: a.c, opacity: .55, zIndex: 3,
+            },
+          })),
+        });
+        if (!fOpen) return;
+
+        f.acts.forEach((a, i) => {
+          rows.push({
+            key: f.id + "-" + i, isAct: true, hasBar: true, titulo: a.t, tip: a.t,
+            wrap: { display: "grid", gridTemplateColumns: "280px 1fr", borderTop: "1px solid #F1F1F4" },
+            label: { borderRight: "1px solid #F1F1F4" },
+            track: track,
+            mini: [],
+            bar: {
+              position: "absolute", top: "7px", left: a.left + "%", width: a.width + "%", height: "28px",
+              borderRadius: "999px", background: a.c, color: "#fff", display: "flex", alignItems: "center",
+              padding: "0 14px", fontSize: "12px", fontWeight: 650, boxShadow: SHADOW[a.c],
+              zIndex: 3, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+            },
+          });
+        });
+      });
+    });
+    return rows;
+  }
+
+  ACTS() {
+    const G = {
+      dgtar: { n: "DGTAR", bg: "#EAF7FE", fg: "#0369A1" },
+      terr: { n: "Gestión Territorial", bg: "#E9F9EF", fg: "#15803D" },
+      amb: { n: "G. y Saneamiento Ambiental", bg: "#F3EEFE", fg: "#6D28D9" },
+      riesgo: { n: "Gestión de Riesgos", bg: "#E6F7F5", fg: "#0F766E" },
+    };
+    return [
+      { cid: "c5", ent: "Mapa de amenazas actualizado", t: "Actualizar la matriz de riesgos volcánicos de Isabela", ini: "2026-06-12", fin: "2026-06-28", av: "DO", resp: "Daniel Ortega", grad: "#14b8a6,#0d9488", g: G.riesgo, e: "pendiente" },
+      { cid: "c2", ent: "Plan de uso y gestión de suelo", t: "Levantamiento de uso de suelo en Puerto Ayora", ini: "2026-06-03", fin: "2026-06-20", av: "MV", resp: "Marco Villacís", grad: "#22c55e,#16a34a", g: G.terr, e: "pendiente" },
+      { cid: "c1", t: "Coordinación con GAD Santa Cruz", ini: "2026-06-21", fin: "2026-06-21", av: "AC", resp: "Andrea Cevallos", grad: "#0ea5e9,#0284c7", g: G.dgtar, e: "pendiente", reunion: true, hora: "09:00 – 10:00", horaCorta: "21 jun · 09:00" },
+      { cid: "c4", ent: "Matriz de monitoreo de calidad de agua", t: "Inventario de puntos de descarga en Santa Cruz", ini: "2026-06-10", fin: "2026-07-15", av: "KZ", resp: "Kevin Zambrano", grad: "#2563eb,#1d4ed8", g: G.amb, e: "pendiente" },
+      { cid: "c3", ent: "Plan de manejo actualizado", t: "Plan de manejo de desechos sólidos — fase II", ini: "2026-06-01", fin: "2026-06-30", av: "LN", resp: "Lucía Naranjo", grad: "#8b5cf6,#7c3aed", g: G.amb, e: "progreso", extra: 2 },
+      { cid: "c1", ent: "Informe técnico trimestral", t: "Seguimiento trimestral al Plan Galápagos", ini: "2026-05-15", fin: "2026-06-17", av: "AC", resp: "Andrea Cevallos", grad: "#0ea5e9,#0284c7", g: G.dgtar, e: "progreso" },
+      { cid: "c4", ent: "Matriz de monitoreo de calidad de agua", t: "Monitoreo de calidad de agua — San Cristóbal", ini: "2026-06-05", fin: "2026-06-25", av: "KZ", resp: "Kevin Zambrano", grad: "#2563eb,#1d4ed8", g: G.amb, e: "progreso" },
+      { cid: "c2", ent: "Plan de uso y gestión de suelo", t: "Informe técnico de ordenamiento territorial", ini: "2026-05-20", fin: "2026-06-18", av: "MV", resp: "Marco Villacís", grad: "#22c55e,#16a34a", g: G.terr, e: "revision" },
+      { cid: "c5", ent: "Protocolo de respuesta ante emergencias", t: "Protocolo de respuesta ante derrames", ini: "2026-06-02", fin: "2026-06-16", av: "DO", resp: "Daniel Ortega", grad: "#14b8a6,#0d9488", g: G.riesgo, e: "revision" },
+      { cid: "c1", ent: "Informe técnico trimestral", t: "Informe de avance del Plan Galápagos Q1", ini: "2026-04-01", fin: "2026-04-30", av: "AC", resp: "Andrea Cevallos", grad: "#0ea5e9,#0284c7", g: G.dgtar, e: "cumplida", cumplida: true },
+      { cid: "c3", ent: "Plan de manejo actualizado", t: "Capacitación en manejo de residuos peligrosos", ini: "2026-05-28", fin: "2026-05-28", av: "LN", resp: "Lucía Naranjo", grad: "#8b5cf6,#7c3aed", g: G.amb, e: "cumplida", cumplida: true, reunion: true, hora: "10:00 – 12:00", horaCorta: "28 may · 10:00" },
+      { cid: "c1", ent: "Matriz de indicadores del Plan", t: "Actualización del catastro ambiental", ini: "2026-05-05", fin: "2026-06-06", av: "PJ", resp: "Paola Jaramillo", grad: "#a855f7,#9333ea", g: G.dgtar, e: "cumplida", cumplida: true },
+    ];
+  }
+
+  FUNCIONARIOS() {
+    const G = {
+      dgtar: { n: "DGTAR", bg: "#EAF7FE", fg: "#0369A1" },
+      terr: { n: "Gestión Territorial", bg: "#E9F9EF", fg: "#15803D" },
+      amb: { n: "G. y Saneamiento Ambiental", bg: "#F3EEFE", fg: "#6D28D9" },
+      riesgo: { n: "Gestión de Riesgos", bg: "#E6F7F5", fg: "#0F766E" },
+    };
+    return [
+      { av: "AC", nombre: "Andrea Cevallos", cargo: "Directora de Planificación", email: "acevallos@dgtar.gob.ec", g: G.dgtar, grad: "#0ea5e9,#0284c7", rol: "admin", visible: "Andrea Cevallos", yo: true },
+      { av: "MV", nombre: "Marco Villacís", cargo: "Especialista Territorial", email: "mvillacis@dgtar.gob.ec", g: G.terr, grad: "#22c55e,#16a34a", rol: "user", visible: "Marco Villacís" },
+      { av: "LN", nombre: "Lucía Naranjo", cargo: "Analista Ambiental", email: "lnaranjo@dgtar.gob.ec", g: G.amb, grad: "#8b5cf6,#7c3aed", rol: "user", visible: "Lucía Naranjo" },
+      { av: "DO", nombre: "Daniel Ortega", cargo: "Técnico de Riesgos", email: "dortega@dgtar.gob.ec", g: G.riesgo, grad: "#14b8a6,#0d9488", rol: "user", visible: "Daniel Ortega" },
+      { av: "KZ", nombre: "Kevin Zambrano", cargo: "Especialista de Saneamiento", email: "kzambrano@dgtar.gob.ec", g: G.amb, grad: "#2563eb,#1d4ed8", rol: "user", visible: "Kevin Zambrano" },
+      { av: "PJ", nombre: "Paola Jaramillo", cargo: "Analista de Planificación", email: "pjaramillo@dgtar.gob.ec", g: G.dgtar, grad: "#a855f7,#9333ea", rol: "admin", visible: "Paola Jaramillo" },
+    ];
+  }
+
+  buildFuncionarios() {
+    const ROL = { admin: ["Admin", "#E9F1FE", "#1D4ED8"], user: ["User", "#F2F2F5", "#5B5B69"] };
+    const lista = this.FUNCIONARIOS();
+    return lista.map((f, idx) => ({
+      nombre: f.nombre, cargo: f.cargo, email: f.email, gestion: f.g.n, iniciales: f.av,
+      acceso: ROL[f.rol][0],
+      row: idx === lista.length - 1 ? {} : { borderBottom: "1px solid #F4F4F6" },
+      avatar: {
+        width: "32px", height: "32px", flexShrink: 0, borderRadius: "999px",
+        background: "linear-gradient(135deg," + f.grad + ")", color: "#fff",
+        display: "flex", alignItems: "center", justifyContent: "center", fontSize: "11px", fontWeight: 700,
+      },
+      gestStyle: {
+        display: "inline-flex", padding: "3px 9px", borderRadius: "999px",
+        background: f.g.bg, color: f.g.fg, fontSize: "11px", fontWeight: 700,
+      },
+      accesoStyle: { display: "inline-flex", padding: "3px 10px", borderRadius: "999px", background: ROL[f.rol][1], color: ROL[f.rol][2], fontSize: "11px", fontWeight: 700 },
+      delLabel: f.yo ? "Eliminar usuario" : "Eliminar funcionario",
+      delTitle: f.yo ? "No puedes eliminar tu propia cuenta" : "Eliminar " + f.nombre,
+      delBtn: {
+        width: "30px", height: "30px", borderRadius: "9px", background: "#F43F5E", color: "#fff",
+        display: "flex", alignItems: "center", justifyContent: "center",
+        opacity: f.yo ? .45 : 1, cursor: f.yo ? "not-allowed" : "pointer",
+      },
+      edit: () => this.setState({
+        overlay: "funcionario", funcEditing: true,
+        funcRol: f.rol,
+        funcNombre: f.nombre, funcCargo: f.cargo, funcEmail: f.email,
+        funcGestion: f.g.n, funcVisible: f.visible || f.nombre, funcVisibleEdit: true, funcPass: "",
+      }),
+    }));
+  }
+
+  norm(x) {
+    return (x || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  }
+
+  match(a) {
+    const q = this.norm(this.state.query).trim();
+    if (!q) return true;
+    const hay = this.norm(a.t + " " + a.g.n + " " + a.resp + " " + a.av);
+    return q.split(/\s+/).every((w) => hay.indexOf(w) > -1);
+  }
+
+  fecha3(iso) {
+    const M = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
+    const d = this.d(iso);
+    return String(d.getDate()).padStart(2, "0") + " " + M[d.getMonth()];
+  }
+
+  estadoDe(a) {
+    const diff = this.days(this.TODAY(), this.d(a.fin));
+    if (a.cumplida) return { tone: "green", txt: "Cumplida", check: true };
+    if (diff < 0) return { tone: "red", txt: "Fin superado " + Math.abs(diff) + "d", alerta: true };
+    if (diff === 0) return { tone: "amber", txt: "Finaliza hoy", alerta: true };
+    if (diff <= 3) return { tone: "amber", txt: "Finaliza en " + diff + "d", alerta: diff <= 2 };
+    return { tone: "slate", txt: "Finaliza en " + diff + "d" };
+  }
+
+  iso(d) {
+    return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+  }
+
+  statsRango() {
+    const a = this.d(this.state.statsIni);
+    const b = this.d(this.state.statsFin);
+    const invertido = b < a;
+    const ini = invertido ? b : a;
+    const fin = invertido ? a : b;
+    return { ini: ini, fin: fin, dias: Math.max(1, this.days(ini, fin) + 1), invertido: invertido };
+  }
+
+  statsActs() {
+    const r = this.statsRango();
+    return this.ACTS().filter((a) => this.d(a.ini) <= r.fin && this.d(a.fin) >= r.ini);
+  }
+
+  fmtRango() {
+    const M = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
+    const r = this.statsRango();
+    const a = r.ini, b = r.fin;
+    const dd = (x) => String(x.getDate()).padStart(2, "0");
+    if (a.getFullYear() === b.getFullYear()) {
+      return dd(a) + " " + M[a.getMonth()] + " – " + dd(b) + " " + M[b.getMonth()] + " " + b.getFullYear();
+    }
+    return dd(a) + " " + M[a.getMonth()] + " " + a.getFullYear() + " – " + dd(b) + " " + M[b.getMonth()] + " " + b.getFullYear();
+  }
+
+  aplicarRango(ini, fin) {
+    this.setState({ statsIni: this.iso(ini), statsFin: this.iso(fin) });
+  }
+
+  buildAtajos() {
+    const t = this.TODAY();
+    const y = t.getFullYear(), m = t.getMonth();
+    const defs = [
+      { label: "Este mes", ini: new Date(y, m, 1), fin: new Date(y, m + 1, 0) },
+      { label: "Mes anterior", ini: new Date(y, m - 1, 1), fin: new Date(y, m, 0) },
+      { label: "Últimos 30 días", ini: new Date(y, m, t.getDate() - 29), fin: t },
+      { label: "Últimos 90 días", ini: new Date(y, m, t.getDate() - 89), fin: t },
+      { label: "Trimestre actual", ini: new Date(y, Math.floor(m / 3) * 3, 1), fin: new Date(y, Math.floor(m / 3) * 3 + 3, 0) },
+      { label: "Este año", ini: new Date(y, 0, 1), fin: new Date(y, 11, 31) },
+    ];
+    return defs.map((d) => {
+      const activo = this.iso(d.ini) === this.state.statsIni && this.iso(d.fin) === this.state.statsFin;
+      return {
+        label: d.label,
+        aplicar: () => this.aplicarRango(d.ini, d.fin),
+        estilo: {
+          height: "32px", padding: "0 10px", borderRadius: "9px", fontSize: "11.5px", fontWeight: 650,
+          border: "1px solid " + (activo ? "#DCC9FA" : "#ECECEF"),
+          background: activo ? "#F7F2FF" : "#fff",
+          color: activo ? "#6D28D9" : "#4B4B57",
+        },
+      };
+    });
+  }
+
+  buildStats() {
+    const r = this.statsRango();
+    const acts = this.statsActs();
+    const t = this.TODAY();
+    const cumpl = acts.filter((a) => a.cumplida).length;
+    const venc = acts.filter((a) => !a.cumplida && this.d(a.fin) < t).length;
+    const pronto = acts.filter((a) => {
+      if (a.cumplida) return false;
+      const dd = this.days(t, this.d(a.fin));
+      return dd >= 0 && dd <= 3;
+    }).length;
+    const gest = {};
+    acts.forEach((a) => { gest[a.g.n] = 1; });
+    const nGest = Object.keys(gest).length;
+    return {
+      total: String(acts.length),
+      totalLabel: this.plural(acts.length, "actividad", "actividades"),
+      subTotal: this.plural(nGest, "gestión activa", "gestiones activas"),
+      progreso: String(acts.filter((a) => a.e === "progreso").length),
+      subProgreso: acts.filter((a) => a.e === "revision").length + " en revisión",
+      cumplidas: String(cumpl),
+      subCumplidas: (acts.length ? Math.round((cumpl / acts.length) * 100) : 0) + "% de cumplimiento",
+      vencidas: String(venc),
+      subVencidas: venc ? "requieren atención" : "sin pendientes vencidos",
+      pronto: String(pronto),
+      subPronto: "≤ 3 días",
+      dias: r.dias,
+    };
+  }
+
+  buildDona() {
+    const acts = this.statsActs();
+    const defs = [
+      { k: "pendiente", label: "Pendiente", color: "#A5A5B3" },
+      { k: "progreso", label: "En progreso", color: "#3B82F6" },
+      { k: "revision", label: "En revisión", color: "#F59E0B" },
+      { k: "cumplida", label: "Cumplida", color: "#10B981" },
+    ];
+    const C = 2 * Math.PI * 42;
+    let acc = 0;
+    return defs.map((d) => {
+      const n = acts.filter((a) => a.e === d.k).length;
+      const len = acts.length ? (n / acts.length) * C : 0;
+      const visible = Math.max(0, len - (len > 4 ? 3 : 0));
+      const seg = {
+        label: d.label, n: String(n), color: d.color,
+        dash: visible.toFixed(2) + " " + (C - visible).toFixed(2),
+        offset: (-acc).toFixed(2),
+        punto: { width: "8px", height: "8px", borderRadius: "999px", background: d.color },
+      };
+      acc += len;
+      return seg;
+    });
+  }
+
+  buildRanking() {
+    const acts = this.statsActs();
+    const t = this.TODAY();
+    const lista = this.FUNCIONARIOS().map((f) => {
+      const mias = acts.filter((a) => a.resp === f.nombre);
+      const c = mias.filter((a) => a.cumplida).length;
+      const v = mias.filter((a) => !a.cumplida && this.d(a.fin) < t).length;
+      const pct = mias.length ? Math.round((c / mias.length) * 100) : 0;
+      return { f: f, total: mias.length, c: c, v: v, pct: pct };
+    }).filter((x) => x.total > 0).sort((a, b) => b.total - a.total || b.pct - a.pct);
+    return {
+      rankingLabel: this.plural(lista.length, "funcionario", "funcionarios"),
+      ranking: lista.map((x, idx) => ({
+        nombre: x.f.nombre, cargo: x.f.cargo, iniciales: x.f.av,
+        total: String(x.total), cumplidas: String(x.c),
+        vencidas: x.v ? String(x.v) : "—",
+        pct: x.pct + "%",
+        row: idx === lista.length - 1 ? {} : { borderBottom: "1px solid #F4F4F6" },
+        avatar: {
+          width: "30px", height: "30px", flexShrink: 0, borderRadius: "999px",
+          background: "linear-gradient(135deg," + x.f.grad + ")", color: "#fff",
+          display: "flex", alignItems: "center", justifyContent: "center", fontSize: "11px", fontWeight: 700,
+        },
+        vencEstilo: {
+          padding: "11px 10px", textAlign: "right",
+          fontWeight: x.v ? 700 : 400,
+          color: x.v ? "#C81E45" : "#C4C4CE",
+        },
+        barra: {
+          width: Math.max(2, x.pct) + "%", height: "100%", borderRadius: "999px",
+          background: x.pct >= 100 ? "#10B981" : x.pct >= 50 ? "#F59E0B" : "#F43F5E",
+        },
+      })),
+    };
+  }
+
+  buildSankey() {
+    const acts = this.statsActs();
+    const cat = this.CATALOGO();
+    const H = 272, Y0 = 8, GAP = 12;
+    const nodos = [], links = [], textos = [];
+    const gs = cat.map((g) => {
+      const comps = g.comps.map((c) => {
+        const cActs = acts.filter((a) => a.cid === c.id);
+        const ents = {};
+        cActs.forEach((a) => { const k = a.ent || "Sin entregable"; ents[k] = (ents[k] || 0) + 1; });
+        return { c: c, n: cActs.length, ents: Object.keys(ents).map((k) => ({ nombre: k, n: ents[k] })) };
+      }).filter((c) => c.n > 0);
+      return { g: g, comps: comps, n: comps.reduce((s, c) => s + c.n, 0) };
+    }).filter((g) => g.n > 0);
+
+    const totalActs = gs.reduce((s, g) => s + g.n, 0);
+    if (!totalActs) return { sankeyVacio: true, sankeyLleno: false, sankeyNodos: [], sankeyLinks: [], sankeyTextos: [] };
+
+    const nComps = gs.reduce((s, g) => s + g.comps.length, 0);
+    const nEnts = gs.reduce((s, g) => s + g.comps.reduce((q, c) => q + c.ents.length, 0), 0);
+    const gaps = Math.max(gs.length, nComps, nEnts) - 1;
+    const unit = (H - gaps * GAP) / totalActs;
+    const hOf = (n) => Math.max(6, n * unit);
+
+    let yG = Y0, yC = Y0, yE = Y0;
+    gs.forEach((gr) => {
+      const gh = hOf(gr.n);
+      nodos.push({ x: 150, y: yG.toFixed(1), h: gh.toFixed(1), color: gr.g.color });
+      textos.push({ x: 144, y: (yG + gh / 2 + 4).toFixed(1), anchor: "end", size: 11, fill: "#4B4B57", label: gr.g.nombre });
+      let yGIn = yG;
+      gr.comps.forEach((cp) => {
+        const ch = hOf(cp.n);
+        nodos.push({ x: 350, y: yC.toFixed(1), h: ch.toFixed(1), color: "#6D28D9" });
+        textos.push({ x: 366, y: (yC + ch / 2 + 3.5).toFixed(1), anchor: "start", size: 9, fill: "#9C9CAA", label: cp.c.codigo });
+        links.push({
+          color: gr.g.color, w: ch.toFixed(1),
+          d: "M160," + (yGIn + ch / 2).toFixed(1) + " C255," + (yGIn + ch / 2).toFixed(1) + " 255," + (yC + ch / 2).toFixed(1) + " 350," + (yC + ch / 2).toFixed(1),
+        });
+        let yCIn = yC;
+        cp.ents.forEach((en) => {
+          const eh = hOf(en.n);
+          nodos.push({ x: 520, y: yE.toFixed(1), h: eh.toFixed(1), color: "#F59E0B" });
+          textos.push({ x: 538, y: (yE + eh / 2 + 4).toFixed(1), anchor: "start", size: 11, fill: "#4B4B57", label: en.nombre });
+          links.push({
+            color: "#6D28D9", w: eh.toFixed(1),
+            d: "M360," + (yCIn + eh / 2).toFixed(1) + " C440," + (yCIn + eh / 2).toFixed(1) + " 440," + (yE + eh / 2).toFixed(1) + " 520," + (yE + eh / 2).toFixed(1),
+          });
+          yCIn += eh;
+          yE += eh + GAP;
+        });
+        yGIn += ch;
+        yC += ch + GAP;
+      });
+      yG += gh + GAP;
+    });
+
+    const compRanking = [];
+    cat.forEach((g) => g.comps.forEach((c) => {
+      const n = acts.filter((a) => a.cid === c.id).length;
+      compRanking.push({
+        codigo: c.codigo, nombre: c.nombre, n: String(n),
+        numEstilo: { fontSize: "12px", fontWeight: 750, color: n ? "#12121A" : "#C4C4CE" },
+      });
+    }));
+
+    return {
+      sankeyVacio: false, sankeyLleno: true,
+      sankeyNodos: nodos, sankeyLinks: links, sankeyTextos: textos,
+      compRanking: compRanking,
+    };
+  }
+
+  boardRange() {
+    const t = this.TODAY();
+    const off = this.state.boardOffset;
+    const first = new Date(t.getFullYear(), t.getMonth() + off, 1);
+    const last = new Date(first.getFullYear(), first.getMonth() + 1, 0);
+    return { first: first, last: last, off: off };
+  }
+
+  enPeriodo(a) {
+    const r = this.boardRange();
+    const ini = this.d(a.ini), fin = this.d(a.fin);
+    if (ini <= r.last && fin >= r.first) return { visible: true, fuera: false };
+    if (!a.cumplida && fin < this.TODAY()) return { visible: true, fuera: true };
+    return { visible: false, fuera: false };
+  }
+
+  visibles() {
+    return this.ACTS().filter((a) => this.match(a) && this.enPeriodo(a).visible);
+  }
+
+  buildColumns() {
+    const TONE = { red: "#F43F5E", amber: "#F59E0B", slate: "#A5A5B3", green: "#10B981" };
+    const BADGE = {
+      red: { background: "#FEECEF", color: "#C81E45" },
+      amber: { background: "#FEF4E2", color: "#B45309" },
+      slate: { background: "#F2F2F5", color: "#5B5B69" },
+      green: { background: "#E7F8F1", color: "#0B7A5A" },
+    };
+    const defs = [
+      { k: "pendiente", n: "Pendiente", c: "#A5A5B3" },
+      { k: "progreso", n: "En progreso", c: "#3B82F6" },
+      { k: "revision", n: "En revisión", c: "#F59E0B" },
+      { k: "cumplida", n: "Cumplida", c: "#10B981" },
+    ];
+    const buscando = this.norm(this.state.query).trim().length > 0;
+    return defs.map((def) => {
+      const items = this.ACTS().filter((a) => a.e === def.k && this.match(a) && this.enPeriodo(a).visible);
+      return {
+        nombre: def.n, total: String(items.length),
+        dot: { width: "8px", height: "8px", borderRadius: "999px", background: def.c },
+        vacio: items.length === 0,
+        vacioTexto: buscando ? "Sin coincidencias" : "Sin actividades este mes",
+        items: items.map((a) => {
+          const st = this.estadoDe(a);
+          return {
+            titulo: a.t, gestNombre: a.g.n, iniciales: a.av,
+            esReunion: !!a.reunion, esTarea: !a.reunion,
+            fuera: this.enPeriodo(a).fuera,
+            fueraTexto: "de " + ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"][this.d(a.fin).getMonth()],
+            fecha: a.reunion ? a.horaCorta : this.fecha3(a.ini) + " – " + this.fecha3(a.fin),
+            badgeText: st.txt, alerta: !!st.alerta, check: !!st.check,
+            hasExtra: !!a.extra, extra: a.extra ? "+" + a.extra : "",
+            accent: { position: "absolute", left: 0, top: 0, bottom: 0, width: "3px", background: TONE[st.tone] },
+            gestStyle: {
+              display: "inline-flex", alignItems: "center", padding: "2px 8px", borderRadius: "999px",
+              background: a.g.bg, color: a.g.fg, fontSize: "10.5px", fontWeight: 700,
+            },
+            badge: Object.assign({
+              display: "inline-flex", alignItems: "center", gap: "4px", padding: "3px 8px",
+              borderRadius: "999px", fontSize: "10.5px", fontWeight: 700, whiteSpace: "nowrap",
+            }, BADGE[st.tone]),
+            avatar: {
+              width: "27px", height: "27px", flexShrink: 0, borderRadius: "999px",
+              background: "linear-gradient(135deg," + a.grad + ")", color: "#fff",
+              display: "flex", alignItems: "center", justifyContent: "center", fontSize: "10px", fontWeight: 700,
+            },
+          };
+        }),
+      };
+    });
+  }
+
+  TODAY() { return new Date(2026, 5, 18); }
+  d(iso) { const p = iso.split("-"); return new Date(+p[0], +p[1] - 1, +p[2]); }
+  days(a, b) { return Math.round((b - a) / 86400000); }
+  key(x) { return x.getFullYear() + "-" + (x.getMonth() + 1) + "-" + x.getDate(); }
+
+  actsOn(date) {
+    const t = this.TODAY();
+    return this.ACTS().filter((a) => this.match(a) && date >= this.d(a.ini) && date <= this.d(a.fin)).map((a) => {
+      const fin = this.d(a.fin), diff = this.days(t, fin);
+      let tone = "slate", txt = "en " + diff + "d";
+      if (a.cumplida) { tone = "green"; txt = "Cumplida"; }
+      else if (diff < 0) { tone = "red"; txt = "Fin superado"; }
+      else if (this.key(fin) === this.key(date)) { tone = diff <= 3 ? "amber" : "slate"; txt = "último día"; }
+      else if (diff === 0) { tone = "amber"; txt = "Finaliza hoy"; }
+      else if (diff <= 3) { tone = "amber"; }
+      return { a: a, tone: tone, txt: txt };
+    }).sort((x, y) => {
+      const RANK = { red: 0, amber: 1, slate: 2, green: 3 };
+      if (RANK[x.tone] !== RANK[y.tone]) return RANK[x.tone] - RANK[y.tone];
+      const fx = this.d(x.a.fin), fy = this.d(y.a.fin);
+      const cx = this.key(fx) === this.key(date) ? 0 : 1;
+      const cy = this.key(fy) === this.key(date) ? 0 : 1;
+      if (cx !== cy) return cx - cy;
+      return fx - fy;
+    });
+  }
+
+  buildWeek() {
+    const TONE = { red: "#F43F5E", amber: "#F59E0B", slate: "#A5A5B3", green: "#10B981" };
+    const BADGE = {
+      red: { background: "#FEECEF", color: "#C81E45" },
+      amber: { background: "#FEF4E2", color: "#B45309" },
+      slate: { background: "#F2F2F5", color: "#5B5B69" },
+      green: { background: "#E7F8F1", color: "#0B7A5A" },
+    };
+    const DOW = ["lun", "mar", "mié", "jue", "vie", "sáb", "dom"];
+    const t = this.TODAY();
+    const start = this.weekStart();
+    const out = [];
+    for (let i = 0; i < 7; i++) {
+      const date = new Date(start.getFullYear(), start.getMonth(), start.getDate() + i);
+      const isToday = this.key(date) === this.key(t);
+      const weekend = i > 4;
+      const all = this.actsOn(date);
+      const shown = all.slice(0, 3);
+      out.push({
+        dowText: DOW[i], numText: String(date.getDate()),
+        head: {
+          display: "flex", alignItems: "baseline", justifyContent: "space-between",
+          padding: "7px 11px", borderRadius: "11px", background: isToday ? "#12121A" : "#F4F4F6",
+        },
+        dow: { fontSize: "10.5px", fontWeight: 750, letterSpacing: ".05em", textTransform: "uppercase", color: isToday ? "#B4B4C2" : weekend ? "#A5A5B3" : "#8A8A99" },
+        num: { fontSize: "14px", fontWeight: 750, color: isToday ? "#fff" : weekend ? "#8A8A99" : "#2B2B36" },
+        body: {
+          display: "flex", flexDirection: "column", gap: "8px", padding: "8px",
+          borderRadius: "14px", background: isToday ? "#F1EBFF" : "#F7F7F9", minHeight: "190px",
+        },
+        empty: all.length === 0,
+        hasMore: all.length > 3,
+        moreText: "+" + (all.length - 3) + " más",
+        items: shown.map((x) => ({
+          isMeeting: !!x.a.reunion, isTask: !x.a.reunion,
+          titulo: x.a.t, hora: x.a.hora, iniciales: x.a.av, badgeText: x.txt,
+          card: {
+            position: "relative", overflow: "hidden", borderRadius: "11px", background: "#fff",
+            border: isToday ? "1px solid #E4D8FB" : "1px solid #ECECEF", padding: "9px 9px 9px 12px", cursor: "pointer",
+          },
+          accent: { position: "absolute", left: 0, top: 0, bottom: 0, width: "3px", background: TONE[x.tone] },
+          badge: Object.assign({ padding: "2px 6px", borderRadius: "999px", fontSize: "9.5px", fontWeight: 700, whiteSpace: "nowrap" }, BADGE[x.tone]),
+          avatar: {
+            width: "19px", height: "19px", flexShrink: 0, borderRadius: "999px",
+            background: "linear-gradient(135deg," + x.a.grad + ")", color: "#fff",
+            display: "flex", alignItems: "center", justifyContent: "center", fontSize: "8px", fontWeight: 700,
+          },
+        })),
+      });
+    }
+    return out;
+  }
+
+  weekStart() {
+    const t = this.TODAY();
+    const dow = (t.getDay() + 6) % 7;
+    return new Date(t.getFullYear(), t.getMonth(), t.getDate() - dow + this.state.periodOffset * 7);
+  }
+
+  monthAnchor() {
+    const t = this.TODAY();
+    return new Date(t.getFullYear(), t.getMonth() + this.state.periodOffset, 1);
+  }
+
+  buildMonth() {
+    const TONE = { red: "#F43F5E", amber: "#F59E0B", slate: "#A5A5B3", green: "#10B981" };
+    const t = this.TODAY();
+    const first = this.monthAnchor();
+    const lead = (first.getDay() + 6) % 7;
+    const largo = new Date(first.getFullYear(), first.getMonth() + 1, 0).getDate();
+    const total = Math.ceil((lead + largo) / 7) * 7;
+    const cells = [];
+    for (let i = 0; i < total; i++) {
+      const date = new Date(first.getFullYear(), first.getMonth(), 1 - lead + i);
+      const inMonth = date.getMonth() === first.getMonth();
+      const isToday = this.key(date) === this.key(t);
+      const raw = inMonth ? this.actsOn(date) : [];
+      cells.push({
+        day: String(date.getDate()),
+        count: raw.length > 0 ? String(raw.length) : "",
+        items: raw.slice(0, 2).map((x) => ({
+          title: x.a.t,
+          dot: { width: "6px", height: "6px", borderRadius: "999px", flexShrink: 0, background: TONE[x.tone] },
+        })),
+        box: {
+          minHeight: "104px", padding: "8px 9px", borderRadius: "13px",
+          border: isToday ? "1px solid #DCC9FA" : "1px solid #F1F1F4",
+          background: isToday ? "#F7F2FF" : inMonth ? "#fff" : "#FAFAFB",
+        },
+        num: {
+          display: "inline-flex", alignItems: "center", justifyContent: "center",
+          minWidth: "21px", height: "21px", padding: "0 5px", borderRadius: "999px",
+          fontSize: "11.5px", fontWeight: 750,
+          background: isToday ? "#12121A" : "transparent",
+          color: isToday ? "#fff" : inMonth ? "#2B2B36" : "#C4C4CE",
+        },
+      });
+    }
+    return cells;
+  }
+
+  renderVals() {
+    const cat = this.buildCatalogo();
+    const t = this.state.tab;
+    const v = this.state.view;
+    const MESES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
+    const MES3 = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
+    const off = this.state.periodOffset;
+    const wkStart = this.weekStart();
+    const wkEnd = new Date(wkStart.getFullYear(), wkStart.getMonth(), wkStart.getDate() + 6);
+    const mAnchor = this.monthAnchor();
+    const wkLabel = wkStart.getMonth() === wkEnd.getMonth()
+      ? wkStart.getDate() + " – " + wkEnd.getDate() + " " + MESES[wkEnd.getMonth()]
+      : wkStart.getDate() + " " + MES3[wkStart.getMonth()] + " – " + wkEnd.getDate() + " " + MES3[wkEnd.getMonth()];
+    const unit = v === "month" ? "mes" : "semana";
+    const plural = v === "month" ? "meses" : "semanas";
+    const n = Math.abs(off);
+    const hint = off === 0 ? "" : (off < 0
+      ? (n === 1 ? "hace 1 " + unit : "hace " + n + " " + plural)
+      : (n === 1 ? "en 1 " + unit : "en " + n + " " + plural));
+    const cuentaMal = !this.state.funcEmail.trim() ||
+      (!this.state.funcEditing && this.state.funcPass.length < 8);
+    const funcMal = !this.state.funcNombre.trim() || cuentaMal;
+    const segSmall = (active) => ({
+      flex: 1, height: "30px", borderRadius: "8px", fontSize: "12px", fontWeight: 650,
+      transition: "background .15s, color .15s",
+      background: active ? "#fff" : "transparent",
+      color: active ? "#12121A" : "#7A7A88",
+      boxShadow: active ? "0 1px 3px rgba(18,18,26,.10)" : "none",
+    });
+    const isAdmin = (this.props.rol ?? "Administrador") === "Administrador";
+    const stR = this.statsRango();
+    return Object.assign({}, cat, this.buildSankey(), this.buildRanking(), {
+      st: this.buildStats(),
+      dona: this.buildDona(),
+      donaVacia: this.statsActs().length === 0,
+      rankingVacio: this.buildRanking().ranking.length === 0,
+      atajos: this.buildAtajos(),
+      statsIni: this.state.statsIni,
+      statsFin: this.state.statsFin,
+      statsRango: this.fmtRango(),
+      statsResumen: this.fmtRango() + " · " + this.plural(this.statsActs().length, "actividad", "actividades"),
+      donaSub: "Sobre " + this.plural(this.statsActs().length, "actividad", "actividades") + " del período",
+      rangoDias: stR.dias === 1 ? "1 día seleccionado" : stR.dias + " días seleccionados",
+      rangoInvertido: stR.invertido,
+      menuRango: this.state.menu === "rango",
+      toggleRango: () => this.setState((s) => ({ menu: s.menu === "rango" ? null : "rango" })),
+      onStatsIni: (ev) => { if (ev.target.value) this.setState({ statsIni: ev.target.value }); },
+      onStatsFin: (ev) => { if (ev.target.value) this.setState({ statsFin: ev.target.value }); },
+      rangoBtn: {
+        display: "flex", alignItems: "center", gap: "7px", height: "34px", padding: "0 12px 0 14px",
+        borderRadius: "999px", fontSize: "12.5px", fontWeight: 600, color: "#2B2B36",
+        background: this.state.menu === "rango" ? "#FAFAFB" : "#fff",
+        border: "1px solid " + (this.state.menu === "rango" ? "#DCC9FA" : "#ECECEF"),
+      },
+      finInput: {
+        height: "38px", padding: "0 11px", borderRadius: "10px", background: "#fff",
+        fontSize: "12.5px", color: "#12121A", outline: "none", width: "100%",
+        border: "1px solid " + (stR.invertido ? "#DCC9FA" : "#E4E4E9"),
+      },
+      isAdmin,
+      isBoard: t === "tablero",
+      isStats: t === "stats",
+      isCatalogs: t === "catalogs" && isAdmin,
+      isUsers: t === "users" && isAdmin,
+      tabBoard: this.pill(t === "tablero"),
+      tabStats: this.pill(t === "stats"),
+      tabCatalogs: this.pill(t === "catalogs"),
+      tabUsers: this.pill(t === "users"),
+      goBoard: () => this.setState({ tab: "tablero" }),
+      goStats: () => this.setState({ tab: "stats" }),
+      goCatalogs: () => this.setState({ tab: "catalogs" }),
+      goUsers: () => this.setState({ tab: "users" }),
+      segColumns: this.seg(v === "columns"),
+      segWeek: this.seg(v === "week"),
+      segMonth: this.seg(v === "month"),
+      setColumns: () => this.setState({ view: "columns", periodOffset: 0 }),
+      setWeek: () => this.setState({ view: "week", periodOffset: 0 }),
+      setMonth: () => this.setState({ view: "month", periodOffset: 0 }),
+      menuPerfil: this.state.menu === "perfil",
+      togglePerfil: () => this.setState((s) => ({ menu: s.menu === "perfil" ? null : "perfil" })),
+      perfilBtn: {
+        width: "34px", height: "34px", borderRadius: "999px",
+        background: "linear-gradient(135deg,#0ea5e9,#0284c7)", color: "#fff",
+        display: "flex", alignItems: "center", justifyContent: "center",
+        fontSize: "12px", fontWeight: 700,
+        boxShadow: this.state.menu === "perfil"
+          ? "0 0 0 2px #fff,0 0 0 3px #6D28D9"
+          : "0 0 0 2px #fff,0 0 0 3px #E9E9ED",
+      },
+      menuGoogle: this.state.menu === "google",
+      toggleGoogleMenu: () => this.setState((s) => ({ menu: s.menu === "google" ? null : "google" })),
+      closeMenu: () => this.setState({ menu: null }),
+      columnas: this.buildColumns(),
+      boardMes: (() => {
+        const r = this.boardRange();
+        return MESES[r.first.getMonth()].charAt(0).toUpperCase() + MESES[r.first.getMonth()].slice(1) + " " + r.first.getFullYear();
+      })(),
+      boardPrev: () => this.setState((st) => ({ boardOffset: st.boardOffset - 1 })),
+      boardNext: () => this.setState((st) => ({ boardOffset: st.boardOffset + 1 })),
+      boardHoy: () => this.setState({ boardOffset: 0 }),
+      boardHoyTip: this.state.boardOffset === 0 ? "Ya estás en el mes actual" : "Volver al mes actual",
+      boardHoyBtn: {
+        height: "26px", padding: "0 11px", borderRadius: "999px", fontSize: "11.5px", fontWeight: 700,
+        background: this.state.boardOffset === 0 ? "transparent" : "#F1EBFF",
+        color: this.state.boardOffset === 0 ? "#C4C4CE" : "#6D28D9",
+        cursor: this.state.boardOffset === 0 ? "default" : "pointer",
+      },
+      boardTotal: (() => {
+        const n = this.visibles().length;
+        return n === 1 ? "1 actividad" : n + " actividades";
+      })(),
+      boardVencidas: String(this.visibles().filter((a) => !a.cumplida && this.d(a.fin) < this.TODAY()).length),
+      boardCumplidas: String(this.visibles().filter((a) => a.cumplida).length),
+      boardCumplidasLabel: this.visibles().filter((a) => a.cumplida).length === 1 ? "cumplida" : "cumplidas",
+      query: this.state.query,
+      onQuery: (ev) => this.setState({ query: ev.target.value }),
+      clearQuery: () => this.setState({ query: "" }),
+      buscando: this.norm(this.state.query).trim().length > 0,
+      noBuscando: this.norm(this.state.query).trim().length === 0,
+      boardSearch: {
+        display: "flex", alignItems: "center", gap: "9px", height: "36px", padding: "0 12px 0 14px",
+        borderRadius: "999px", background: "#fff", minWidth: "260px",
+        border: "1px solid " + (this.norm(this.state.query).trim() ? "#DCC9FA" : "#ECECEF"),
+        boxShadow: this.norm(this.state.query).trim() ? "0 0 0 3px rgba(109,40,217,.10)" : "none",
+      },
+      resultados: (() => {
+        const n = this.ACTS().filter((a) => this.match(a)).length;
+        return n === 1 ? "1 resultado" : n + " resultados";
+      })(),
+      hayResultados: this.ACTS().filter((a) => this.match(a)).length > 0,
+      sinResultados: this.ACTS().filter((a) => this.match(a)).length === 0,
+      weekDays: this.buildWeek(),
+      monthCells: this.buildMonth(),
+      weekLabel: wkLabel, weekYear: String(wkStart.getFullYear()), weekHint: hint,
+      monthLabel: MESES[mAnchor.getMonth()].charAt(0).toUpperCase() + MESES[mAnchor.getMonth()].slice(1), monthYear: String(mAnchor.getFullYear()), monthHint: hint,
+      rangeHint: {
+        display: off === 0 ? "none" : "inline-flex", alignItems: "center", padding: "3px 10px",
+        borderRadius: "999px", background: "#F1EBFF", color: "#6D28D9",
+        fontSize: "11px", fontWeight: 700, letterSpacing: 0,
+      },
+      prevPeriod: () => this.setState((st) => ({ periodOffset: st.periodOffset - 1 })),
+      nextPeriod: () => this.setState((st) => ({ periodOffset: st.periodOffset + 1 })),
+      goToday: () => this.setState({ periodOffset: 0 }),
+      todayTip: off === 0 ? (v === "month" ? "Ya estás en el mes actual" : "Ya estás en la semana actual") : "Volver a hoy",
+      todayBtn: {
+        height: "32px", padding: "0 14px", borderRadius: "999px",
+        border: "1px solid " + (off === 0 ? "#F1F1F4" : "#ECECEF"),
+        background: off === 0 ? "#FAFAFB" : "#fff",
+        fontSize: "12.5px", fontWeight: 650,
+        color: off === 0 ? "#C4C4CE" : "#12121A",
+        cursor: off === 0 ? "default" : "pointer",
+      },
+      ganttRows: this.buildGantt(),
+      ganttAllCollapsed: Object.keys(this.state.collapsed).length > 0,
+      ganttToggleAll: () => this.setState((s) => {
+        if (Object.keys(s.collapsed).length > 0) return { collapsed: {} };
+        const all = {};
+        this.ganttData().forEach((g) => { all[g.id] = true; });
+        return { collapsed: all };
+      }),
+      ganttToggleAllLabel: Object.keys(this.state.collapsed).length > 0 ? "Expandir todo" : "Contraer todo",
+      ganttSub: this.buildGantt().length
+        ? this.fmtRango() + " · toca una gestión o un funcionario para contraer sus actividades"
+        : this.fmtRango(),
+      ganttVacio: this.buildGantt().length === 0,
+      ganttLleno: this.buildGantt().length > 0,
+      ganttHeadGrid: { display: "grid", gridTemplateColumns: "repeat(" + this.statsRango().dias + ",minmax(0,1fr))" },
+      ganttDays: this.ganttCols(),
+      ganttHoyVisible: (() => {
+        const r = this.statsRango(), t = this.TODAY();
+        return t >= r.ini && t <= r.fin;
+      })(),
+      ganttHoyLinea: (() => {
+        const r = this.statsRango(), t = this.TODAY();
+        const pos = (this.days(r.ini, t) / r.dias) * 100;
+        return {
+          position: "absolute", top: 0, bottom: 0, zIndex: 2, pointerEvents: "none",
+          left: "calc(280px + (100% - 280px) * " + (pos / 100).toFixed(4) + ")",
+          width: "calc((100% - 280px) / " + r.dias + ")",
+          background: "rgba(109,40,217,.07)",
+          borderLeft: "1px solid rgba(109,40,217,.28)",
+          borderRight: "1px solid rgba(109,40,217,.28)",
+        };
+      })(),
+      isColumns: v === "columns",
+      isWeek: v === "week",
+      isMonth: v === "month",
+      overlayDetail: this.state.overlay === "detail",
+      overlayNew: this.state.overlay === "new",
+      overlayExport: this.state.overlay === "export",
+      overlayFunc: this.state.overlay === "funcionario",
+      overlayNombre: this.state.overlay === "nombre",
+      nombreTitulo: (this.state.nombreEditando ? "Editar " : "Nueva ") === "Editar "
+        ? "Editar " + this.state.nombreTipo
+        : (this.state.nombreTipo === "entregable" ? "Nuevo entregable" : "Nueva " + this.state.nombreTipo),
+      nombreContexto: this.state.nombreContexto,
+      nombreValor: this.state.nombreValor,
+      nombrePlaceholder: this.state.nombreTipo === "gestión"
+        ? "p. ej. Gestión de Patrimonio Natural"
+        : this.state.nombreTipo === "competencia"
+          ? "p. ej. Control de calidad de agua"
+          : "p. ej. Informe técnico trimestral",
+      onNombre: (ev) => this.setState({ nombreValor: ev.target.value }),
+      nombreInvalido: !this.state.nombreValor.trim(),
+      nombreSaveLabel: this.state.nombreEditando ? "Guardar cambios" : "Crear",
+      nombreSubmit: () => { if (this.state.nombreValor.trim()) this.setState({ overlay: null }); },
+      nombreSaveBtn: {
+        display: "flex", alignItems: "center", gap: "7px", height: "40px", padding: "0 19px",
+        borderRadius: "11px", fontSize: "13.5px", fontWeight: 650, color: "#fff",
+        background: this.state.nombreValor.trim() ? "#12121A" : "#D0D0D8",
+        boxShadow: this.state.nombreValor.trim() ? "0 2px 10px rgba(18,18,26,.24)" : "none",
+        cursor: this.state.nombreValor.trim() ? "pointer" : "not-allowed",
+      },
+      openFunc: () => this.setState({
+        overlay: "funcionario", funcEditing: false, funcRol: "user",
+        funcNombre: "", funcCargo: "", funcEmail: "", funcGestion: "DGTAR",
+        funcVisible: "", funcVisibleEdit: false, funcPass: "",
+      }),
+      funcionarios: this.buildFuncionarios(),
+      funcGestion: this.state.funcGestion,
+      onFuncGestion: (ev) => this.setState({ funcGestion: ev.target.value }),
+      funcVisible: this.state.funcNombre.trim() || "—",
+      funcEditando: this.state.funcEditing,
+      funcNombre: this.state.funcNombre,
+      funcCargo: this.state.funcCargo,
+      funcEmail: this.state.funcEmail,
+      funcPass: this.state.funcPass,
+      onFuncNombre: (ev) => this.setState({ funcNombre: ev.target.value }),
+      onFuncCargo: (ev) => this.setState({ funcCargo: ev.target.value }),
+      onFuncEmail: (ev) => this.setState({ funcEmail: ev.target.value }),
+      onFuncPass: (ev) => this.setState({ funcPass: ev.target.value }),
+      setRolUser: () => this.setState({ funcRol: "user" }),
+      setRolAdmin: () => this.setState({ funcRol: "admin" }),
+      segRolUser: segSmall(this.state.funcRol === "user"),
+      segRolAdmin: segSmall(this.state.funcRol === "admin"),
+      rolHint: this.state.funcRol === "admin"
+        ? "Ve todas las actividades y administra catálogos y usuarios."
+        : "Ve y edita solo las actividades de su gestión.",
+      funcTitle: this.state.funcEditing ? "Editar funcionario" : "Nuevo funcionario",
+      funcSub: this.state.funcEditing
+        ? "Datos del funcionario, su rol y su acceso a la plataforma"
+        : "Todo funcionario recibe cuenta para iniciar sesión",
+      passLabel: this.state.funcEditing ? "Nueva contraseña" : "Contraseña",
+      passHint: (() => {
+        const p = this.state.funcPass;
+        if (this.state.funcEditing && !p) return "Déjala vacía para mantener la actual.";
+        if (p.length === 0) return "Mínimo 8 caracteres.";
+        if (p.length < 8) return "Faltan " + (8 - p.length) + " caracteres.";
+        return "Longitud válida.";
+      })(),
+      passHintStyle: {
+        fontSize: "11px",
+        color: (!this.state.funcEditing && this.state.funcPass.length > 0 && this.state.funcPass.length < 8) ? "#C81E45" : "#9C9CAA",
+      },
+      passInput: {
+        height: "42px", padding: "0 14px", borderRadius: "11px", background: "#fff",
+        fontSize: "13.5px", color: "#12121A", outline: "none", width: "100%",
+        border: "1px solid " + ((!this.state.funcEditing && this.state.funcPass.length > 0 && this.state.funcPass.length < 8) ? "#FBD5DC" : "#E4E4E9"),
+      },
+      funcInvalido: funcMal,
+      funcTip: !this.state.funcNombre.trim()
+        ? "El nombre es obligatorio"
+        : (cuentaMal ? "Completa el email y una contraseña de 8 caracteres" : ""),
+      funcSaveLabel: this.state.funcEditing ? "Guardar cambios" : "Crear funcionario",
+      funcSubmit: () => { if (!funcMal) this.setState({ overlay: null }); },
+      funcSaveBtn: {
+        display: "flex", alignItems: "center", gap: "7px", height: "40px", padding: "0 19px",
+        borderRadius: "11px", fontSize: "13.5px", fontWeight: 650,
+        background: funcMal ? "#D0D0D8" : "#12121A", color: "#fff",
+        boxShadow: funcMal ? "none" : "0 2px 10px rgba(18,18,26,.24)",
+        cursor: funcMal ? "not-allowed" : "pointer",
+      },
+      openDetail: () => this.setState({ overlay: "detail", detailEditing: false }),
+      openNew: () => this.setState({ overlay: "new" }),
+      openExport: () => this.setState({ overlay: "export" }),
+      closeOverlay: () => this.setState({ overlay: null, detailEditing: false }),
+      detailEditing: this.state.detailEditing,
+      detailReading: !this.state.detailEditing,
+      startEdit: () => this.setState({ detailEditing: true }),
+      cancelEdit: () => this.setState({ detailEditing: false }),
+    });
+  }
+}
+</script>
+</body>
+</html>

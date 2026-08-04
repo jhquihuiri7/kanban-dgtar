@@ -95,6 +95,7 @@ function DateFieldDMA({
       id={id}
       inputMode="numeric"
       placeholder="dd/mm/aaaa"
+      className="sm:!h-[42px] sm:!text-[13.5px]"
       value={text}
       onChange={(e) => {
         const masked = maskDma(e.target.value);
@@ -228,55 +229,63 @@ export function ExportDialog({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4">
-      <div className="absolute inset-0 bg-slate-900/30 backdrop-blur-[2px]" onClick={onClose} />
-      <div className="relative z-10 max-h-[calc(100dvh-1rem)] w-full max-w-md overflow-y-auto rounded-xl bg-white p-4 ring-1 ring-foreground/10 shadow-xl sm:max-h-[calc(100dvh-2rem)] sm:p-5">
-        <div className="flex items-start justify-between gap-3">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6">
+      <div className="absolute inset-0 bg-[rgba(18,18,26,.32)] backdrop-blur-[3px]" onClick={onClose} />
+      <div className="relative z-10 max-h-[calc(100dvh-1.5rem)] w-full max-w-[460px] overflow-y-auto rounded-modal bg-white p-5 shadow-modal sm:p-6">
+        <div className="flex items-start justify-between gap-3.5">
           <div className="min-w-0">
-            <div className="text-base font-semibold text-slate-900">Exportar actividades</div>
-            <div className="mt-0.5 text-xs text-slate-500">
-              Incluye las actividades cuyo rango se solapa con el período y descarga un archivo CSV (Excel).
+            <div className="text-[18px] font-extrabold tracking-[-.025em]">Exportar actividades</div>
+            <div className="mt-1 text-[12.5px] leading-[1.5] text-ink-faint">
+              Incluye las actividades cuyo rango se solapa con el período y descarga un archivo CSV compatible
+              con Excel.
             </div>
           </div>
           <button
             type="button"
             onClick={onClose}
             aria-label="Cerrar"
-            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md text-slate-500 hover:bg-slate-100 sm:h-auto sm:w-auto sm:p-1.5"
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-btn text-ink-faint transition-colors hover:bg-estado-pendiente-bg hover:text-ink"
           >
             <Icon name="close" size={16} />
           </button>
         </div>
 
-        <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <div className="space-y-1.5">
+        <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div className="flex flex-col gap-[7px]">
             <Label htmlFor="export-desde">Desde</Label>
             <DateFieldDMA id="export-desde" value={desde} onChange={setDesde} />
           </div>
-          <div className="space-y-1.5">
+          <div className="flex flex-col gap-[7px]">
             <Label htmlFor="export-hasta">Hasta</Label>
             <DateFieldDMA id="export-hasta" value={hasta} onChange={setHasta} />
           </div>
         </div>
 
-        <div className="mt-4 flex items-start gap-2 rounded-lg bg-slate-50 p-3 text-sm ring-1 ring-foreground/5 sm:items-center">
-          <Icon name="calendar" size={14} className="mt-0.5 shrink-0 text-slate-400 sm:mt-0" />
+        <div className="mt-4 flex items-center gap-[11px] rounded-[13px] border border-line-soft bg-surface-subtle px-4 py-3.5">
+          <Icon name="calendar" size={15} className="shrink-0 text-ink-faint" />
           {rangoInvalido ? (
-            <span className="text-slate-500">Selecciona ambas fechas.</span>
+            <span className="text-[13px] text-ink-faint">Selecciona ambas fechas.</span>
           ) : sinResultados ? (
-            <span className="text-amber-700">No hay actividades en ese rango.</span>
+            <span className="text-[13px] font-semibold text-estado-revision-fg">
+              No hay actividades en ese rango.
+            </span>
           ) : (
-            <span className="text-slate-700">
-              <b>{seleccionadas.length}</b> actividad(es) en el rango.
+            <span className="text-[13px] text-ink-soft">
+              <b className="font-[750] text-ink">{seleccionadas.length}</b>{" "}
+              {seleccionadas.length === 1 ? "actividad en el rango" : "actividades en el rango"}
             </span>
           )}
         </div>
 
-        <div className="mt-5 grid grid-cols-2 gap-2 sm:flex sm:items-center sm:justify-end">
-          <Button className="w-full sm:w-auto" variant="outline" onClick={onClose}>
+        <div className="mt-5 flex items-center justify-end gap-2.5">
+          <Button variant="outline" className="!h-10 !rounded-input !px-4" onClick={onClose}>
             Cancelar
           </Button>
-          <Button className="w-full sm:w-auto" onClick={exportar} disabled={rangoInvalido || sinResultados}>
+          <Button
+            className="!h-10 !rounded-input !px-[19px]"
+            onClick={exportar}
+            disabled={rangoInvalido || sinResultados}
+          >
             <Icon name="download" size={14} /> Exportar CSV
           </Button>
         </div>

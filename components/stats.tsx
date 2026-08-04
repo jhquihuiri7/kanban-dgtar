@@ -1,1053 +1,1002 @@
 "use client";
 
 import * as React from "react";
-import { useMemo } from "react";
-import {
-  ResponsiveContainer,
-  PieChart,
-  Pie,
-  Cell,
-  Sankey,
-  Tooltip,
-} from "recharts";
-import { Avatar, Badge, Card, CardContent, CardHeader, CardTitle, Icon, type IconName } from "@/components/ui";
+import { useMemo, useState } from "react";
+import { Avatar, Icon, type IconName } from "@/components/ui";
 import { cn } from "@/lib/utils";
 import {
   ESTADOS,
   TODAY_ISO,
-  actividadFuncionarioIds,
   actividadIncludesFuncionario,
   addDays,
+  competenciaCodigo,
+  dateOnly,
   daysBetween,
   fechaFinInfo,
   fmtFecha,
-  fmtHora,
   gestionNombre,
   iso,
   type Actividad,
   type Competencia,
   type Entregable,
-  type FechaInfo,
+  type EstadoActividad,
   type Funcionario,
   type Gestion,
 } from "@/lib/data";
 
-interface FuncionarioStat {
-  f: Funcionario;
-  total: number;
-  cumplidas: number;
-  fechaFinSuperada: number;
-  cumpl: number;
+interface DateRange {
+  from: string;
+  to: string;
 }
 
-function computeStats(
-  activities: Actividad[],
-  funcionarios: Funcionario[],
-  competencias: Competencia[],
-) {
-  const today = TODAY_ISO;
-  const totals = {
-    total: activities.length,
-    pendiente: 0,
-    en_progreso: 0,
-    en_revision: 0,
-    cumplida: 0,
-    fechaFinSuperada: 0,
-    proximasFinalizar: 0,
-  } as Record<string, number>;
-  for (const a of activities) {
-    totals[a.estado]++;
-    const fecha = fechaFinInfo(a, today);
-    if (fecha.kind === "ended") totals.fechaFinSuperada++;
-    if (fecha.kind === "soon" || fecha.kind === "today") totals.proximasFinalizar++;
-  }
-
-  const porFuncionario: FuncionarioStat[] = funcionarios
-    .map((f) => {
-      const mine = activities.filter((a) => actividadIncludesFuncionario(a, f.id));
-      const total = mine.length;
-      const cumplidas = mine.filter((a) => a.estado === "cumplida");
-      const fechaFinSuperada = mine.filter(
-        (a) => a.estado !== "cumplida" && daysBetween(today, a.fechaFin) < 0,
-      ).length;
-      const cumpl = total ? Math.round((cumplidas.length / total) * 100) : 0;
-
-      return {
-        f,
-        total,
-        cumplidas: cumplidas.length,
-        fechaFinSuperada,
-        cumpl,
-      };
-    })
-    .sort((a, b) => b.total - a.total);
-
-  const porCompetencia = competencias
-    .map((c) => ({ c, total: activities.filter((a) => a.competenciaId === c.id).length }))
-    .sort((a, b) => b.total - a.total);
-
-  return { totals, porFuncionario, porCompetencia };
-}
-
-const tooltipStyle: React.CSSProperties = {
-  fontSize: 12,
-  borderRadius: 8,
-  border: "1px solid #e2e8f0",
-  background: "#fff",
-  boxShadow: "0 4px 12px rgba(15,23,42,0.06)",
+const ESTADO_HEX: Record<string, string> = {
+  pendiente: "#A5A5B3",
+  en_progreso: "#3B82F6",
+  en_revision: "#F59E0B",
+  cumplida: "#10B981",
 };
 
-const COMPETENCIA_COLOR = "#7c3aed";
-const ENTREGABLE_COLOR = "#f59e0b";
-const SIN_ENTREGABLE_COLOR = "#94a3b8";
-const SIN_GESTION_COLOR = "#64748b";
-const SIN_ENTREGABLE_ID = "__sin_entregable__";
-const SIN_ENTREGABLE_NOMBRE = "Sin entregable";
+const SIN_GESTION = "__sin_gestion__";
+const SIN_ENTREGABLE = "__sin_entregable__";
+const VACIO = "Sin actividades en el período seleccionado";
 
-interface SankeyNodeDatum {
-  name: string;
-  shortName: string;
-  kind: "gestion" | "competencia" | "entregable";
-  color: string;
+/* ── helpers ────────────────────────────────────────────────────────── */
+
+function rangeDays(range: DateRange): string[] {
+  const total = Math.max(1, daysBetween(range.from, range.to) + 1);
+  return Array.from({ length: total }, (_, i) => iso(addDays(range.from, i)));
 }
 
-interface SankeyLinkDatum {
-  source: number;
-  target: number;
-  value: number;
-  color: string;
+function pct(part: number, total: number): number {
+  return total > 0 ? Math.round((part / total) * 100) : 0;
 }
 
-interface SankeyLegendItem {
-  id: string;
-  code: string;
-  name: string;
-  total: number;
-}
-
-interface SankeyGestionItem {
-  gestionId: string;
-  name: string;
-  shortName: string;
-  color: string;
-  total: number;
-}
-
-interface ManagementCompetenceSankeyData {
-  nodes: SankeyNodeDatum[];
-  links: SankeyLinkDatum[];
-  competencias: SankeyLegendItem[];
-  entregables: SankeyLegendItem[];
-  gestiones: SankeyGestionItem[];
-  total: number;
-}
-
-// Gestión → Competencia → Entregable. El color de cada tramo se hereda de la
-// gestión de origen (vía competencia.gestionId) en los dos saltos, para poder
-// seguir de un vistazo a qué gestión pertenece un entregable. Las actividades
-// sin entregable asignado (hoy, las de DGTAR) se agrupan en un nodo "Sin
-// entregable" en vez de perderse silenciosamente.
-function buildManagementCompetenceSankey(
-  activities: Actividad[],
-  funcionarios: Funcionario[],
-  competencias: Competencia[],
-  entregables: Entregable[],
-  gestiones: Gestion[],
-): ManagementCompetenceSankeyData {
-  const funcionarioById = new Map(funcionarios.map((f) => [f.id, f]));
-  const competenciaById = new Map(competencias.map((c) => [c.id, c]));
-  const entregableById = new Map(entregables.map((e) => [e.id, e]));
-  const gestionById = new Map(gestiones.map((g) => [g.id, g]));
-  const linksByGestion = new Map<string, Map<string, number>>();
-  const gestionTotals = new Map<string, number>();
-  const competenciaTotals = new Map<string, number>();
-  const linksByCompetencia = new Map<string, Map<string, number>>();
-  const entregableTotals = new Map<string, number>();
-  let total = 0;
-
-  for (const activity of activities) {
-    const funcionario = funcionarioById.get(activity.funcionarioId);
-    const competencia = competenciaById.get(activity.competenciaId);
-    if (!funcionario || !competencia) continue;
-
-    const gestionId = funcionario.gestionId;
-    const gestionLinks = linksByGestion.get(gestionId) ?? new Map<string, number>();
-    gestionLinks.set(competencia.id, (gestionLinks.get(competencia.id) ?? 0) + 1);
-    linksByGestion.set(gestionId, gestionLinks);
-    gestionTotals.set(gestionId, (gestionTotals.get(gestionId) ?? 0) + 1);
-    competenciaTotals.set(competencia.id, (competenciaTotals.get(competencia.id) ?? 0) + 1);
-
-    const entregableKey =
-      activity.entregableId && entregableById.has(activity.entregableId) ? activity.entregableId : SIN_ENTREGABLE_ID;
-    const competenciaLinks = linksByCompetencia.get(competencia.id) ?? new Map<string, number>();
-    competenciaLinks.set(entregableKey, (competenciaLinks.get(entregableKey) ?? 0) + 1);
-    linksByCompetencia.set(competencia.id, competenciaLinks);
-    entregableTotals.set(entregableKey, (entregableTotals.get(entregableKey) ?? 0) + 1);
-
-    total++;
-  }
-
-  const gestionOrder = new Map(gestiones.map((g, index) => [g.id, index]));
-  const gestionStats: SankeyGestionItem[] = Array.from(gestionTotals, ([gestionId, count]) => {
-    const g = gestionById.get(gestionId);
-    const name = g?.nombre ?? "Sin gestión";
-    return { gestionId, name, shortName: name, color: g?.color || SIN_GESTION_COLOR, total: count };
-  }).sort((a, b) => {
-    const orderA = gestionOrder.get(a.gestionId) ?? Number.MAX_SAFE_INTEGER;
-    const orderB = gestionOrder.get(b.gestionId) ?? Number.MAX_SAFE_INTEGER;
-    return orderA - orderB || a.name.localeCompare(b.name, "es");
-  });
-
-  const activeCompetencias = competencias
-    .map((competencia) => ({
-      id: competencia.id,
-      name: competencia.nombre,
-      total: competenciaTotals.get(competencia.id) ?? 0,
-    }))
-    .filter((competencia) => competencia.total > 0)
-    .sort((a, b) => b.total - a.total || a.name.localeCompare(b.name, "es"));
-  const competenciaLegend = activeCompetencias.map((competencia, index) => ({
-    ...competencia,
-    code: `C${index + 1}`,
-  }));
-  // Color de cada competencia = color de su propia gestión, para que el
-  // segundo salto (competencia → entregable) siga heredando ese color.
-  const competenciaColor = new Map(
-    competencias.map((c) => [c.id, gestionById.get(c.gestionId)?.color || SIN_GESTION_COLOR]),
-  );
-
-  const hasSinEntregable = (entregableTotals.get(SIN_ENTREGABLE_ID) ?? 0) > 0;
-  const activeEntregables = entregables
-    .map((entregable) => ({
-      id: entregable.id,
-      name: entregable.nombre,
-      total: entregableTotals.get(entregable.id) ?? 0,
-    }))
-    .filter((entregable) => entregable.total > 0)
-    .sort((a, b) => b.total - a.total || a.name.localeCompare(b.name, "es"));
-  const entregableLegend = activeEntregables.map((entregable, index) => ({
-    ...entregable,
-    code: `E${index + 1}`,
-  }));
-  const sinEntregableLegend = hasSinEntregable
-    ? [{ id: SIN_ENTREGABLE_ID, name: SIN_ENTREGABLE_NOMBRE, total: entregableTotals.get(SIN_ENTREGABLE_ID) ?? 0, code: "—" }]
-    : [];
-
-  const nodes: SankeyNodeDatum[] = [
-    ...gestionStats.map((gestion) => ({
-      name: gestion.name,
-      shortName: gestion.shortName,
-      kind: "gestion" as const,
-      color: gestion.color,
-    })),
-    ...competenciaLegend.map((competencia) => ({
-      name: competencia.name,
-      shortName: competencia.code,
-      kind: "competencia" as const,
-      color: COMPETENCIA_COLOR,
-    })),
-    ...entregableLegend.map((entregable) => ({
-      name: entregable.name,
-      shortName: entregable.code,
-      kind: "entregable" as const,
-      color: ENTREGABLE_COLOR,
-    })),
-    ...(hasSinEntregable
-      ? [{ name: SIN_ENTREGABLE_NOMBRE, shortName: SIN_ENTREGABLE_NOMBRE, kind: "entregable" as const, color: SIN_ENTREGABLE_COLOR }]
-      : []),
-  ];
-
-  const gestionIndex = new Map(gestionStats.map((gestion, index) => [gestion.gestionId, index]));
-  const competenciaIndex = new Map(
-    competenciaLegend.map((competencia, index) => [competencia.id, gestionStats.length + index]),
-  );
-  const entregableBase = gestionStats.length + competenciaLegend.length;
-  const entregableIndex = new Map(entregableLegend.map((entregable, index) => [entregable.id, entregableBase + index]));
-  const sinEntregableIndex = hasSinEntregable ? entregableBase + entregableLegend.length : null;
-
-  const links: SankeyLinkDatum[] = [];
-  for (const gestion of gestionStats) {
-    const source = gestionIndex.get(gestion.gestionId);
-    if (source == null) continue;
-    for (const competencia of competenciaLegend) {
-      const value = linksByGestion.get(gestion.gestionId)?.get(competencia.id) ?? 0;
-      const target = competenciaIndex.get(competencia.id);
-      if (value > 0 && target != null) {
-        links.push({ source, target, value, color: gestion.color });
-      }
-    }
-  }
-  for (const competencia of competenciaLegend) {
-    const source = competenciaIndex.get(competencia.id);
-    const compLinks = linksByCompetencia.get(competencia.id);
-    if (source == null || !compLinks) continue;
-    const color = competenciaColor.get(competencia.id) || COMPETENCIA_COLOR;
-    for (const entregable of entregableLegend) {
-      const value = compLinks.get(entregable.id) ?? 0;
-      const target = entregableIndex.get(entregable.id);
-      if (value > 0 && target != null) links.push({ source, target, value, color });
-    }
-    const sinEntregableValue = compLinks.get(SIN_ENTREGABLE_ID) ?? 0;
-    if (sinEntregableValue > 0 && sinEntregableIndex != null) {
-      links.push({ source, target: sinEntregableIndex, value: sinEntregableValue, color });
-    }
-  }
-
-  return {
-    nodes,
-    links,
-    competencias: competenciaLegend,
-    entregables: [...entregableLegend, ...sinEntregableLegend],
-    gestiones: gestionStats,
-    total,
-  };
-}
-
-interface SankeyNodeRenderProps {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-  payload: SankeyNodeDatum & { value: number };
-}
-
-// Gestión (izquierda) y Entregable (derecha) tienen espacio libre a su lado
-// para la etiqueta. Competencia quedó en la columna del medio: con hasta 8
-// nodos angostos apretados, cualquier etiqueta ahí choca con la vecina, así
-// que Competencia no dibuja texto en el diagrama — el código (C#) solo vive
-// en la leyenda de abajo, y el nombre completo aparece al pasar el mouse
-// (title nativo + tooltip de Recharts en los flujos).
-function SankeyNode({ x, y, width, height, payload }: SankeyNodeRenderProps) {
-  const h = Math.max(height, 1);
-  const rect = <rect x={x} y={y} width={width} height={h} rx={2} fill={payload.color} />;
-  const title = (
-    <title>{`${payload.name}: ${payload.value} ${payload.value === 1 ? "actividad" : "actividades"}`}</title>
-  );
-  if (payload.kind === "competencia") {
-    return (
-      <g>
-        {title}
-        {rect}
-      </g>
-    );
-  }
-  const isGestion = payload.kind === "gestion";
-  const labelX = isGestion ? x - 6 : x + width + 6;
+function EmptyBox({ icon, children }: { icon: IconName; children: React.ReactNode }) {
   return (
-    <g>
-      {title}
-      {rect}
-      <text
-        x={labelX}
-        y={y + h / 2}
-        dy="0.35em"
-        textAnchor={isGestion ? "end" : "start"}
-        fill="#475569"
-        fontSize={10}
-        fontWeight={600}
-      >
-        {payload.shortName}
-      </text>
-    </g>
-  );
-}
-
-interface SankeyLinkRenderProps {
-  sourceX: number;
-  sourceY: number;
-  sourceControlX: number;
-  targetX: number;
-  targetY: number;
-  targetControlX: number;
-  linkWidth: number;
-  payload: SankeyLinkDatum & {
-    source: SankeyNodeDatum;
-    target: SankeyNodeDatum;
-  };
-}
-
-function SankeyLink({
-  sourceX,
-  sourceY,
-  sourceControlX,
-  targetX,
-  targetY,
-  targetControlX,
-  linkWidth,
-  payload,
-}: SankeyLinkRenderProps) {
-  const path = `M${sourceX},${sourceY} C${sourceControlX},${sourceY} ${targetControlX},${targetY} ${targetX},${targetY}`;
-  return (
-    <path
-      d={path}
-      fill="none"
-      stroke={payload.color}
-      strokeWidth={Math.max(linkWidth, 1)}
-      strokeOpacity={0.3}
-      className="transition-opacity hover:opacity-80"
-    >
-      <title>{`${payload.source.name} → ${payload.target.name}: ${payload.value} ${payload.value === 1 ? "actividad" : "actividades"}`}</title>
-    </path>
-  );
-}
-
-function SankeyTooltip({
-  active,
-  payload,
-}: {
-  active?: boolean;
-  payload?: Array<{ name?: string; value?: number | string }>;
-}) {
-  const item = payload?.[0];
-  if (!active || !item) return null;
-  const value = Number(item.value ?? 0);
-  return (
-    <div className="max-w-[min(260px,calc(100vw-2rem))] rounded-lg border border-slate-200 bg-white p-2.5 text-xs shadow-lg">
-      <div className="break-words font-medium leading-snug text-slate-800">
-        {item.name?.replace(" - ", " → ")}
-      </div>
-      <div className="mt-1 font-semibold tabular-nums text-violet-700">
-        {value} {value === 1 ? "actividad" : "actividades"}
-      </div>
+    <div className="flex flex-col items-center gap-2 rounded-[13px] border border-dashed border-line-dashed bg-surface-subtle px-5 py-[30px] text-center">
+      <Icon name={icon} size={20} className="text-ink-disabled" />
+      <span className="text-[12.5px] font-semibold text-ink-ghost">{children}</span>
     </div>
   );
 }
 
-function CompetenceLegendList({
+function Section({
   title,
-  items,
-  badgeClassName,
+  subtitle,
+  right,
+  className = "",
+  children,
 }: {
   title: string;
-  items: SankeyLegendItem[];
-  badgeClassName: string;
+  subtitle?: string;
+  right?: React.ReactNode;
+  className?: string;
+  children: React.ReactNode;
 }) {
-  if (items.length === 0) return null;
   return (
-    <div className="mt-3">
-      <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-slate-400">{title}</div>
-      <ol className="grid gap-2 md:grid-cols-2">
-        {items.map((item) => (
-          <li
-            key={item.id}
-            className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-start gap-2 rounded-lg bg-slate-50 p-2"
-          >
-            <span className={cn("rounded px-1.5 py-0.5 text-[10px] font-bold", badgeClassName)}>{item.code}</span>
-            <span className="line-clamp-2 break-words text-[11px] leading-snug text-slate-600" title={item.name}>
-              {item.name}
-            </span>
-            <span
-              className="text-xs font-semibold tabular-nums text-slate-700"
-              aria-label={`${item.total} ${item.total === 1 ? "actividad" : "actividades"}`}
-            >
-              {item.total}
-            </span>
-          </li>
-        ))}
-      </ol>
-    </div>
-  );
-}
-
-function ManagementCompetenceSankey({ data }: { data: ManagementCompetenceSankeyData }) {
-  const chartHeight = Math.max(280, Math.max(data.competencias.length, data.entregables.length) * 34 + 24);
-  return (
-    <>
-      <div className="mt-2 flex items-center justify-between gap-3 text-[10px] font-semibold uppercase tracking-wide text-slate-400">
-        <span>Gestión responsable</span>
-        <span>Competencia</span>
-        <span>Entregable</span>
-      </div>
-      <div className="w-full" style={{ height: chartHeight }}>
-        <ResponsiveContainer width="100%" height="100%" minWidth={0}>
-          <Sankey
-            data={{ nodes: data.nodes, links: data.links }}
-            nameKey="name"
-            dataKey="value"
-            nodeWidth={10}
-            nodePadding={10}
-            linkCurvature={0.5}
-            margin={{ top: 8, right: 34, bottom: 8, left: 72 }}
-            node={SankeyNode}
-            link={SankeyLink}
-            aria-label="Diagrama de Sankey de gestiones responsables, competencias y entregables"
-          >
-            <Tooltip content={<SankeyTooltip />} />
-          </Sankey>
-        </ResponsiveContainer>
-      </div>
-
-      <div className="mt-3 border-t border-slate-100 pt-3">
-        <div className="mb-2 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-[11px] text-slate-600">
-          {data.gestiones.map((gestion) => (
-            <span key={gestion.name} className="inline-flex items-center gap-1.5" title={gestion.name}>
-              <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: gestion.color }} />
-              <span>{gestion.shortName}</span>
-              <span className="font-semibold tabular-nums text-slate-700">{gestion.total}</span>
-            </span>
-          ))}
+    <section className={cn("rounded-section border border-line bg-white p-4 shadow-card sm:p-5", className)}>
+      <div className="flex flex-wrap items-start justify-between gap-3.5">
+        <div className="min-w-0">
+          <h2 className="text-[16px] font-[750] tracking-[-.02em]">{title}</h2>
+          {subtitle && <div className="mt-[3px] text-[12px] font-medium text-ink-faint">{subtitle}</div>}
         </div>
-        <CompetenceLegendList
-          title="Competencias"
-          items={data.competencias}
-          badgeClassName="bg-violet-100 text-violet-700"
-        />
-        <CompetenceLegendList
-          title="Entregables"
-          items={data.entregables}
-          badgeClassName="bg-amber-100 text-amber-700"
-        />
+        {right}
       </div>
-    </>
+      {children}
+    </section>
   );
 }
+
+/* ── KPIs ───────────────────────────────────────────────────────────── */
 
 function Kpi({
   icon,
-  tone,
+  iconColor,
   label,
   value,
+  valueColor,
   sub,
 }: {
   icon: IconName;
-  tone: "slate" | "blue" | "green" | "red" | "amber";
+  iconColor: string;
   label: string;
   value: number;
-  sub?: string;
+  valueColor?: string;
+  sub: string;
 }) {
-  const ring = {
-    slate: "bg-slate-100 text-slate-700",
-    blue: "bg-blue-100 text-blue-700",
-    green: "bg-green-100 text-green-700",
-    red: "bg-red-100 text-red-700",
-    amber: "bg-amber-100 text-amber-700",
-  };
   return (
-    <Card>
-      <div className="flex items-start justify-between gap-2 p-3 sm:p-4">
-        <div className="min-w-0">
-          <div className="text-xs font-medium uppercase tracking-wide text-slate-500">{label}</div>
-          <div className="mt-1 text-2xl font-bold tabular-nums text-slate-900">{value}</div>
-          {sub && <div className="text-[11px] text-slate-500 mt-0.5">{sub}</div>}
-        </div>
-        <div className={cn("flex h-9 w-9 shrink-0 items-center justify-center rounded-lg", ring[tone])}>
-          <Icon name={icon} size={18} />
-        </div>
+    <div className="rounded-kpi border border-line bg-white px-4 py-4 shadow-card sm:px-5 sm:py-[18px]">
+      <div className="flex items-center gap-2.5">
+        <Icon name={icon} size={17} className="shrink-0" style={{ color: iconColor }} />
+        <span className="text-[13px] font-[650] text-[#2B2B36]">{label}</span>
       </div>
-    </Card>
-  );
-}
-
-function ProgressBar({ pct }: { pct: number }) {
-  const tone = pct >= 75 ? "bg-green-500" : pct >= 40 ? "bg-amber-500" : "bg-red-500";
-  return (
-    <div className="flex items-center gap-2">
-      <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-slate-100">
-        <div className={cn("h-full rounded-full", tone)} style={{ width: pct + "%" }} />
+      <div
+        className="mt-3 text-[26px] font-extrabold leading-none tracking-[-.035em] sm:text-[30px]"
+        style={{ color: valueColor }}
+      >
+        {value}
       </div>
-      <span className="w-10 text-right text-xs font-medium tabular-nums text-slate-700">{pct}%</span>
+      <div className="mt-[5px] text-[11px] font-[550] text-ink-ghost">{sub}</div>
     </div>
   );
 }
 
-const GANTT_GROUP_ROW_HEIGHT = 44;
-const GANTT_TASK_ROW_HEIGHT = 42;
-const TODAY_COLUMN_STYLE: React.CSSProperties = {
-  backgroundImage: "repeating-linear-gradient(135deg, rgba(14, 165, 233, 0.18) 0 6px, rgba(14, 165, 233, 0.04) 6px 12px)",
-};
+/* ── Gantt ──────────────────────────────────────────────────────────── */
 
-interface GanttRawRow {
-  activity: Actividad;
+interface GanttActivity {
+  act: Actividad;
+  startIndex: number;
+  span: number;
+}
+
+interface GanttFuncionario {
+  key: string;
   funcionario?: Funcionario;
-  funcionarioKey: string;
-  funcionarioName: string;
-  funcionarioCargo?: string;
-  gestion: string;
-  start: number;
-  end: number;
-  duration: number;
-  fecha: FechaInfo;
-  barLeftPct: number;
-  barWidthPct: number;
+  nombre: string;
+  cargo: string;
+  actividades: GanttActivity[];
 }
 
-interface GanttGestionRow {
-  kind: "gestion";
+interface GanttGestion {
   key: string;
-  label: string;
-  count: number;
-  collapsed: boolean;
-  height: number;
+  nombre: string;
+  color: string;
+  funcionarios: GanttFuncionario[];
+  total: number;
 }
 
-interface GanttPrimaryRow {
-  kind: "primary";
-  key: string;
-  label: string;
-  meta?: string;
-  count: number;
-  collapsed: boolean;
-  height: number;
-}
+function buildGantt(
+  activities: Actividad[],
+  funcionarios: Funcionario[],
+  competencias: Competencia[],
+  gestiones: Gestion[],
+  range: DateRange,
+  totalDays: number,
+): GanttGestion[] {
+  const porGestion = new Map<string, Map<string, Actividad[]>>();
 
-type GanttActivityRow = GanttRawRow & {
-  kind: "activity";
-  key: string;
-  height: number;
-};
+  for (const act of activities) {
+    const comp = competencias.find((c) => c.id === act.competenciaId);
+    const gestionId = comp?.gestionId ?? SIN_GESTION;
+    const funcionarioId = act.funcionarioId || "__sin_responsable__";
+    let porFuncionario = porGestion.get(gestionId);
+    if (!porFuncionario) {
+      porFuncionario = new Map();
+      porGestion.set(gestionId, porFuncionario);
+    }
+    const lista = porFuncionario.get(funcionarioId);
+    if (lista) lista.push(act);
+    else porFuncionario.set(funcionarioId, [act]);
+  }
 
-type GanttRow = GanttGestionRow | GanttPrimaryRow | GanttActivityRow;
-type PositionedGanttRow = GanttRow & { top: number };
+  const orden = [...gestiones.map((g) => g.id), SIN_GESTION];
 
-function monthLabel(isoStr: string): string {
-  const [year, month, day] = isoStr.split("-").map(Number);
-  const label = new Date(Date.UTC(year, month - 1, day, 12)).toLocaleDateString("es-EC", {
-    month: "short",
-    year: "numeric",
-    timeZone: "UTC",
-  });
-  return label.charAt(0).toUpperCase() + label.slice(1).replace(".", "");
-}
+  return orden
+    .filter((gestionId) => porGestion.has(gestionId))
+    .map((gestionId) => {
+      const gestion = gestiones.find((g) => g.id === gestionId);
+      const porFuncionario = porGestion.get(gestionId)!;
+      const filas: GanttFuncionario[] = Array.from(porFuncionario.entries())
+        .map(([funcionarioId, lista]) => {
+          const funcionario = funcionarios.find((f) => f.id === funcionarioId);
+          return {
+            key: `${gestionId}:${funcionarioId}`,
+            funcionario,
+            nombre: funcionario?.nombre ?? "Sin responsable",
+            cargo: funcionario?.cargo ?? "",
+            // Las actividades de cada funcionario van por fecha de inicio ascendente.
+            actividades: lista
+              .slice()
+              .sort((a, b) => a.fechaInicio.localeCompare(b.fechaInicio) || a.orden - b.orden)
+              .map((act) => {
+                const inicio = dateOnly(act.fechaInicio);
+                const fin = dateOnly(act.fechaFin);
+                const desde = inicio <= fin ? inicio : fin;
+                const hasta = inicio <= fin ? fin : inicio;
+                // Barras recortadas al rango visible.
+                const startIndex = Math.max(0, daysBetween(range.from, desde));
+                const endIndex = Math.min(totalDays - 1, daysBetween(range.from, hasta));
+                return { act, startIndex, span: Math.max(1, endIndex - startIndex + 1) };
+              }),
+          };
+        })
+        .sort((a, b) => a.nombre.localeCompare(b.nombre));
 
-function dayLabel(isoStr: string): string {
-  return String(Number(isoStr.slice(8, 10)));
-}
-
-function ganttStatusClass(estado: Actividad["estado"]): string {
-  const map: Record<Actividad["estado"], string> = {
-    pendiente:
-      "bg-slate-400 text-white ring-slate-300 hover:bg-slate-500 focus-visible:ring-slate-500",
-    en_progreso:
-      "bg-blue-500 text-white ring-blue-300 hover:bg-blue-600 focus-visible:ring-blue-500",
-    en_revision:
-      "bg-amber-500 text-white ring-amber-300 hover:bg-amber-600 focus-visible:ring-amber-500",
-    cumplida:
-      "bg-green-500 text-white ring-green-300 hover:bg-green-600 focus-visible:ring-green-500",
-    archivada:
-      "bg-slate-200 text-slate-600 ring-slate-200 hover:bg-slate-300 focus-visible:ring-slate-400",
-  };
-  return map[estado];
+      return {
+        key: gestionId,
+        nombre: gestion?.nombre ?? "Sin gestión",
+        color: gestion?.color ?? "#A5A5B3",
+        funcionarios: filas,
+        total: filas.reduce((n, f) => n + f.actividades.length, 0),
+      };
+    });
 }
 
 function GanttChart({
   activities,
   funcionarios,
+  competencias,
   gestiones,
-  dateRange,
+  range,
   onOpenActivity,
 }: {
   activities: Actividad[];
   funcionarios: Funcionario[];
+  competencias: Competencia[];
   gestiones: Gestion[];
-  dateRange: { from: string; to: string };
-  onOpenActivity: (activityId: string) => void;
+  range: DateRange;
+  onOpenActivity: (id: string) => void;
 }) {
-  const [collapsedGroups, setCollapsedGroups] = React.useState<Set<string>>(() => new Set());
-  const funcionarioById = useMemo(() => new Map(funcionarios.map((f) => [f.id, f])), [funcionarios]);
-  const visibleActivities = useMemo(
-    () => activities.filter((a) => a.estado !== "archivada"),
-    [activities],
+  const [collapsed, setCollapsed] = useState<Record<string, true>>({});
+
+  const days = useMemo(() => rangeDays(range), [range]);
+  const totalDays = days.length;
+  const grupos = useMemo(
+    () => buildGantt(activities, funcionarios, competencias, gestiones, range, totalDays),
+    [activities, funcionarios, competencias, gestiones, range, totalDays],
   );
-  const toggleGroup = (key: string) => {
-    setCollapsedGroups((current) => {
-      const next = new Set(current);
-      if (next.has(key)) {
-        next.delete(key);
-      } else {
-        next.add(key);
-      }
+
+  const vacio = grupos.length === 0;
+  const todasPlegadas = grupos.length > 0 && grupos.every((g) => collapsed[g.key]);
+  const todayIndex = days.indexOf(TODAY_ISO);
+
+  // ≤ 31 días: una celda por día. Más: una celda por mes, con span proporcional.
+  const cabecera = useMemo(() => {
+    if (totalDays <= 31) {
+      return days.map((d, i) => ({
+        key: d,
+        label: String(addDays(d, 0).getUTCDate()),
+        span: 1,
+        index: i,
+      }));
+    }
+    const meses: { key: string; label: string; span: number; index: number }[] = [];
+    days.forEach((d, i) => {
+      const fecha = addDays(d, 0);
+      const key = d.slice(0, 7);
+      const previo = meses[meses.length - 1];
+      if (previo && previo.key === key) previo.span += 1;
+      else
+        meses.push({
+          key,
+          label: fecha.toLocaleDateString("es-EC", { month: "short", timeZone: "UTC" }),
+          span: 1,
+          index: i,
+        });
+    });
+    return meses;
+  }, [days, totalDays]);
+
+  function toggle(key: string) {
+    setCollapsed((prev) => {
+      const next = { ...prev };
+      if (next[key]) delete next[key];
+      else next[key] = true;
       return next;
     });
-  };
-
-  const rangeStartOffset = daysBetween(TODAY_ISO, dateRange.from);
-  const rangeEndOffset = daysBetween(TODAY_ISO, dateRange.to);
-  const gestionOrder = new Map(gestiones.map((g, index) => [g.nombre, index]));
-  const rawRows = visibleActivities.flatMap((activity) => {
-    const involvedFuncionarios = actividadFuncionarioIds(activity)
-      .map((funcionarioId) => funcionarioById.get(funcionarioId))
-      .filter((funcionario): funcionario is Funcionario => Boolean(funcionario));
-    const rowFuncionarios: Array<Funcionario | undefined> =
-      involvedFuncionarios.length > 0 ? involvedFuncionarios : [undefined];
-    const activityStart = daysBetween(TODAY_ISO, activity.fechaInicio);
-    const activityEnd = daysBetween(TODAY_ISO, activity.fechaFin);
-    const start = Math.max(activityStart, rangeStartOffset);
-    const end = Math.min(activityEnd, rangeEndOffset);
-    const duration = activityEnd - activityStart + 1;
-
-    return rowFuncionarios.map((funcionario) => ({
-      activity,
-      funcionario,
-      funcionarioKey: funcionario?.id ?? "sin-funcionario",
-      funcionarioName: funcionario?.nombre ?? "Sin funcionario asignado",
-      funcionarioCargo: funcionario?.cargo,
-      gestion: funcionario ? gestionNombre(funcionario.gestionId, gestiones) : "Sin gestión asignada",
-      start,
-      end,
-      duration,
-      fecha: fechaFinInfo(activity, TODAY_ISO),
-    }));
-  }).sort((a, b) => {
-    const gestionA = gestionOrder.get(a.gestion) ?? Number.MAX_SAFE_INTEGER;
-    const gestionB = gestionOrder.get(b.gestion) ?? Number.MAX_SAFE_INTEGER;
-    return (
-      gestionA - gestionB ||
-      a.gestion.localeCompare(b.gestion, "es") ||
-      a.funcionarioName.localeCompare(b.funcionarioName, "es") ||
-      a.activity.fechaInicio.localeCompare(b.activity.fechaInicio) ||
-      a.activity.fechaFin.localeCompare(b.activity.fechaFin)
-    );
-  });
-
-  const minOffset = rangeStartOffset;
-  const maxOffset = rangeEndOffset;
-  const dayCount = maxOffset - minOffset + 1;
-  const days = Array.from({ length: dayCount }, (_, index) => minOffset + index);
-  const startDate = iso(addDays(TODAY_ISO, minOffset));
-  const endDate = iso(addDays(TODAY_ISO, maxOffset));
-  const monthRange =
-    monthLabel(startDate) === monthLabel(endDate)
-      ? monthLabel(startDate)
-      : `${monthLabel(startDate)} - ${monthLabel(endDate)}`;
-  const rows = rawRows.map((row) => {
-    const visibleDuration = row.end - row.start + 1;
-    const barLeftPct = ((row.start - minOffset) / dayCount) * 100;
-    const barWidthPct = (visibleDuration / dayCount) * 100;
-    return { ...row, barLeftPct, barWidthPct };
-  });
-  const gestionCounts = new Map<string, number>();
-  const primaryCounts = new Map<string, number>();
-  for (const row of rows) {
-    gestionCounts.set(row.gestion, (gestionCounts.get(row.gestion) ?? 0) + 1);
-    const primaryCountKey = `${row.gestion}::${row.funcionarioKey}`;
-    primaryCounts.set(primaryCountKey, (primaryCounts.get(primaryCountKey) ?? 0) + 1);
   }
-  const groupedRows: GanttRow[] = [];
-  let currentGestion = "";
-  let currentPrimaryKey = "";
-  for (const row of rows) {
-    if (row.gestion !== currentGestion) {
-      currentGestion = row.gestion;
-      currentPrimaryKey = "";
-      const gestionKey = `gestion-${row.gestion}`;
-      groupedRows.push({
-        kind: "gestion" as const,
-        key: gestionKey,
-        label: row.gestion,
-        count: gestionCounts.get(row.gestion) ?? 0,
-        collapsed: collapsedGroups.has(gestionKey),
-        height: GANTT_GROUP_ROW_HEIGHT,
-      });
-    }
-    const primaryGroupKey = `${row.gestion}::${row.funcionarioKey}`;
-    if (primaryGroupKey !== currentPrimaryKey) {
-      currentPrimaryKey = primaryGroupKey;
-      const primaryKey = `primary-${primaryGroupKey}`;
-      groupedRows.push({
-        kind: "primary" as const,
-        key: primaryKey,
-        label: row.funcionarioName,
-        meta: row.funcionarioCargo,
-        count: primaryCounts.get(primaryGroupKey) ?? 0,
-        collapsed: collapsedGroups.has(primaryKey),
-        height: GANTT_TASK_ROW_HEIGHT,
-      });
-    }
-    groupedRows.push({
-      ...row,
-      kind: "activity" as const,
-      key: `activity-${row.funcionarioKey}-${row.activity.id}`,
-      height: GANTT_TASK_ROW_HEIGHT,
-    });
+
+  function toggleAll() {
+    if (todasPlegadas) setCollapsed({});
+    else setCollapsed(Object.fromEntries(grupos.map((g) => [g.key, true as const])));
   }
-  const visibleGroupedRows: GanttRow[] = [];
-  let gestionCollapsed = false;
-  let primaryCollapsed = false;
-  for (const row of groupedRows) {
-    if (row.kind === "gestion") {
-      visibleGroupedRows.push(row);
-      gestionCollapsed = row.collapsed;
-      primaryCollapsed = false;
-      continue;
-    }
-    if (gestionCollapsed) continue;
-    if (row.kind === "primary") {
-      visibleGroupedRows.push(row);
-      primaryCollapsed = row.collapsed;
-      continue;
-    }
-    if (!primaryCollapsed) {
-      visibleGroupedRows.push(row);
-    }
-  }
-  let rowTop = 0;
-  const visibleRows = visibleGroupedRows.map((row) => {
-    const positionedRow = { ...row, top: rowTop };
-    rowTop += row.height;
-    return positionedRow;
-  });
-  const activityRows = visibleRows.filter((row) => row.kind === "activity");
-  const bodyHeight = visibleRows.length > 0 ? rowTop : GANTT_GROUP_ROW_HEIGHT + GANTT_TASK_ROW_HEIGHT;
-  const todayColumnLeftPct = ((0 - minOffset) / dayCount) * 100;
-  const todayColumnWidthPct = 100 / dayCount;
-  const todayVisible = minOffset <= 0 && maxOffset >= 0;
+
+  const trackStyle = { gridTemplateColumns: `repeat(${totalDays}, minmax(0, 1fr))` };
 
   return (
-    <section className="relative z-0 isolate w-full rounded-xl bg-slate-100/80 p-2 ring-1 ring-slate-200 sm:p-3">
-      <div className="mb-3 flex items-center justify-between gap-2 sm:relative sm:block sm:text-center">
-        <h2 className="min-w-0 text-base font-semibold text-slate-900">Diagrama de Gantt</h2>
-        <span className="shrink-0 rounded-full bg-slate-200 px-2 py-0.5 text-xs text-slate-600 sm:absolute sm:right-0 sm:top-0">
-          {visibleActivities.length} actividades
+    <Section
+      title="Diagrama de Gantt"
+      subtitle={vacio ? undefined : "Pulsa una gestión o un funcionario para plegar sus filas"}
+      right={
+        vacio ? undefined : (
+          <div className="flex flex-wrap items-center gap-3">
+            <button
+              type="button"
+              onClick={toggleAll}
+              className="flex h-8 items-center gap-[7px] whitespace-nowrap rounded-full border border-line bg-white px-[13px] text-[12px] font-[650] text-[#2B2B36] transition-colors hover:border-line-hover hover:bg-surface-subtle"
+            >
+              <Icon name={todasPlegadas ? "chevronDown" : "chevronRight"} size={13} className="text-ink-faint" />
+              {todasPlegadas ? "Expandir todo" : "Contraer todo"}
+            </button>
+            <div className="flex flex-wrap items-center gap-x-[13px] gap-y-1.5 text-[11px] font-[650] text-ink-faint">
+              {ESTADOS.map((e) => (
+                <span key={e.id} className="inline-flex items-center gap-1.5">
+                  <span
+                    className="h-[7px] w-4 rounded-full"
+                    style={{ background: ESTADO_HEX[e.id] }}
+                  />
+                  {e.label}
+                </span>
+              ))}
+            </div>
+          </div>
+        )
+      }
+    >
+      <div className="mt-4 overflow-x-auto rounded-kpi border border-line">
+        <div className="min-w-[860px]">
+          <div className="grid grid-cols-[280px_1fr] border-b border-line bg-surface-subtle">
+            <div className="border-r border-line px-[18px] py-[11px] text-[12px] font-bold text-[#2B2B36]">
+              Gestión / funcionario
+            </div>
+            <div className="grid" style={trackStyle}>
+              {cabecera.map((c) => (
+                <div
+                  key={c.key}
+                  style={{ gridColumn: `${c.index + 1} / span ${c.span}` }}
+                  className="border-l border-line-soft py-[11px] text-center text-[10.5px] font-bold text-ink-faint first:border-l-0"
+                >
+                  {c.label}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="relative">
+            {todayIndex >= 0 && (
+              <div className="pointer-events-none absolute inset-y-0 left-[280px] right-0 grid" style={trackStyle}>
+                <div
+                  style={{ gridColumn: `${todayIndex + 1} / span 1` }}
+                  className="border-x border-accent/[.28] bg-accent/[.07]"
+                />
+              </div>
+            )}
+
+            {vacio ? (
+              <div className="p-4">
+                <EmptyBox icon="list">{VACIO}</EmptyBox>
+              </div>
+            ) : (
+              grupos.map((gestion) => {
+                const gestionPlegada = Boolean(collapsed[gestion.key]);
+                return (
+                  <React.Fragment key={gestion.key}>
+                    <button
+                      type="button"
+                      onClick={() => toggle(gestion.key)}
+                      title={`${gestion.nombre} · ${gestion.total} actividades`}
+                      className="relative grid w-full grid-cols-[280px_1fr] border-b border-line-soft bg-app text-left"
+                    >
+                      <div className="flex items-center gap-2 border-r border-line px-[18px] py-2.5">
+                        <span
+                          className={cn(
+                            "flex h-4 w-4 shrink-0 items-center justify-center text-ink-faint transition-transform duration-[180ms]",
+                            gestionPlegada ? "" : "rotate-90",
+                          )}
+                        >
+                          <Icon name="chevronRight" size={12} />
+                        </span>
+                        <span
+                          className="h-2 w-2 shrink-0 rounded-full"
+                          style={{ background: gestion.color }}
+                        />
+                        <span className="min-w-0 flex-1 text-[12.5px] font-[750] leading-[1.25] tracking-[-.015em]">
+                          {gestion.nombre}
+                        </span>
+                        <span className="shrink-0 rounded-full bg-chip px-[7px] py-0.5 text-[10.5px] font-bold text-ink-soft">
+                          {gestion.total}
+                        </span>
+                      </div>
+                      <div />
+                    </button>
+
+                    {!gestionPlegada &&
+                      gestion.funcionarios.map((fila) => {
+                        const filaPlegada = Boolean(collapsed[fila.key]);
+                        return (
+                          <React.Fragment key={fila.key}>
+                            <button
+                              type="button"
+                              onClick={() => toggle(fila.key)}
+                              title={`${fila.nombre} · ${fila.actividades.length} actividades`}
+                              className="relative grid w-full grid-cols-[280px_1fr] border-b border-line-soft bg-white text-left hover:bg-surface-subtle"
+                            >
+                              <div className="flex items-center gap-2 border-r border-line py-2 pl-[30px] pr-3">
+                                <span
+                                  className={cn(
+                                    "flex h-4 w-4 shrink-0 items-center justify-center text-ink-faint transition-transform duration-[180ms]",
+                                    filaPlegada ? "" : "rotate-90",
+                                  )}
+                                >
+                                  <Icon name="chevronRight" size={11} />
+                                </span>
+                                <div className="min-w-0 flex-1">
+                                  <div className="truncate text-[12px] font-[650]">{fila.nombre}</div>
+                                  {fila.cargo && (
+                                    <div className="truncate text-[10.5px] text-ink-ghost">{fila.cargo}</div>
+                                  )}
+                                </div>
+                              </div>
+                              <div className="relative grid items-center px-1 py-2" style={trackStyle}>
+                                {filaPlegada &&
+                                  fila.actividades.map((item) => (
+                                    <span
+                                      key={item.act.id}
+                                      title={item.act.titulo}
+                                      style={{
+                                        gridColumn: `${item.startIndex + 1} / span ${item.span}`,
+                                        gridRow: 1,
+                                        background: ESTADO_HEX[item.act.estado] ?? ESTADO_HEX.pendiente,
+                                        opacity: 0.55,
+                                      }}
+                                      className="h-[7px] rounded-full"
+                                    />
+                                  ))}
+                              </div>
+                            </button>
+
+                            {!filaPlegada &&
+                              fila.actividades.map((item) => (
+                                <div
+                                  key={item.act.id}
+                                  className="relative grid grid-cols-[280px_1fr] border-b border-line-soft bg-white"
+                                >
+                                  <div className="border-r border-line" />
+                                  <div className="grid items-center px-1 py-1" style={trackStyle}>
+                                    <button
+                                      type="button"
+                                      onClick={() => onOpenActivity(item.act.id)}
+                                      title={`${item.act.titulo} · ${fmtBarRange(item.act)}`}
+                                      style={{
+                                        gridColumn: `${item.startIndex + 1} / span ${item.span}`,
+                                        background: ESTADO_HEX[item.act.estado] ?? ESTADO_HEX.pendiente,
+                                      }}
+                                      className="flex h-7 items-center overflow-hidden rounded-full px-3 text-left text-[12px] font-[650] text-white transition-opacity hover:opacity-90"
+                                    >
+                                      <span className="truncate">{item.act.titulo}</span>
+                                    </button>
+                                  </div>
+                                </div>
+                              ))}
+                          </React.Fragment>
+                        );
+                      })}
+                  </React.Fragment>
+                );
+              })
+            )}
+          </div>
+        </div>
+      </div>
+    </Section>
+  );
+}
+
+function fmtBarRange(act: Actividad): string {
+  return `${fmtFecha(act.fechaInicio)} – ${fmtFecha(act.fechaFin)}`;
+}
+
+/* ── Dona ───────────────────────────────────────────────────────────── */
+
+const DONUT_C = 263.89;
+
+function Donut({ activities }: { activities: Actividad[] }) {
+  const datos = ESTADOS.map((e) => ({
+    id: e.id,
+    label: e.label,
+    color: ESTADO_HEX[e.id],
+    n: activities.filter((a) => a.estado === e.id).length,
+  }));
+  const total = datos.reduce((n, d) => n + d.n, 0);
+
+  let acumulado = 0;
+  const segmentos = datos
+    .filter((d) => d.n > 0)
+    .map((d) => {
+      const largo = (d.n / total) * DONUT_C;
+      const dash = Math.max(0, largo - 3);
+      const seg = { ...d, dash, offset: -acumulado };
+      acumulado += largo;
+      return seg;
+    });
+
+  return (
+    <Section title="Distribución por estado" subtitle={`${total} actividades en el período`}>
+      {total === 0 ? (
+        <div className="mt-4">
+          <EmptyBox icon="chart">{VACIO}</EmptyBox>
+        </div>
+      ) : (
+        <div className="mt-[18px] flex justify-center">
+          <svg width="180" height="180" viewBox="0 0 120 120" role="img" aria-label="Distribución por estado">
+            <circle cx="60" cy="60" r="42" fill="none" stroke="#F2F2F5" strokeWidth="15" />
+            {segmentos.map((s) => (
+              <circle
+                key={s.id}
+                cx="60"
+                cy="60"
+                r="42"
+                fill="none"
+                stroke={s.color}
+                strokeWidth="15"
+                strokeDasharray={`${s.dash} ${DONUT_C - s.dash}`}
+                strokeDashoffset={s.offset}
+                transform="rotate(-90 60 60)"
+              />
+            ))}
+            <text x="60" y="57" textAnchor="middle" fontSize="22" fontWeight="800" fill="#12121A">
+              {total}
+            </text>
+            <text x="60" y="71" textAnchor="middle" fontSize="8" fontWeight="600" fill="#9C9CAA">
+              actividades
+            </text>
+          </svg>
+        </div>
+      )}
+      <ul className="mt-[18px] flex flex-col gap-[9px]">
+        {datos.map((d) => (
+          <li key={d.id} className="flex items-center justify-between text-[12.5px]">
+            <span className="inline-flex items-center gap-2 font-[550] text-ink-soft">
+              <span className="h-2 w-2 rounded-full" style={{ background: d.color }} />
+              {d.label}
+            </span>
+            <span className="font-[750]">{d.n}</span>
+          </li>
+        ))}
+      </ul>
+    </Section>
+  );
+}
+
+/* ── Sankey ─────────────────────────────────────────────────────────── */
+
+interface SankeyNode {
+  id: string;
+  label: string;
+  y: number;
+  h: number;
+  color: string;
+  n: number;
+}
+
+const SANKEY_H = 292;
+const SANKEY_GAP = 12;
+const COL_X = { gestion: 150, competencia: 350, entregable: 520 };
+
+function layoutColumn(
+  entradas: { id: string; label: string; n: number; color: string }[],
+): SankeyNode[] {
+  const total = entradas.reduce((n, e) => n + e.n, 0);
+  if (total === 0 || entradas.length === 0) return [];
+  const disponible = Math.max(20, SANKEY_H - SANKEY_GAP * (entradas.length - 1));
+  const unidad = disponible / total;
+  let y = 0;
+  return entradas.map((e) => {
+    const h = Math.max(4, e.n * unidad);
+    const node = { ...e, y, h };
+    y += h + SANKEY_GAP;
+    return node;
+  });
+}
+
+function truncar(texto: string, max: number): string {
+  return texto.length > max ? `${texto.slice(0, max - 1)}…` : texto;
+}
+
+function SankeyFlow({
+  activities,
+  competencias,
+  entregables,
+  gestiones,
+}: {
+  activities: Actividad[];
+  competencias: Competencia[];
+  entregables: Entregable[];
+  gestiones: Gestion[];
+}) {
+  const modelo = useMemo(() => {
+    const porGestion = new Map<string, number>();
+    const porCompetencia = new Map<string, number>();
+    const porEntregable = new Map<string, number>();
+    // competencia → gestión y entregable → competencia (jerarquía de una sola vía)
+    const compDeGestion = new Map<string, string>();
+    const entDeCompetencia = new Map<string, string>();
+
+    for (const act of activities) {
+      const comp = competencias.find((c) => c.id === act.competenciaId);
+      const gestionId = comp?.gestionId ?? SIN_GESTION;
+      const compId = comp?.id ?? SIN_GESTION;
+      const entId = act.entregableId ?? SIN_ENTREGABLE;
+      porGestion.set(gestionId, (porGestion.get(gestionId) ?? 0) + 1);
+      porCompetencia.set(compId, (porCompetencia.get(compId) ?? 0) + 1);
+      porEntregable.set(entId, (porEntregable.get(entId) ?? 0) + 1);
+      compDeGestion.set(compId, gestionId);
+      entDeCompetencia.set(entId, compId);
+    }
+
+    const colorGestion = (id: string) => gestiones.find((g) => g.id === id)?.color ?? "#A5A5B3";
+
+    // El orden por gestión evita que los flujos se crucen.
+    const gestionIds = Array.from(porGestion.keys()).sort((a, b) => {
+      const ia = gestiones.findIndex((g) => g.id === a);
+      const ib = gestiones.findIndex((g) => g.id === b);
+      return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib);
+    });
+
+    const compIds = Array.from(porCompetencia.keys()).sort((a, b) => {
+      const ga = gestionIds.indexOf(compDeGestion.get(a) ?? SIN_GESTION);
+      const gb = gestionIds.indexOf(compDeGestion.get(b) ?? SIN_GESTION);
+      return ga - gb || a.localeCompare(b);
+    });
+
+    const entIds = Array.from(porEntregable.keys()).sort((a, b) => {
+      const ca = compIds.indexOf(entDeCompetencia.get(a) ?? "");
+      const cb = compIds.indexOf(entDeCompetencia.get(b) ?? "");
+      return ca - cb || a.localeCompare(b);
+    });
+
+    const nodosGestion = layoutColumn(
+      gestionIds.map((id) => ({
+        id,
+        label: id === SIN_GESTION ? "Sin gestión" : gestionNombre(id, gestiones),
+        n: porGestion.get(id) ?? 0,
+        color: colorGestion(id),
+      })),
+    );
+    const nodosCompetencia = layoutColumn(
+      compIds.map((id) => ({
+        id,
+        label:
+          id === SIN_GESTION
+            ? "Sin competencia"
+            : competenciaCodigo(id, competencias),
+        n: porCompetencia.get(id) ?? 0,
+        color: "#6D28D9",
+      })),
+    );
+    const nodosEntregable = layoutColumn(
+      entIds.map((id) => ({
+        id,
+        label:
+          id === SIN_ENTREGABLE
+            ? "Sin entregable"
+            : entregables.find((e) => e.id === id)?.nombre ?? "Entregable",
+        n: porEntregable.get(id) ?? 0,
+        color: id === SIN_ENTREGABLE ? "#C4C4CE" : "#F59E0B",
+      })),
+    );
+
+    const buscar = (lista: SankeyNode[], id: string) => lista.find((n) => n.id === id);
+
+    // Cada enlace nace en la porción del nodo origen que le corresponde.
+    const usadoGestion = new Map<string, number>();
+    const enlacesGC = compIds.map((compId) => {
+      const gestionId = compDeGestion.get(compId) ?? SIN_GESTION;
+      const origen = buscar(nodosGestion, gestionId);
+      const destino = buscar(nodosCompetencia, compId);
+      if (!origen || !destino) return null;
+      const proporcion = (porCompetencia.get(compId) ?? 0) / (porGestion.get(gestionId) || 1);
+      const alto = origen.h * proporcion;
+      const usado = usadoGestion.get(gestionId) ?? 0;
+      usadoGestion.set(gestionId, usado + alto);
+      const y1 = origen.y + usado + alto / 2;
+      const y2 = destino.y + destino.h / 2;
+      return {
+        id: `gc-${compId}`,
+        d: `M${COL_X.gestion + 10},${y1} C255,${y1} 255,${y2} ${COL_X.competencia},${y2}`,
+        color: origen.color,
+        w: Math.max(1, destino.h),
+      };
+    });
+
+    const usadoComp = new Map<string, number>();
+    const enlacesCE = entIds.map((entId) => {
+      const compId = entDeCompetencia.get(entId) ?? "";
+      const origen = buscar(nodosCompetencia, compId);
+      const destino = buscar(nodosEntregable, entId);
+      if (!origen || !destino) return null;
+      const proporcion = (porEntregable.get(entId) ?? 0) / (porCompetencia.get(compId) || 1);
+      const alto = origen.h * proporcion;
+      const usado = usadoComp.get(compId) ?? 0;
+      usadoComp.set(compId, usado + alto);
+      const y1 = origen.y + usado + alto / 2;
+      const y2 = destino.y + destino.h / 2;
+      return {
+        id: `ce-${entId}`,
+        d: `M${COL_X.competencia + 10},${y1} C440,${y1} 440,${y2} ${COL_X.entregable},${y2}`,
+        color: "#6D28D9",
+        w: Math.max(1, destino.h),
+      };
+    });
+
+    return {
+      total: activities.length,
+      nodosGestion,
+      nodosCompetencia,
+      nodosEntregable,
+      enlaces: [...enlacesGC, ...enlacesCE].filter(Boolean) as {
+        id: string;
+        d: string;
+        color: string;
+        w: number;
+      }[],
+    };
+  }, [activities, competencias, entregables, gestiones]);
+
+  const rankingCompetencias = useMemo(() => {
+    return competencias
+      .map((c) => ({
+        c,
+        n: activities.filter((a) => a.competenciaId === c.id).length,
+      }))
+      .filter((x) => x.n > 0)
+      .sort((a, b) => b.n - a.n);
+  }, [activities, competencias]);
+
+  const vacio = modelo.total === 0;
+
+  return (
+    <Section
+      title="Gestiones, competencias y entregables"
+      subtitle="El grosor de cada flujo representa el número de actividades"
+      right={
+        !vacio && (
+          <span className="inline-flex shrink-0 rounded-full bg-accent-soft px-[11px] py-1 text-[11.5px] font-bold text-accent">
+            {modelo.total} actividades
+          </span>
+        )
+      }
+    >
+      <div className="mt-3.5 flex justify-between text-[10px] font-[750] uppercase tracking-[.05em] text-ink-label">
+        <span>Gestión responsable</span>
+        <span>Competencia</span>
+        <span>Entregable</span>
+      </div>
+
+      {vacio ? (
+        <div className="mt-5">
+          <EmptyBox icon="chart">{VACIO}</EmptyBox>
+        </div>
+      ) : (
+        <div className="mt-1.5 overflow-x-auto">
+          <svg
+            viewBox="0 0 700 292"
+            width="100%"
+            height="300"
+            role="img"
+            aria-label="Diagrama de gestiones, competencias y entregables"
+            className="min-w-[560px] overflow-visible"
+          >
+            {modelo.enlaces.map((k) => (
+              <path key={k.id} d={k.d} fill="none" stroke={k.color} strokeWidth={k.w} strokeOpacity=".26" />
+            ))}
+            {modelo.nodosGestion.map((n) => (
+              <React.Fragment key={n.id}>
+                <rect x={COL_X.gestion} y={n.y} width="10" height={n.h} rx="3" fill={n.color} />
+                <text
+                  x={COL_X.gestion - 8}
+                  y={n.y + n.h / 2 + 3.5}
+                  textAnchor="end"
+                  fontSize="10.5"
+                  fontWeight="650"
+                  fill="#4B4B57"
+                >
+                  {truncar(n.label, 26)} · {n.n}
+                </text>
+              </React.Fragment>
+            ))}
+            {modelo.nodosCompetencia.map((n) => (
+              <React.Fragment key={n.id}>
+                <rect x={COL_X.competencia} y={n.y} width="10" height={n.h} rx="3" fill={n.color} />
+                <text
+                  x={COL_X.competencia + 5}
+                  y={Math.max(8, n.y - 3)}
+                  textAnchor="middle"
+                  fontSize="9.5"
+                  fontWeight="700"
+                  fill="#6D28D9"
+                >
+                  {n.label}
+                </text>
+              </React.Fragment>
+            ))}
+            {modelo.nodosEntregable.map((n) => (
+              <React.Fragment key={n.id}>
+                <rect x={COL_X.entregable} y={n.y} width="10" height={n.h} rx="3" fill={n.color} />
+                <text
+                  x={COL_X.entregable + 16}
+                  y={n.y + n.h / 2 + 3.5}
+                  textAnchor="start"
+                  fontSize="10.5"
+                  fontWeight="650"
+                  fill="#4B4B57"
+                >
+                  {truncar(n.label, 22)} · {n.n}
+                </text>
+              </React.Fragment>
+            ))}
+          </svg>
+        </div>
+      )}
+
+      <div className="mt-3.5 border-t border-line-soft pt-3.5">
+        <div className="text-[10px] font-[750] uppercase tracking-[.05em] text-ink-label">
+          Competencias del Estatuto
+        </div>
+        {rankingCompetencias.length === 0 ? (
+          <div className="mt-2.5 text-[11.5px] font-semibold text-ink-ghost">{VACIO}</div>
+        ) : (
+          <ol className="mt-2.5 grid grid-cols-1 gap-2 sm:grid-cols-2">
+            {rankingCompetencias.map(({ c, n }) => (
+              <li
+                key={c.id}
+                className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-[9px] rounded-btn bg-surface-subtle px-2.5 py-2"
+              >
+                <span className="rounded-md bg-accent-soft px-[7px] py-0.5 text-[10px] font-extrabold text-accent">
+                  {competenciaCodigo(c.id, competencias)}
+                </span>
+                <span className="truncate text-[11.5px] font-[550] text-ink-soft" title={c.nombre}>
+                  {c.nombre}
+                </span>
+                <span className="text-[12px] font-bold tabular-nums">{n}</span>
+              </li>
+            ))}
+          </ol>
+        )}
+      </div>
+    </Section>
+  );
+}
+
+/* ── Ranking ────────────────────────────────────────────────────────── */
+
+interface FuncionarioStat {
+  f: Funcionario;
+  total: number;
+  cumplidas: number;
+  vencidas: number;
+  cumpl: number;
+}
+
+function barraColor(pctValue: number): string {
+  if (pctValue >= 100) return "#10B981";
+  if (pctValue >= 50) return "#F59E0B";
+  return "#F43F5E";
+}
+
+function Ranking({
+  filas,
+  useAvatars,
+}: {
+  filas: FuncionarioStat[];
+  useAvatars: boolean;
+}) {
+  return (
+    <section className="overflow-hidden rounded-section border border-line bg-white shadow-card">
+      <div className="flex flex-wrap items-center justify-between gap-3.5 px-4 pb-3.5 pt-4 sm:px-5 sm:pt-5">
+        <div>
+          <h2 className="text-[16px] font-[750] tracking-[-.02em]">Cumplimiento por funcionario</h2>
+          <div className="mt-[3px] text-[12px] font-medium text-ink-faint">
+            Total asignadas, cumplidas y porcentaje de cumplimiento
+          </div>
+        </div>
+        <span className="inline-flex rounded-full bg-estado-pendiente-bg px-[11px] py-1 text-[11.5px] font-bold text-ink-muted">
+          {filas.length} {filas.length === 1 ? "funcionario" : "funcionarios"}
         </span>
       </div>
 
-      <div className="space-y-2 sm:hidden">
-        {visibleRows.length > 0 ? (
-          visibleRows.map((row) => {
-            if (row.kind === "gestion") {
-              return (
-                <button
-                  key={row.key}
-                  type="button"
-                  onClick={() => toggleGroup(row.key)}
-                  className="flex w-full items-center gap-2 rounded-lg bg-slate-100 px-3 py-2 text-left text-xs font-bold uppercase tracking-wide text-slate-700 ring-1 ring-slate-200"
-                  aria-expanded={!row.collapsed}
-                >
-                  <Icon name="arrow" size={13} className={cn("shrink-0 transition-transform", !row.collapsed && "rotate-90")} />
-                  <span className="min-w-0 flex-1 truncate">{row.label}</span>
-                  <span className="shrink-0 text-[10px] font-semibold normal-case tracking-normal text-slate-500">
-                    {row.count} act.
-                  </span>
-                </button>
-              );
-            }
-            if (row.kind === "primary") {
-              return (
-                <button
-                  key={row.key}
-                  type="button"
-                  onClick={() => toggleGroup(row.key)}
-                  className="flex w-full items-center gap-2 px-3 py-1 text-left text-xs font-semibold text-slate-600"
-                  aria-expanded={!row.collapsed}
-                >
-                  <Icon name="arrow" size={12} className={cn("shrink-0 transition-transform", !row.collapsed && "rotate-90")} />
-                  <span className="min-w-0 flex-1 truncate">{row.label}</span>
-                  <span className="shrink-0 text-[10px] font-medium text-slate-400">{row.count} act.</span>
-                </button>
-              );
-            }
-            return (
-              <article key={row.key} className="rounded-lg bg-white p-3 ring-1 ring-slate-200">
-                <div className="flex items-start justify-between gap-2">
-                  <h3 className="min-w-0 break-words text-sm font-semibold leading-snug text-slate-900">
-                    {row.activity.titulo}
-                  </h3>
-                  <Badge variant={row.fecha.tone} className="shrink-0">
-                    {row.fecha.text}
-                  </Badge>
-                </div>
-                <dl className="mt-3 grid grid-cols-2 gap-2 text-xs">
-                  <div className="min-w-0">
-                    <dt className="text-[10px] uppercase tracking-wide text-slate-400">Inicio</dt>
-                    <dd className="mt-0.5 truncate font-medium text-slate-700">
-                      {fmtFecha(row.activity.fechaInicio)}
-                      {fmtHora(row.activity.fechaInicio) ? ` · ${fmtHora(row.activity.fechaInicio)}` : ""}
-                    </dd>
-                  </div>
-                  <div className="min-w-0">
-                    <dt className="text-[10px] uppercase tracking-wide text-slate-400">Fin</dt>
-                    <dd className="mt-0.5 truncate font-medium text-slate-700">
-                      {fmtFecha(row.activity.fechaFin)}
-                      {fmtHora(row.activity.fechaFin) ? ` · ${fmtHora(row.activity.fechaFin)}` : ""}
-                    </dd>
-                  </div>
-                  <div className="col-span-2">
-                    <dt className="text-[10px] uppercase tracking-wide text-slate-400">Duración</dt>
-                    <dd className="mt-0.5 font-medium tabular-nums text-slate-700">{row.duration} días</dd>
-                  </div>
-                </dl>
-              </article>
-            );
-          })
+      {/* móvil */}
+      <div className="space-y-2 px-4 pb-4 sm:hidden">
+        {filas.length === 0 ? (
+          <EmptyBox icon="users">Ningún funcionario tiene actividades en el período</EmptyBox>
         ) : (
-          <div className="rounded-lg bg-white px-3 py-8 text-center text-sm text-slate-400 ring-1 ring-slate-200">
-            Sin actividades para mostrar
-          </div>
+          filas.map((row) => (
+            <article key={row.f.id} className="rounded-card border border-line bg-white p-3">
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex min-w-0 items-center gap-2.5">
+                  <Avatar funcionario={row.f} useAvatars={useAvatars} size={32} />
+                  <div className="min-w-0">
+                    <div className="text-[13px] font-[650] leading-tight">{row.f.nombre}</div>
+                    <div className="mt-0.5 text-[11px] text-ink-ghost">{row.f.cargo}</div>
+                  </div>
+                </div>
+                <span className="shrink-0 rounded-full bg-chip px-2 py-0.5 text-[11px] font-bold text-ink-soft">
+                  {row.total}
+                </span>
+              </div>
+              <div className="mt-3 flex items-center gap-2.5">
+                <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-estado-pendiente-bg">
+                  <div
+                    className="h-full rounded-full"
+                    style={{ width: `${Math.min(100, row.cumpl)}%`, background: barraColor(row.cumpl) }}
+                  />
+                </div>
+                <span className="w-[34px] text-right text-[12px] font-bold tabular-nums">{row.cumpl}%</span>
+              </div>
+              <dl className="mt-3 grid grid-cols-2 gap-3 text-[11.5px]">
+                <div>
+                  <dt className="text-ink-ghost">Cumplidas</dt>
+                  <dd className="mt-0.5 font-bold tabular-nums text-ink-soft">{row.cumplidas}</dd>
+                </div>
+                <div>
+                  <dt className="text-ink-ghost">Fin superado</dt>
+                  <dd
+                    className={cn(
+                      "mt-0.5 font-bold tabular-nums",
+                      row.vencidas > 0 ? "text-estado-vencida-fg" : "text-ink-disabled",
+                    )}
+                  >
+                    {row.vencidas > 0 ? row.vencidas : "—"}
+                  </dd>
+                </div>
+              </dl>
+            </article>
+          ))
         )}
       </div>
 
-      <div className="hidden sm:block">
-        <div className="flex min-w-full gap-3">
-          <div className="w-[220px] shrink-0 overflow-hidden rounded-xl bg-white ring-1 ring-slate-200 md:w-[280px]">
-            <div className="flex h-16 items-center border-b border-slate-200 text-sm font-semibold text-slate-800">
-              <div className="px-5">Gestión / funcionario</div>
-            </div>
-
-            <div
-              className="divide-y divide-slate-200"
-              style={{ height: bodyHeight }}
-            >
-              {visibleRows.length > 0 ? (
-                visibleRows.map((row) => {
-                  if (row.kind === "gestion") {
-                    return (
-                      <button
-                        key={row.key}
-                        type="button"
-                        onClick={() => toggleGroup(row.key)}
-                        className="flex w-full items-center bg-slate-100 text-left text-sm font-semibold text-slate-800 hover:bg-slate-200/60"
-                        style={{ height: row.height }}
-                        aria-expanded={!row.collapsed}
-                      >
-                        <div className="flex min-w-0 flex-1 items-center gap-2 px-5">
-                          <Icon name="arrow" size={14} className={cn("shrink-0 text-slate-600 transition-transform", !row.collapsed && "rotate-90")} />
-                          <span className="truncate" title={row.label}>{row.label}</span>
-                        </div>
-                      </button>
-                    );
-                  }
-                  if (row.kind === "primary") {
-                    return (
-                      <button
-                        key={row.key}
-                        type="button"
-                        onClick={() => toggleGroup(row.key)}
-                        className="flex w-full items-center bg-slate-50 text-left text-sm text-slate-700 hover:bg-slate-100"
-                        style={{ height: row.height }}
-                        aria-expanded={!row.collapsed}
-                      >
-                        <div className="flex min-w-0 flex-1 items-center gap-2 px-5 pl-8">
-                          <Icon name="arrow" size={13} className={cn("shrink-0 text-slate-500 transition-transform", !row.collapsed && "rotate-90")} />
-                          <div className="min-w-0">
-                            <div className="truncate font-medium" title={row.label}>{row.label}</div>
-                            {row.meta && <div className="truncate text-[11px] text-slate-400" title={row.meta}>{row.meta}</div>}
-                          </div>
-                        </div>
-                      </button>
-                    );
-                  }
-                  return (
-                    <div
-                      key={row.key}
-                      className="bg-white"
-                      style={{ height: row.height }}
-                    />
-                  );
-                })
-              ) : (
-                <div
-                  className="flex items-center justify-center bg-white text-sm text-slate-400"
-                  style={{ height: bodyHeight }}
-                >
-                  Sin actividades para mostrar
-                </div>
-              )}
-            </div>
-          </div>
-
-          <div className="min-w-0 flex-1 overflow-hidden rounded-xl bg-white ring-1 ring-slate-200">
-            <div className="flex h-8 items-center justify-center border-b border-slate-200 text-sm font-semibold text-slate-800">
-              {monthRange}
-            </div>
-            <div
-              className="grid h-12 border-b border-slate-200 text-[10px] font-semibold text-slate-800"
-              style={{ gridTemplateColumns: `repeat(${dayCount}, minmax(0, 1fr))` }}
-            >
-              {days.map((offset) => {
-                const dayIso = iso(addDays(TODAY_ISO, offset));
-                const isToday = offset === 0;
-                return (
-                  <div
-                    key={offset}
+      {/* escritorio */}
+      <div className="hidden overflow-x-auto sm:block">
+        <table className="w-full border-collapse text-[13px]">
+          <thead>
+            <tr className="border-y border-line-soft bg-surface-subtle">
+              <th className="px-5 py-2.5 text-left text-[11px] font-bold tracking-[.02em] text-ink-faint">
+                Funcionario
+              </th>
+              <th className="px-2.5 py-2.5 text-right text-[11px] font-bold text-ink-faint">Total</th>
+              <th className="px-2.5 py-2.5 text-right text-[11px] font-bold text-ink-faint">Cumplidas</th>
+              <th className="px-2.5 py-2.5 text-right text-[11px] font-bold text-ink-faint">Fin superado</th>
+              <th className="w-[230px] px-5 py-2.5 text-left text-[11px] font-bold text-ink-faint">
+                % Cumplimiento
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {filas.length === 0 ? (
+              <tr>
+                <td colSpan={5} className="px-5 py-[34px]">
+                  <EmptyBox icon="users">Ningún funcionario tiene actividades en el período</EmptyBox>
+                </td>
+              </tr>
+            ) : (
+              filas.map((row) => (
+                <tr key={row.f.id} className="border-b border-line-soft last:border-0 hover:bg-surface-subtle">
+                  <td className="px-5 py-[11px]">
+                    <div className="flex items-center gap-[11px]">
+                      <Avatar funcionario={row.f} useAvatars={useAvatars} size={32} />
+                      <div className="min-w-0">
+                        <div className="truncate font-[650]">{row.f.nombre}</div>
+                        <div className="truncate text-[11px] text-ink-ghost">{row.f.cargo}</div>
+                      </div>
+                    </div>
+                  </td>
+                  <td className="px-2.5 py-[11px] text-right font-bold tabular-nums">{row.total}</td>
+                  <td className="px-2.5 py-[11px] text-right tabular-nums text-ink-soft">{row.cumplidas}</td>
+                  <td
                     className={cn(
-                      "flex min-w-0 items-center justify-center overflow-hidden border-l border-slate-200 first:border-l-0",
-                      isToday && "bg-sky-100 font-bold text-sky-800 ring-1 ring-inset ring-sky-300",
+                      "px-2.5 py-[11px] text-right font-bold tabular-nums",
+                      row.vencidas > 0 ? "text-estado-vencida-fg" : "text-ink-disabled",
                     )}
-                    title={isToday ? "Fecha actual" : undefined}
                   >
-                    {dayLabel(dayIso)}
-                  </div>
-                );
-              })}
-            </div>
-
-            <div
-              className="relative overflow-hidden bg-white"
-              style={{ height: bodyHeight }}
-            >
-              <div
-                className="absolute inset-y-0 left-0 grid"
-                style={{ width: "100%", gridTemplateColumns: `repeat(${dayCount}, minmax(0, 1fr))` }}
-              >
-                {days.map((offset) => (
-                  <div key={offset} className="border-l border-slate-200 first:border-l-0" />
-                ))}
-              </div>
-              {todayVisible && (
-                <div
-                  className="pointer-events-none absolute inset-y-0 z-[1] border-x border-sky-300/70"
-                  style={{
-                    ...TODAY_COLUMN_STYLE,
-                    left: `${todayColumnLeftPct}%`,
-                    width: `${todayColumnWidthPct}%`,
-                  }}
-                  title="Fecha actual"
-                />
-              )}
-              <div className="absolute inset-x-0 top-0 border-t border-slate-200" />
-              {visibleRows.map((row) =>
-                row.kind === "activity" ? null : (
-                  <div
-                    key={`${row.key}-bg`}
-                    className={cn(
-                      "absolute inset-x-0",
-                      row.kind === "gestion" ? "bg-slate-100/70" : "bg-slate-50/70",
-                    )}
-                    style={{ top: row.top, height: row.height }}
-                  />
-                ),
-              )}
-              {visibleRows.map((row) => (
-                <div
-                  key={`${row.key}-line`}
-                  className="absolute inset-x-0 border-t border-slate-200"
-                  style={{ top: row.top }}
-                />
-              ))}
-
-              {activityRows.map((row) => (
-                <button
-                  key={row.key}
-                  type="button"
-                  onClick={() => onOpenActivity(row.activity.id)}
-                  className={cn(
-                    "absolute z-[3] flex h-7 items-center justify-center rounded-full px-1.5 text-xs font-semibold shadow-sm ring-2 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 md:px-4 md:text-sm",
-                    ganttStatusClass(row.activity.estado),
-                  )}
-                  style={{
-                    left: `${row.barLeftPct}%`,
-                    top: row.top + 7,
-                    width: `${row.barWidthPct}%`,
-                  }}
-                  title={`${row.activity.titulo} · ${fmtFecha(row.activity.fechaInicio)} – ${fmtFecha(row.activity.fechaFin)}`}
-                  aria-label={`Ver detalle de ${row.activity.titulo}`}
-                >
-                  <span className="truncate">{row.activity.titulo}</span>
-                </button>
-              ))}
-
-              {visibleRows.length === 0 && (
-                <div className="absolute inset-0 flex items-center justify-center text-sm text-slate-400">
-                  Sin actividades para mostrar
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
+                    {row.vencidas > 0 ? row.vencidas : "—"}
+                  </td>
+                  <td className="px-5 py-[11px]">
+                    <div className="flex items-center gap-2.5">
+                      <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-estado-pendiente-bg">
+                        <div
+                          className="h-full rounded-full"
+                          style={{
+                            width: `${Math.min(100, row.cumpl)}%`,
+                            background: barraColor(row.cumpl),
+                          }}
+                        />
+                      </div>
+                      <span className="w-[34px] text-right text-[12px] font-bold tabular-nums">
+                        {row.cumpl}%
+                      </span>
+                    </div>
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
       </div>
     </section>
   );
 }
+
+/* ── Vista ──────────────────────────────────────────────────────────── */
 
 export function StatsView({
   activities,
@@ -1060,6 +1009,7 @@ export function StatsView({
   dateRange,
   onOpenActivity,
 }: {
+  /* Ya acotadas al rango por la pantalla de Estadísticas. */
   activities: Actividad[];
   gestiones: Gestion[];
   funcionarios: Funcionario[];
@@ -1067,193 +1017,112 @@ export function StatsView({
   competencias: Competencia[];
   entregables: Entregable[];
   useAvatars: boolean;
-  dateRange: { from: string; to: string };
+  dateRange: DateRange;
   onOpenActivity: (activityId: string) => void;
 }) {
-  const s = useMemo(
-    () => computeStats(activities, funcionarios, competencias),
-    [activities, funcionarios, competencias],
-  );
+  const kpis = useMemo(() => {
+    const cuenta = (estado: EstadoActividad) => activities.filter((a) => a.estado === estado).length;
+    let vencidas = 0;
+    let pronto = 0;
+    for (const a of activities) {
+      const fecha = fechaFinInfo(a, TODAY_ISO);
+      if (fecha.kind === "ended") vencidas++;
+      if (fecha.kind === "soon" || fecha.kind === "today") pronto++;
+    }
+    const total = activities.length;
+    return {
+      total,
+      asignaciones: activities.filter((a) => a.tipo === "asignacion").length,
+      reuniones: activities.filter((a) => a.tipo === "reunion").length,
+      progreso: cuenta("en_progreso"),
+      revision: cuenta("en_revision"),
+      cumplidas: cuenta("cumplida"),
+      vencidas,
+      pronto,
+    };
+  }, [activities]);
 
-  const estadoData = ESTADOS.map((e) => ({
-    name: e.label,
-    value: s.totals[e.id] || 0,
-    color: { slate: "#94a3b8", blue: "#2563eb", amber: "#f59e0b", green: "#22c55e" }[e.accent],
-  }));
-
-  const sankeyData = useMemo(
-    () => buildManagementCompetenceSankey(activities, responsables, competencias, entregables, gestiones),
-    [activities, responsables, competencias, entregables, gestiones],
+  const ranking = useMemo<FuncionarioStat[]>(
+    () =>
+      funcionarios
+        .map((f) => {
+          const mias = activities.filter((a) => actividadIncludesFuncionario(a, f.id));
+          const cumplidas = mias.filter((a) => a.estado === "cumplida").length;
+          const vencidas = mias.filter(
+            (a) => a.estado !== "cumplida" && daysBetween(TODAY_ISO, a.fechaFin) < 0,
+          ).length;
+          return { f, total: mias.length, cumplidas, vencidas, cumpl: pct(cumplidas, mias.length) };
+        })
+        // Oculta a quien no tiene actividades en el período.
+        .filter((row) => row.total > 0)
+        .sort((a, b) => b.total - a.total || a.f.nombre.localeCompare(b.f.nombre)),
+    [activities, funcionarios],
   );
 
   return (
-    <div className="space-y-6">
-      {/* KPI row */}
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-5 [&>*:last-child]:col-span-2 md:[&>*:last-child]:col-span-1">
-        <Kpi icon="inbox" tone="slate" label="Actividades totales" value={s.totals.total} />
-        <Kpi icon="zap" tone="blue" label="En progreso" value={s.totals.en_progreso} sub={`${s.totals.en_revision} en revisión`} />
-        <Kpi icon="checkCircle" tone="green" label="Cumplidas" value={s.totals.cumplida} />
-        <Kpi icon="alert" tone="red" label="Fecha fin superada" value={s.totals.fechaFinSuperada} />
-        <Kpi icon="flame" tone="amber" label="Finalizan pronto" value={s.totals.proximasFinalizar} sub="≤ 3 días" />
+    <div className="flex flex-col gap-[18px]">
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5 xl:gap-[14px]">
+        <Kpi
+          icon="inbox"
+          iconColor="#8A8A99"
+          label="Totales"
+          value={kpis.total}
+          sub={`${kpis.asignaciones} asignaciones · ${kpis.reuniones} reuniones`}
+        />
+        <Kpi
+          icon="zap"
+          iconColor="#3B82F6"
+          label="En progreso"
+          value={kpis.progreso}
+          valueColor="#1D4ED8"
+          sub={`${kpis.revision} en revisión`}
+        />
+        <Kpi
+          icon="checkCircle"
+          iconColor="#10B981"
+          label="Cumplidas"
+          value={kpis.cumplidas}
+          valueColor="#0B7A5A"
+          sub={`${pct(kpis.cumplidas, kpis.total)}% del total`}
+        />
+        <Kpi
+          icon="alert"
+          iconColor="#F43F5E"
+          label="Fin superado"
+          value={kpis.vencidas}
+          valueColor="#C81E45"
+          sub={`${pct(kpis.vencidas, kpis.total)}% del total`}
+        />
+        <Kpi
+          icon="flame"
+          iconColor="#F59E0B"
+          label="Finalizan pronto"
+          value={kpis.pronto}
+          valueColor="#B45309"
+          sub="≤ 3 días"
+        />
       </div>
 
       <GanttChart
         activities={activities}
-        funcionarios={funcionarios}
+        funcionarios={responsables}
+        competencias={competencias}
         gestiones={gestiones}
-        dateRange={dateRange}
+        range={dateRange}
         onOpenActivity={onOpenActivity}
       />
 
-      <div className="grid grid-cols-1 items-start gap-3 lg:grid-cols-[1fr_2fr]">
-        <Card>
-          <CardHeader className="flex items-center justify-between !pb-0">
-            <CardTitle>Distribución por estado</CardTitle>
-            <Icon name="chart" size={14} className="text-slate-400" />
-          </CardHeader>
-          <CardContent>
-            <div style={{ height: 220 }}>
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie data={estadoData} dataKey="value" nameKey="name" innerRadius={55} outerRadius={80} paddingAngle={2}>
-                    {estadoData.map((d, i) => (
-                      <Cell key={i} fill={d.color} />
-                    ))}
-                  </Pie>
-                  <Tooltip contentStyle={tooltipStyle} />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-            <ul className="mt-2 space-y-1.5 text-xs">
-              {estadoData.map((d, i) => (
-                <li key={i} className="flex items-center justify-between">
-                  <span className="flex items-center gap-1.5">
-                    <span className="h-2 w-2 rounded-full" style={{ background: d.color }} />
-                    {d.name}
-                  </span>
-                  <span className="font-medium text-slate-700">{d.value}</span>
-                </li>
-              ))}
-            </ul>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="!pb-0">
-            <div className="flex flex-wrap items-start justify-between gap-2">
-              <div>
-                <CardTitle>Gestiones y competencias</CardTitle>
-                <div className="mt-0.5 text-xs text-slate-500">
-                  El grosor de cada flujo representa el número de actividades
-                </div>
-              </div>
-              {sankeyData.total > 0 && <Badge variant="violet">{sankeyData.total} actividades</Badge>}
-            </div>
-          </CardHeader>
-          <CardContent>
-            {sankeyData.links.length > 0 ? (
-              <ManagementCompetenceSankey data={sankeyData} />
-            ) : (
-              <div className="py-12 text-center text-sm text-slate-400">
-                Sin relaciones entre gestiones y competencias
-              </div>
-            )}
-          </CardContent>
-        </Card>
+      <div className="grid grid-cols-1 items-start gap-[14px] xl:grid-cols-[1fr_2fr]">
+        <Donut activities={activities} />
+        <SankeyFlow
+          activities={activities}
+          competencias={competencias}
+          entregables={entregables}
+          gestiones={gestiones}
+        />
       </div>
 
-      {/* Ranking de funcionarios */}
-      <Card>
-        <CardHeader className="flex flex-col items-start gap-2 !pb-2 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <CardTitle>Cumplimiento por funcionario</CardTitle>
-            <div className="mt-0.5 text-xs text-slate-500">Total asignadas, cumplidas y porcentaje de cumplimiento</div>
-          </div>
-          <Badge variant="outline">{funcionarios.length} funcionarios</Badge>
-        </CardHeader>
-        <CardContent className="!px-0">
-          <div className="space-y-2 px-3 pb-3 sm:hidden">
-            {s.porFuncionario.length > 0 ? (
-              s.porFuncionario.map((row) => (
-                <article key={row.f.id} className="rounded-lg border border-slate-200 bg-white p-3">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex min-w-0 items-center gap-2.5">
-                      <Avatar funcionario={row.f} useAvatars={useAvatars} size={32} />
-                      <div className="min-w-0">
-                        <div className="break-words text-sm font-medium leading-tight text-slate-900">{row.f.nombre}</div>
-                        <div className="mt-0.5 break-words text-[11px] text-slate-500">{row.f.cargo}</div>
-                      </div>
-                    </div>
-                    <Badge variant="outline" className="shrink-0">{row.total} total</Badge>
-                  </div>
-
-                  <div className="mt-3">
-                    <div className="mb-1 text-[10px] font-medium uppercase tracking-wide text-slate-400">Cumplimiento</div>
-                    <ProgressBar pct={row.cumpl} />
-                  </div>
-
-                  <dl className="mt-3 grid grid-cols-2 gap-x-3 gap-y-2 text-xs">
-                    <div>
-                      <dt className="text-slate-400">Cumplidas</dt>
-                      <dd className="mt-0.5 font-semibold tabular-nums text-slate-800">{row.cumplidas}</dd>
-                    </div>
-                    <div>
-                      <dt className="text-slate-400">Fecha fin superada</dt>
-                      <dd className={cn("mt-0.5 font-semibold tabular-nums", row.fechaFinSuperada > 0 ? "text-red-600" : "text-slate-400")}>
-                        {row.fechaFinSuperada > 0 ? row.fechaFinSuperada : "—"}
-                      </dd>
-                    </div>
-                  </dl>
-                </article>
-              ))
-            ) : (
-              <div className="py-8 text-center text-sm text-slate-400">Sin funcionarios registrados</div>
-            )}
-          </div>
-
-          <div className="hidden overflow-x-auto sm:block">
-            <table className="w-full text-sm">
-              <thead className="text-xs text-slate-500">
-                <tr className="border-b border-slate-200">
-                  <th className="px-4 py-2 text-left font-medium">Funcionario</th>
-                  <th className="px-2 py-2 text-right font-medium">Total</th>
-                  <th className="px-2 py-2 text-right font-medium">Cumplidas</th>
-                  <th className="px-2 py-2 text-right font-medium">Fecha fin superada</th>
-                  <th className="px-4 py-2 text-left font-medium">% Cumplimiento</th>
-                </tr>
-              </thead>
-              <tbody>
-                {s.porFuncionario.map((row) => (
-                  <tr key={row.f.id} className="border-b border-slate-100 last:border-0 hover:bg-slate-50/60">
-                    <td className="px-4 py-2.5">
-                      <div className="flex items-center gap-2.5">
-                        <Avatar funcionario={row.f} useAvatars={useAvatars} size={28} />
-                        <div>
-                          <div className="font-medium text-slate-900 leading-tight">{row.f.nombre}</div>
-                          <div className="text-[11px] text-slate-500">{row.f.cargo}</div>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-2 py-2.5 text-right font-medium tabular-nums text-slate-800">{row.total}</td>
-                    <td className="px-2 py-2.5 text-right tabular-nums text-slate-700">{row.cumplidas}</td>
-                    <td className="px-2 py-2.5 text-right tabular-nums">
-                      {row.fechaFinSuperada > 0 ? (
-                        <span className="font-medium text-red-600">{row.fechaFinSuperada}</span>
-                      ) : (
-                        <span className="text-slate-400">—</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-2.5">
-                      <ProgressBar pct={row.cumpl} />
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </CardContent>
-      </Card>
-
+      <Ranking filas={ranking} useAvatars={useAvatars} />
     </div>
   );
 }

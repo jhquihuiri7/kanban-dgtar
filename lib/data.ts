@@ -179,6 +179,18 @@ export function gestionNombre(gestionId: string | undefined, gestiones: Gestion[
   return gestiones.find((g) => g.id === gestionId)?.nombre ?? "—";
 }
 
+// Las competencias no guardan código en la base (se eliminó la columna); el
+// "C1" del rediseño es su posición dentro de la gestión a la que pertenecen.
+export function competenciaCodigo(
+  competenciaId: string | undefined,
+  competencias: Competencia[],
+): string {
+  const comp = competencias.find((c) => c.id === competenciaId);
+  if (!comp) return "—";
+  const index = competencias.filter((c) => c.gestionId === comp.gestionId).findIndex((c) => c.id === comp.id);
+  return `C${index + 1}`;
+}
+
 export type BadgeVariant =
   | "default"
   | "outline"

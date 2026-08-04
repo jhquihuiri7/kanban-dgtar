@@ -33,6 +33,11 @@ import {
   Loader2,
   RefreshCw,
   LogOut,
+  ChevronLeft,
+  ChevronRight,
+  ChevronDown,
+  Target,
+  FileText,
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -48,79 +53,49 @@ type ButtonVariant =
   | "destructive"
   | "link";
 type ButtonSize = "default" | "sm" | "lg" | "icon";
+type ButtonShape = "btn" | "pill";
 
 export function Button({
   variant = "default",
   size = "default",
+  shape = "btn",
   className = "",
   children,
   ...rest
 }: React.ButtonHTMLAttributes<HTMLButtonElement> & {
   variant?: ButtonVariant;
   size?: ButtonSize;
+  /* «Botón/insignia píldora 999px · Botón cuadrado 10px» */
+  shape?: ButtonShape;
 }) {
   const base =
-    "inline-flex touch-manipulation items-center justify-center gap-2 whitespace-nowrap rounded-lg text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900/30 disabled:opacity-50 disabled:pointer-events-none";
+    "inline-flex touch-manipulation items-center justify-center gap-1.5 whitespace-nowrap text-[13px] font-[650] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/30 disabled:opacity-50 disabled:pointer-events-none sm:text-[12.5px]";
+  const shapes: Record<ButtonShape, string> = {
+    btn: "rounded-btn",
+    pill: "rounded-full",
+  };
   const variants: Record<ButtonVariant, string> = {
-    default: "bg-slate-900 text-white hover:bg-slate-800",
-    outline: "border border-slate-200 bg-white text-slate-900 hover:bg-slate-50",
-    secondary: "bg-slate-100 text-slate-900 hover:bg-slate-200",
-    ghost: "text-slate-700 hover:bg-slate-100",
-    destructive: "bg-red-600 text-white hover:bg-red-700",
-    link: "text-slate-900 underline-offset-4 hover:underline",
+    default: "bg-ink text-white shadow-primary hover:bg-ink-hover",
+    outline: "border border-line-strong bg-white text-ink shadow-card hover:border-line-hover hover:bg-surface-subtle",
+    secondary: "bg-estado-pendiente-bg text-ink hover:bg-chip",
+    ghost: "text-ink-muted hover:bg-estado-pendiente-bg hover:text-ink",
+    destructive: "bg-estado-vencida text-white hover:bg-[#E11D48]",
+    link: "text-accent underline-offset-4 hover:underline",
   };
   const sizes: Record<ButtonSize, string> = {
-    default: "h-11 px-3 sm:h-8",
-    sm: "h-11 px-3 text-sm sm:h-7 sm:px-2.5 sm:text-xs",
-    lg: "h-11 px-4 sm:h-10",
-    icon: "h-11 w-11 sm:h-8 sm:w-8",
+    default: "h-11 px-3.5 sm:h-[34px] sm:px-[13px]",
+    sm: "h-11 px-3 sm:h-[30px] sm:px-2.5 sm:text-[12px]",
+    lg: "h-11 px-4 sm:h-10 sm:px-4",
+    icon: "h-11 w-11 sm:h-[34px] sm:w-[34px]",
   };
   return (
-    <button className={cn(base, variants[variant], sizes[size], className)} {...rest}>
+    <button
+      className={cn(base, shapes[shape], variants[variant], sizes[size], className)}
+      {...rest}
+    >
       {children}
     </button>
   );
-}
-
-/* ── Card ───────────────────────────────────────────────────────────── */
-
-export function Card({
-  className = "",
-  children,
-  ...rest
-}: React.HTMLAttributes<HTMLDivElement>) {
-  return (
-    <div className={cn("rounded-xl bg-white ring-1 ring-foreground/10", className)} {...rest}>
-      {children}
-    </div>
-  );
-}
-export function CardHeader({
-  className = "",
-  children,
-}: {
-  className?: string;
-  children: React.ReactNode;
-}) {
-  return <div className={cn("px-4 pt-4 pb-2", className)}>{children}</div>;
-}
-export function CardTitle({
-  className = "",
-  children,
-}: {
-  className?: string;
-  children: React.ReactNode;
-}) {
-  return <div className={cn("text-base font-semibold tracking-tight", className)}>{children}</div>;
-}
-export function CardContent({
-  className = "",
-  children,
-}: {
-  className?: string;
-  children: React.ReactNode;
-}) {
-  return <div className={cn("px-4 pb-4", className)}>{children}</div>;
 }
 
 /* ── Badge ──────────────────────────────────────────────────────────── */
@@ -135,20 +110,20 @@ export function Badge({
   children: React.ReactNode;
 }) {
   const map: Record<BadgeVariant, string> = {
-    default: "bg-slate-100 text-slate-700 border border-slate-200",
-    outline: "bg-white text-slate-700 border border-slate-200",
-    green: "bg-green-50 text-green-700 border border-green-200",
-    amber: "bg-amber-50 text-amber-700 border border-amber-200",
-    red: "bg-red-50 text-red-700 border border-red-200",
-    blue: "bg-blue-50 text-blue-700 border border-blue-200",
-    violet: "bg-violet-50 text-violet-700 border border-violet-200",
-    slate: "bg-slate-50 text-slate-600 border border-slate-200",
-    teal: "bg-teal-50 text-teal-700 border border-teal-200",
+    default: "bg-estado-pendiente-bg text-estado-pendiente-fg",
+    outline: "border border-line bg-white text-ink-muted",
+    green: "bg-estado-cumplida-bg text-estado-cumplida-fg",
+    amber: "bg-estado-revision-bg text-estado-revision-fg",
+    red: "bg-estado-vencida-bg text-estado-vencida-fg",
+    blue: "bg-estado-progreso-bg text-estado-progreso-fg",
+    violet: "bg-accent-soft text-accent",
+    slate: "bg-estado-pendiente-bg text-estado-pendiente-fg",
+    teal: "bg-[#E6F7F5] text-[#0F766E]",
   };
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-xs font-medium",
+        "inline-flex items-center gap-1 rounded-full px-[9px] py-0.5 text-[10.5px] font-bold leading-[1.5]",
         map[variant],
         className,
       )}
@@ -167,7 +142,7 @@ export function Input({
   return (
     <input
       className={cn(
-        "flex h-11 min-w-0 w-full touch-manipulation rounded-lg border border-slate-200 bg-white px-3 py-2 text-base placeholder:text-slate-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900/20 sm:h-9 sm:text-sm",
+        "flex h-11 min-w-0 w-full touch-manipulation rounded-input border border-line-strong bg-white px-3 py-2 text-base font-medium text-ink placeholder:font-normal placeholder:text-ink-faint focus-visible:border-accent-border focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-accent/10 sm:h-[38px] sm:text-[13px]",
         className,
       )}
       {...rest}
@@ -181,7 +156,7 @@ export function Textarea({
   return (
     <textarea
       className={cn(
-        "flex min-h-11 min-w-0 w-full touch-manipulation rounded-lg border border-slate-200 bg-white px-3 py-2 text-base placeholder:text-slate-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900/20 sm:min-h-0 sm:text-sm",
+        "flex min-h-11 min-w-0 w-full touch-manipulation rounded-input border border-line-strong bg-white px-3 py-2 text-base font-medium text-ink placeholder:font-normal placeholder:text-ink-faint focus-visible:border-accent-border focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-accent/10 sm:min-h-0 sm:text-[13px]",
         className,
       )}
       {...rest}
@@ -196,7 +171,7 @@ export function Select({
   return (
     <select
       className={cn(
-        "flex h-11 min-w-0 w-full touch-manipulation rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-base focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900/20 sm:h-9 sm:text-sm",
+        "flex h-11 min-w-0 w-full touch-manipulation rounded-input border border-line-strong bg-white px-3 py-1.5 text-base font-medium text-ink focus-visible:border-accent-border focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-accent/10 sm:h-[38px] sm:text-[13px]",
         className,
       )}
       {...rest}
@@ -211,7 +186,7 @@ export function Label({
   ...rest
 }: React.LabelHTMLAttributes<HTMLLabelElement>) {
   return (
-    <label className={cn("text-xs font-medium text-slate-700", className)} {...rest}>
+    <label className={cn("text-[11.5px] font-bold text-ink-soft", className)} {...rest}>
       {children}
     </label>
   );
@@ -219,15 +194,18 @@ export function Label({
 
 /* ── Avatar ─────────────────────────────────────────────────────────── */
 
-function shade(hex: string, amt: number): string {
+/* El handoff pide gradientes «color → color oscuro» equivalentes al paso 500→600
+   de la paleta (#0ea5e9→#0284c7). Un factor multiplicativo lo aproxima sin
+   tabla fija y sin recortar canales como hacía la resta plana. */
+export function darken(hex: string, factor = 0.82): string {
   const n = parseInt(hex.replace("#", ""), 16);
-  let r = (n >> 16) + amt;
-  let g = ((n >> 8) & 0xff) + amt;
-  let b = (n & 0xff) + amt;
-  r = Math.max(0, Math.min(255, r));
-  g = Math.max(0, Math.min(255, g));
-  b = Math.max(0, Math.min(255, b));
-  return "#" + ((r << 16) | (g << 8) | b).toString(16).padStart(6, "0");
+  const ch = (shift: number) =>
+    Math.max(0, Math.min(255, Math.round(((n >> shift) & 0xff) * factor)));
+  return "#" + ((ch(16) << 16) | (ch(8) << 8) | ch(0)).toString(16).padStart(6, "0");
+}
+
+export function avatarGradient(color: string): string {
+  return `linear-gradient(135deg, ${color}, ${darken(color)})`;
 }
 
 export function Avatar({
@@ -244,14 +222,13 @@ export function Avatar({
   if (!funcionario) return null;
   const dim = { width: size, height: size, fontSize: Math.round(size * 0.38) };
   if (useAvatars) {
-    const hue = funcionario.color;
     return (
       <div
         className={cn(
-          "inline-flex items-center justify-center rounded-full font-semibold text-white ring-1 ring-foreground/10 shrink-0",
+          "inline-flex shrink-0 items-center justify-center rounded-full font-bold text-white",
           className,
         )}
-        style={{ ...dim, background: `linear-gradient(135deg, ${hue}, ${shade(hue, -18)})` }}
+        style={{ ...dim, background: avatarGradient(funcionario.color) }}
         title={funcionario.nombre}
       >
         {initials(funcionario.nombre)}
@@ -261,7 +238,7 @@ export function Avatar({
   return (
     <div
       className={cn(
-        "inline-flex items-center justify-center rounded-full bg-slate-100 text-slate-700 font-semibold ring-1 ring-foreground/10 shrink-0",
+        "inline-flex shrink-0 items-center justify-center rounded-full bg-estado-pendiente-bg font-bold text-ink-muted",
         className,
       )}
       style={dim}
@@ -305,7 +282,12 @@ export type IconName =
   | "checkCircle"
   | "loader"
   | "refresh"
-  | "logout";
+  | "logout"
+  | "chevronLeft"
+  | "chevronRight"
+  | "chevronDown"
+  | "target"
+  | "fileText";
 
 const ICONS: Record<IconName, LucideIcon> = {
   kanban: Kanban,
@@ -339,19 +321,28 @@ const ICONS: Record<IconName, LucideIcon> = {
   loader: Loader2,
   refresh: RefreshCw,
   logout: LogOut,
+  chevronLeft: ChevronLeft,
+  chevronRight: ChevronRight,
+  chevronDown: ChevronDown,
+  target: Target,
+  fileText: FileText,
 };
 
 export function Icon({
   name,
   size = 16,
   className = "",
+  style,
+  strokeWidth = 2,
 }: {
   name: IconName;
   size?: number;
   className?: string;
+  style?: React.CSSProperties;
+  strokeWidth?: number;
 }) {
   const C = ICONS[name];
-  return <C size={size} className={className} strokeWidth={2} />;
+  return <C size={size} className={className} style={style} strokeWidth={strokeWidth} />;
 }
 
 /* ── click-outside helper ───────────────────────────────────────────── */

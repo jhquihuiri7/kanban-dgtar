@@ -2,14 +2,27 @@
 
 import * as React from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Badge, Button, Icon, Input, Label, Select, useClickAway, type IconName } from "@/components/ui";
+import {
+  Badge,
+  Button,
+  Icon,
+  Input,
+  Label,
+  avatarGradient,
+  useClickAway,
+  type IconName,
+} from "@/components/ui";
 import { cn } from "@/lib/utils";
 import {
   TODAY_ISO,
+  addDays,
   dateOnly,
   daysBetween,
+  fmtFecha,
   fmtFechaLarga,
   gestionNombre,
+  gestionTone,
+  initials,
   iso,
   type Actividad,
   type Competencia,
@@ -18,7 +31,13 @@ import {
   type Funcionario,
   type Gestion,
 } from "@/lib/data";
-import { KanbanBoard, type Filters } from "@/components/kanban";
+import {
+  KanbanBoard,
+  boardMonth,
+  filterActivities,
+  inBoardMonth,
+  type Filters,
+} from "@/components/kanban";
 import { CalendarView } from "@/components/calendar";
 import { DetailPanel } from "@/components/detail";
 import { StatsView } from "@/components/stats";
@@ -38,11 +57,10 @@ import { canFuncionarioEditActivity } from "@/lib/activity-access";
 
 type Tab = "kanban" | "stats" | "catalogs" | "users";
 type BoardView = "columns" | "week" | "month";
-type Density = "standard" | "compact";
 type LoadState = "loading" | "ready" | "error";
 type SyncState = "idle" | "saving" | "saved" | "error";
 type GoogleBusyState = "status" | "sync" | "disconnect" | null;
-type StatsDateMode = "current-month" | "custom";
+type HeaderMenu = "google" | "perfil" | null;
 
 interface GoogleStatus {
   connected: boolean;
@@ -52,7 +70,6 @@ interface GoogleStatus {
 }
 
 interface Settings {
-  density: Density;
   useAvatars: boolean;
 }
 
@@ -501,13 +518,12 @@ function useServerSync({
   };
 }
 
+/* El rediseño retira el menú de ajustes de la cabecera: el tablero se muestra
+   siempre en densidad estándar y con avatares de color. */
+const VIEW_SETTINGS: Settings = { useAvatars: true };
+
 export default function Page() {
-  const [settings, setSettings] = useState<Settings>({
-    density: "standard",
-    useAvatars: true,
-  });
-  const setTweak = <K extends keyof Settings>(key: K, value: Settings[K]) =>
-    setSettings((s) => ({ ...s, [key]: value }));
+  const settings = VIEW_SETTINGS;
 
   const [tab, setTab] = useState<Tab>("kanban");
   const [gestiones, setGestiones] = useState<Gestion[]>([]);
@@ -621,20 +637,34 @@ export default function Page() {
     return official!;
   };
 
+  /* La cuenta referencia al funcionario por clave foránea, así que Usuarios
+     necesita esperar a que el documento esté confirmado en el servidor antes
+     de crear o borrar la cuenta asociada. */
+  async function persistFuncionarios(next: Funcionario[], nextActivities?: Actividad[]) {
+    setFuncionarios(next);
+    if (nextActivities) setActivities(nextActivities);
+    // Ambas colecciones viajan en el mismo PUT: el servidor rechaza el
+    // documento si una actividad apunta a un funcionario que ya no existe.
+    saveNow({ funcionarios: next, activities: nextActivities });
+    await flushPendingChanges();
+  }
+
   if (loadState !== "ready" || !currentUser) {
     return <LoadingGate state={loadState} error={loadError} onRetry={retry} />;
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900">
+    <div className="min-h-screen bg-app text-ink">
       <Header
         tab={tab}
         setTab={setAllowedTab}
-        settings={settings}
-        setTweak={setTweak}
         syncState={syncState}
         currentUser={currentUser}
+        funcionarios={funcionarios}
+        gestiones={gestiones}
         isAdmin={isAdmin}
+        query={filters.q}
+        setQuery={(q) => setFilters((f) => ({ ...f, q }))}
         onExport={() => setExportOpen(true)}
         onNew={() => {
           setDialogDefaultEstado("pendiente");
@@ -642,7 +672,7 @@ export default function Page() {
         }}
       />
 
-      <main className="mx-auto max-w-[1500px] px-3 py-4 sm:px-6 sm:py-6">
+      <main className="mx-auto max-w-[1500px] px-3 py-4 sm:px-6 sm:py-[22px] sm:pb-14">
         {tab === "kanban" && (
           <KanbanScreen
             activities={activities}
@@ -652,7 +682,6 @@ export default function Page() {
             competencias={competencias}
             filters={filters}
             setFilters={setFilters}
-            density={settings.density}
             useAvatars={settings.useAvatars}
             isAdmin={isAdmin}
             currentUser={currentUser}
@@ -683,21 +712,24 @@ export default function Page() {
             gestiones={gestiones}
             setGestiones={setGestiones}
             funcionarios={funcionarios}
-            setFuncionarios={setFuncionarios}
             competencias={competencias}
             setCompetencias={setCompetencias}
             entregables={entregables}
             setEntregables={setEntregables}
             activities={activities}
             setActivities={setActivities}
-            useAvatars={settings.useAvatars}
           />
         )}
 
         {isAdmin && tab === "users" && (
           <UsersScreen
             funcionarios={funcionarios}
+            setFuncionarios={setFuncionarios}
+            gestiones={gestiones}
+            activities={activities}
             currentUser={currentUser}
+            useAvatars={settings.useAvatars}
+            persistFuncionarios={persistFuncionarios}
           />
         )}
       </main>
@@ -748,95 +780,87 @@ export default function Page() {
 function Header({
   tab,
   setTab,
-  settings,
-  setTweak,
   syncState,
   currentUser,
+  funcionarios,
+  gestiones,
   isAdmin,
+  query,
+  setQuery,
   onExport,
   onNew,
 }: {
   tab: Tab;
   setTab: (t: Tab) => void;
-  settings: Settings;
-  setTweak: <K extends keyof Settings>(key: K, value: Settings[K]) => void;
   syncState: SyncState;
   currentUser: AuthUser;
+  funcionarios: Funcionario[];
+  gestiones: Gestion[];
   isAdmin: boolean;
+  query: string;
+  setQuery: (q: string) => void;
   onExport: () => void;
   onNew: () => void;
 }) {
-  const displayName = currentUser.nombre.trim() || "Usuario";
+  // Un solo popover abierto a la vez (cabecera: Google y perfil).
+  const [menu, setMenu] = useState<HeaderMenu>(null);
 
   return (
-    <header className="sticky top-0 z-30 border-b border-slate-200 bg-slate-50/85 backdrop-blur">
-      <div className="mx-auto flex max-w-[1500px] flex-wrap items-center gap-x-2 gap-y-2 px-3 py-2 sm:px-6 xl:flex-nowrap xl:gap-6 xl:py-2.5">
-        {/* user session */}
-        <div className="order-1 flex min-w-0 shrink-0 items-center gap-1.5 sm:gap-2.5 xl:order-none">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-900 text-white shadow-sm">
-            <Icon name="kanban" size={16} />
+    <header className="sticky top-0 z-30 border-b border-line-strong bg-app/[.86] backdrop-blur-[14px]">
+      <div className="mx-auto flex max-w-[1500px] flex-wrap items-center gap-x-3 gap-y-2 px-3 py-2 sm:px-6 sm:py-3 xl:flex-nowrap xl:gap-[18px]">
+        {/* marca */}
+        <div className="order-1 flex shrink-0 items-center gap-[11px] xl:order-none">
+          <div className="flex h-[38px] w-[38px] items-center justify-center rounded-xl bg-ink text-white shadow-[0_2px_6px_rgba(18,18,26,.18)]">
+            <Icon name="kanban" size={19} />
           </div>
-          <div className="hidden min-w-0 max-w-[220px] flex-col items-start sm:flex">
-            <div className="truncate text-[13px] font-semibold leading-tight text-slate-900">
-              {displayName}
+          <div className="hidden flex-col gap-px sm:flex">
+            <div className="text-[14px] font-bold leading-[1.15] tracking-[-.02em]">Kanban DGTAR</div>
+            <div className="text-[10.5px] font-medium leading-[1.15] text-ink-faint">
+              Dirección de Planificación
             </div>
-            <form action="/api/auth/logout" method="post" className="mt-1 inline-flex">
-              <Button
-                type="submit"
-                variant="outline"
-                size="sm"
-                className="h-6 px-2 text-[11px]"
-                title="Cerrar sesión"
-              >
-                <Icon name="logout" size={12} />
-                Cerrar sesión
-              </Button>
-            </form>
           </div>
-          <form action="/api/auth/logout" method="post" className="inline-flex sm:hidden">
-            <Button
-              type="submit"
-              variant="ghost"
-              size="icon"
-              className="h-11 w-11"
-              title="Cerrar sesión"
-              aria-label="Cerrar sesión"
-            >
-              <Icon name="logout" size={14} />
-            </Button>
-          </form>
         </div>
 
-        {/* tabs */}
+        {/* navegación */}
         <nav
-          className="order-3 flex w-full min-w-0 items-stretch gap-0.5 overflow-x-auto rounded-lg bg-slate-100/70 p-1 xl:order-none xl:ml-2 xl:w-auto xl:items-center xl:overflow-visible xl:bg-transparent xl:p-0"
+          className="order-3 flex w-full min-w-0 items-center gap-1 overflow-x-auto rounded-full bg-track p-1 xl:order-none xl:w-auto xl:shrink-0 xl:overflow-visible"
           aria-label="Navegación principal"
         >
           <TabBtn active={tab === "kanban"} onClick={() => setTab("kanban")}>
-            <Icon name="kanban" size={14} /> Tablero
+            <Icon name="kanban" size={15} /> Tablero
           </TabBtn>
           <TabBtn active={tab === "stats"} onClick={() => setTab("stats")}>
-            <Icon name="chart" size={14} /> Estadísticas
+            <Icon name="chart" size={15} /> Estadísticas
           </TabBtn>
           {isAdmin && (
             <>
               <TabBtn active={tab === "catalogs"} onClick={() => setTab("catalogs")}>
-                <Icon name="list" size={14} /> Catálogos
+                <Icon name="list" size={15} /> Catálogos
               </TabBtn>
               <TabBtn active={tab === "users"} onClick={() => setTab("users")}>
-                <Icon name="users" size={14} /> Usuarios
+                <Icon name="users" size={15} /> Usuarios
               </TabBtn>
             </>
           )}
         </nav>
 
-        <div className="order-2 ml-auto flex shrink-0 items-center gap-1 sm:gap-2 xl:order-none">
+        {/* buscador — comparte estado con el del Tablero */}
+        <div className="order-4 flex w-full min-w-0 justify-center xl:order-none xl:min-w-[220px] xl:flex-1">
+          <HeaderSearch query={query} setQuery={setQuery} />
+        </div>
+
+        {/* acciones */}
+        <div className="order-2 ml-auto flex shrink-0 items-center gap-1.5 sm:gap-2 xl:order-none xl:ml-0">
           <SyncIndicator state={syncState} />
-          <GoogleCalendarControl currentUser={currentUser} />
-          <SettingsMenu settings={settings} setTweak={setTweak} />
+          <GoogleCalendarControl
+            currentUser={currentUser}
+            open={menu === "google"}
+            setOpen={(open) => setMenu(open ? "google" : null)}
+          />
           <Button
             variant="outline"
-            className="h-11 w-11 px-0 sm:h-8 sm:w-auto sm:px-3"
+            shape="pill"
+            className="w-11 px-0 sm:w-auto sm:px-[13px]"
             onClick={onExport}
             title="Exportar actividades"
             aria-label="Exportar actividades"
@@ -845,7 +869,8 @@ function Header({
             <span className="hidden sm:inline">Exportar</span>
           </Button>
           <Button
-            className="h-11 w-11 px-0 sm:h-8 sm:w-auto sm:px-3"
+            shape="pill"
+            className="w-11 px-0 sm:w-auto sm:px-[15px]"
             onClick={onNew}
             title="Nueva actividad"
             aria-label="Nueva actividad"
@@ -853,9 +878,149 @@ function Header({
             <Icon name="plus" size={14} />
             <span className="hidden sm:inline">Nueva actividad</span>
           </Button>
+          <ProfileMenu
+            currentUser={currentUser}
+            funcionarios={funcionarios}
+            gestiones={gestiones}
+            open={menu === "perfil"}
+            setOpen={(open) => setMenu(open ? "perfil" : null)}
+          />
         </div>
       </div>
     </header>
+  );
+}
+
+/* Buscador de la cabecera: controlado, con atajo ⌘/Ctrl + K y botón de limpieza. */
+function HeaderSearch({ query, setQuery }: { query: string; setQuery: (q: string) => void }) {
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key.toLowerCase() !== "k" || !(e.metaKey || e.ctrlKey)) return;
+      e.preventDefault();
+      inputRef.current?.focus();
+      inputRef.current?.select();
+    }
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, []);
+
+  const buscando = query.trim().length > 0;
+
+  return (
+    <div
+      className={cn(
+        "flex h-[38px] w-full max-w-[340px] items-center gap-[9px] rounded-full border bg-white pl-[14px] pr-1.5 shadow-card transition-colors",
+        buscando ? "border-accent-border ring-[3px] ring-accent/10" : "border-line-strong",
+      )}
+    >
+      <Icon name="search" size={15} className="shrink-0 text-ink-faint" />
+      <input
+        ref={inputRef}
+        type="text"
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+        placeholder="Buscar actividad…"
+        aria-label="Buscar actividad"
+        className="h-full min-w-0 flex-1 border-0 bg-transparent text-[13px] font-medium text-ink outline-none placeholder:font-normal placeholder:text-ink-faint"
+      />
+      {buscando ? (
+        <button
+          type="button"
+          onClick={() => setQuery("")}
+          aria-label="Limpiar búsqueda"
+          className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-estado-pendiente-bg text-ink-muted transition-colors hover:bg-chip hover:text-ink"
+        >
+          <Icon name="close" size={12} />
+        </button>
+      ) : (
+        <span className="hidden shrink-0 rounded-full bg-estado-pendiente-bg px-2 py-[3px] text-[10.5px] font-semibold text-ink-faint sm:inline">
+          ⌘ K
+        </span>
+      )}
+    </div>
+  );
+}
+
+/* Perfil: avatar con popover de cuenta y cierre de sesión. */
+function ProfileMenu({
+  currentUser,
+  funcionarios,
+  gestiones,
+  open,
+  setOpen,
+}: {
+  currentUser: AuthUser;
+  funcionarios: Funcionario[];
+  gestiones: Gestion[];
+  open: boolean;
+  setOpen: (open: boolean) => void;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  useClickAway(ref, () => setOpen(false));
+
+  const funcionario = funcionarios.find((f) => f.id === currentUser.funcionarioId);
+  const displayName = currentUser.nombre.trim() || funcionario?.nombre.trim() || "Usuario";
+  const monograma = initials(displayName);
+  const gestion = gestiones.find((g) => g.id === funcionario?.gestionId);
+  const fondo = funcionario ? avatarGradient(funcionario.color) : "linear-gradient(135deg,#4B4B57,#12121A)";
+  const titulo = funcionario?.cargo ? `${displayName} · ${funcionario.cargo}` : displayName;
+
+  return (
+    <div className="relative shrink-0" ref={ref}>
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        title={titulo}
+        aria-label={`Cuenta de ${displayName}`}
+        aria-expanded={open}
+        className={cn(
+          "flex h-11 w-11 items-center justify-center rounded-full text-[12px] font-bold text-white sm:h-[34px] sm:w-[34px]",
+          open ? "shadow-avatar-active" : "shadow-avatar",
+        )}
+        style={{ background: fondo }}
+      >
+        {monograma}
+      </button>
+      {open && (
+        <div className="absolute right-0 top-[calc(100%+9px)] z-[60] w-[262px] rounded-2xl border border-line bg-white p-[7px] shadow-popover">
+          <div className="flex items-center gap-[11px] px-[11px] pb-3 pt-2.5">
+            <span
+              className="flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-full text-[13px] font-bold text-white"
+              style={{ background: fondo }}
+            >
+              {monograma}
+            </span>
+            <div className="min-w-0">
+              <div className="truncate text-[13.5px] font-bold tracking-[-.01em]">{displayName}</div>
+              <div className="truncate font-mono text-[11px] font-medium text-ink-ghost">
+                {currentUser.email}
+              </div>
+            </div>
+          </div>
+          <div className="flex items-center gap-[7px] px-[11px] pb-[11px]">
+            <Badge variant={currentUser.role === "admin" ? "blue" : "slate"}>
+              {currentUser.role === "admin" ? "Admin" : "User"}
+            </Badge>
+            {gestion && (
+              <Badge variant={gestionTone(gestion.id, gestiones)} className="truncate">
+                {gestion.nombre}
+              </Badge>
+            )}
+          </div>
+          <form action="/api/auth/logout" method="post" className="border-t border-line-soft pt-1.5">
+            <button
+              type="submit"
+              className="flex w-full items-center gap-2.5 rounded-btn px-[11px] py-2.5 text-left text-[13px] font-semibold text-estado-vencida-fg transition-colors hover:bg-estado-vencida-bg"
+            >
+              <Icon name="logout" size={15} />
+              Cerrar sesión
+            </button>
+          </form>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -869,10 +1034,17 @@ function formatSyncDate(value: string | null): string {
   });
 }
 
-function GoogleCalendarControl({ currentUser }: { currentUser: AuthUser }) {
+function GoogleCalendarControl({
+  currentUser,
+  open,
+  setOpen,
+}: {
+  currentUser: AuthUser;
+  open: boolean;
+  setOpen: (open: boolean) => void;
+}) {
   const [status, setStatus] = useState<GoogleStatus | null>(null);
   const [busy, setBusy] = useState<GoogleBusyState>("status");
-  const [open, setOpen] = useState(false);
   const [error, setError] = useState("");
   const ref = useRef<HTMLDivElement>(null);
   useClickAway(ref, () => setOpen(false));
@@ -886,6 +1058,7 @@ function GoogleCalendarControl({ currentUser }: { currentUser: AuthUser }) {
     const query = params.toString();
     const nextUrl = `${window.location.pathname}${query ? `?${query}` : ""}${window.location.hash}`;
     window.history.replaceState({}, "", nextUrl);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const loadStatus = React.useCallback(async () => {
@@ -960,37 +1133,31 @@ function GoogleCalendarControl({ currentUser }: { currentUser: AuthUser }) {
     }
   }
 
+  // Botón circular común a los tres estados (cargando / sin vincular / vinculado).
+  const circle =
+    "relative flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-line-strong bg-white transition-colors hover:border-line-hover hover:bg-surface-subtle disabled:pointer-events-none disabled:opacity-60 sm:h-[34px] sm:w-[34px]";
+
   if (busy === "status" && !status) {
     return (
-      <Button
-        variant="outline"
-        size="sm"
-        className="h-11 min-w-11 px-0 sm:h-7 sm:min-w-0 sm:px-2.5"
-        disabled
-        title="Google Calendar"
-        aria-label="Consultando estado de Google Calendar"
-      >
-        <Icon name="loader" size={13} className="animate-spin" />
-        <span className="hidden lg:inline">Google</span>
-      </Button>
+      <button type="button" className={circle} disabled title="Google Calendar" aria-label="Consultando estado de Google Calendar">
+        <Icon name="loader" size={15} className="animate-spin text-ink-faint" />
+      </button>
     );
   }
 
   if (!status?.connected) {
     return (
-      <Button
-        variant="outline"
-        size="sm"
-        className="h-11 min-w-11 px-0 sm:h-7 sm:min-w-0 sm:px-2.5"
+      <button
+        type="button"
+        className={circle}
         onClick={() => {
           window.location.href = "/api/google/connect";
         }}
         title={error || "Vincular Google Calendar"}
         aria-label={error || "Vincular Google Calendar"}
       >
-        <Icon name="calendar" size={13} />
-        <span className="hidden lg:inline">Vincular Google</span>
-      </Button>
+        <Icon name="calendar" size={15} className="text-ink-faint" />
+      </button>
     );
   }
 
@@ -1000,64 +1167,63 @@ function GoogleCalendarControl({ currentUser }: { currentUser: AuthUser }) {
     : `Google Calendar vinculado a ${googleEmail}`;
 
   return (
-    <div className="relative" ref={ref}>
-      <Button
-        variant="outline"
-        size="sm"
-        className={cn(
-          "h-11 min-w-11 max-w-[270px] justify-center overflow-hidden px-0 sm:h-7 sm:min-w-0 sm:justify-start sm:px-2.5",
-          status.lastError
-            ? "border-red-200 bg-red-50 text-red-800 hover:bg-red-100"
-            : "border-green-200 bg-green-50 text-green-800 hover:bg-green-100",
-        )}
-        onClick={() => setOpen((value) => !value)}
+    <div className="relative shrink-0" ref={ref}>
+      <button
+        type="button"
+        className={circle}
+        onClick={() => setOpen(!open)}
         title={connectedTitle}
         aria-label={connectedTitle}
+        aria-expanded={open}
       >
-        <Icon name={status.lastError ? "alert" : "checkCircle"} size={13} />
-        <span className="hidden lg:inline">{status.lastError ? "Error Google" : "Vinculado"}</span>
-        <span className="hidden max-w-[155px] truncate xl:inline">{googleEmail}</span>
-      </Button>
+        <Icon name="calendar" size={15} className="text-accent" />
+        <span
+          className={cn(
+            "absolute -right-px -top-px h-[9px] w-[9px] rounded-full shadow-[0_0_0_2px_#F4F4F6]",
+            status.lastError ? "bg-estado-vencida" : "bg-estado-cumplida",
+          )}
+        />
+      </button>
       {open && (
-        <div className="fixed inset-x-3 top-28 z-40 max-h-[calc(100dvh-8rem)] overflow-y-auto rounded-xl bg-white p-3 ring-1 ring-foreground/10 shadow-xl xl:absolute xl:inset-x-auto xl:right-0 xl:top-auto xl:mt-2 xl:max-h-none xl:w-72 xl:overflow-visible">
-          <div className="flex items-center justify-between gap-2">
-            <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+        <div className="absolute right-0 top-[calc(100%+9px)] z-[60] w-[292px] max-w-[calc(100vw-1.5rem)] rounded-2xl border border-line bg-white p-[15px] shadow-popover">
+          <div className="flex items-center justify-between gap-2.5">
+            <span className="text-[10px] font-bold uppercase tracking-[.06em] text-ink-label">
               Google Calendar
-            </div>
+            </span>
             <Badge variant={status.lastError ? "red" : "green"}>
+              <Icon name={status.lastError ? "alert" : "check"} size={10} />
               {status.lastError ? "Error" : "Vinculado"}
             </Badge>
           </div>
-          <div className="mt-2 truncate text-sm font-semibold text-slate-900">
-            {googleEmail}
-          </div>
-          <div className="mt-1 text-xs text-slate-500">
-            Ultima sincronizacion: {formatSyncDate(status.lastSyncedAt)}
+          <div className="mt-2.5 truncate text-[13.5px] font-bold tracking-[-.01em]">{googleEmail}</div>
+          <div className="mt-1 text-[11.5px] font-medium text-ink-faint">
+            Última sincronización: {formatSyncDate(status.lastSyncedAt)}
           </div>
           {(status.lastError || error) && (
-            <div className="mt-2 rounded-lg bg-red-50 p-2 text-xs text-red-700 ring-1 ring-red-200">
+            <div className="mt-2.5 rounded-btn bg-estado-vencida-bg p-2 text-[11.5px] font-medium text-estado-vencida-fg">
               {error || status.lastError}
             </div>
           )}
-          <div className="mt-3 flex flex-wrap items-center justify-end gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-11 flex-1 sm:h-7 sm:flex-none"
-              onClick={syncNow}
-              disabled={busy === "sync"}
-            >
-              <Icon name={busy === "sync" ? "loader" : "refresh"} size={13} className={busy === "sync" ? "animate-spin" : ""} />
+          <div className="mt-[13px] flex items-center gap-2">
+            <Button variant="outline" className="flex-1" onClick={syncNow} disabled={busy === "sync"}>
+              <Icon
+                name={busy === "sync" ? "loader" : "refresh"}
+                size={13}
+                className={busy === "sync" ? "animate-spin" : undefined}
+              />
               Sincronizar
             </Button>
             <Button
               variant="ghost"
-              size="sm"
-              className="h-11 flex-1 sm:h-7 sm:flex-none"
+              className="text-estado-vencida-fg hover:bg-estado-vencida-bg hover:text-estado-vencida-fg"
               onClick={disconnect}
               disabled={busy === "disconnect"}
             >
-              <Icon name={busy === "disconnect" ? "loader" : "close"} size={13} className={busy === "disconnect" ? "animate-spin" : ""} />
+              <Icon
+                name={busy === "disconnect" ? "loader" : "close"}
+                size={13}
+                className={busy === "disconnect" ? "animate-spin" : undefined}
+              />
               Desvincular
             </Button>
           </div>
@@ -1081,64 +1247,12 @@ function TabBtn({
       type="button"
       onClick={onClick}
       className={cn(
-        "relative inline-flex min-h-11 min-w-0 flex-1 flex-col items-center justify-center gap-0.5 whitespace-nowrap rounded-md px-1 py-1 text-[10px] font-medium leading-tight transition sm:min-h-0 sm:flex-row sm:gap-1.5 sm:px-3 sm:py-1.5 sm:text-sm xl:flex-none",
-        active
-          ? "bg-white text-slate-900 shadow-sm ring-1 ring-foreground/10"
-          : "text-slate-600 hover:text-slate-900 hover:bg-white/60",
+        "relative inline-flex h-11 min-w-0 flex-1 items-center justify-center gap-[7px] whitespace-nowrap rounded-full px-3 text-[12px] font-[650] leading-tight transition-colors sm:h-8 sm:px-[15px] sm:text-[13px] xl:flex-none",
+        active ? "bg-accent-soft text-accent shadow-pill" : "text-ink-muted hover:text-ink",
       )}
     >
       {children}
     </button>
-  );
-}
-
-/* Settings popover — view controls for the board. */
-function SettingsMenu({
-  settings,
-  setTweak,
-}: {
-  settings: Settings;
-  setTweak: <K extends keyof Settings>(key: K, value: Settings[K]) => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-  useClickAway(ref, () => setOpen(false));
-
-  return (
-    <div className="relative" ref={ref}>
-      <Button
-        variant="outline"
-        size="icon"
-        className="h-11 w-11 sm:h-8 sm:w-8"
-        onClick={() => setOpen((o) => !o)}
-        title="Vista"
-        aria-label="Opciones de vista"
-      >
-        <Icon name="filter" size={14} />
-      </Button>
-      {open && (
-        <div className="fixed inset-x-3 top-28 z-40 max-h-[calc(100dvh-8rem)] overflow-y-auto rounded-xl bg-white p-3 ring-1 ring-foreground/10 shadow-xl xl:absolute xl:inset-x-auto xl:right-0 xl:top-auto xl:mt-2 xl:max-h-none xl:w-64 xl:overflow-visible">
-          <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Tablero</div>
-          <div className="mt-2 space-y-2">
-            <div>
-              <div className="mb-1 text-xs font-medium text-slate-700">Densidad de cards</div>
-              <Seg
-                value={settings.density}
-                options={[
-                  { value: "standard", label: "Estándar" },
-                  { value: "compact", label: "Compacto" },
-                ]}
-                onChange={(v) => setTweak("density", v as Density)}
-              />
-            </div>
-            <label className="flex min-h-11 items-center justify-between gap-3">
-              <span className="text-xs font-medium text-slate-700">Avatares con color</span>
-              <Toggle on={settings.useAvatars} onChange={(v) => setTweak("useAvatars", v)} />
-            </label>
-          </div>
-        </div>
-      )}
-    </div>
   );
 }
 
@@ -1152,15 +1266,15 @@ function Seg({
   onChange: (v: string) => void;
 }) {
   return (
-    <div className="inline-flex w-full rounded-lg bg-slate-100 p-1">
+    <div className="inline-flex w-full rounded-full bg-track p-1">
       {options.map((o) => (
         <button
           key={o.value}
           type="button"
           onClick={() => onChange(o.value)}
           className={cn(
-            "min-h-11 flex-1 rounded-md px-2 py-1 text-xs font-medium transition sm:min-h-0",
-            value === o.value ? "bg-white text-slate-900 shadow-sm" : "text-slate-600 hover:text-slate-900",
+            "h-11 flex-1 rounded-full px-3 text-[12.5px] font-[650] transition-colors sm:h-8",
+            value === o.value ? "bg-white text-ink shadow-seg" : "text-ink-muted hover:text-ink",
           )}
         >
           {o.label}
@@ -1170,33 +1284,91 @@ function Seg({
   );
 }
 
-function Toggle({ on, onChange }: { on: boolean; onChange: (v: boolean) => void }) {
+/* ── Screens ────────────────────────────────────────────────────────── */
+
+/* Cursor de mes del Tablero. «Hoy» se atenúa cuando ya estás en el mes actual. */
+function MonthCursor({
+  label,
+  offset,
+  onPrev,
+  onNext,
+  onToday,
+}: {
+  label: string;
+  offset: number;
+  onPrev: () => void;
+  onNext: () => void;
+  onToday: () => void;
+}) {
+  const flecha =
+    "flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-ink-muted transition-colors hover:bg-estado-pendiente-bg hover:text-ink sm:h-[26px] sm:w-[26px]";
   return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={on}
-      onClick={() => onChange(!on)}
-      className="relative inline-flex h-11 w-12 shrink-0 items-center justify-center sm:h-4 sm:w-7"
-    >
-      <span
+    <div className="flex h-11 shrink-0 items-center gap-1.5 rounded-full border border-line bg-white pl-[7px] pr-1.5 sm:h-9">
+      <button type="button" onClick={onPrev} aria-label="Mes anterior" className={flecha}>
+        <Icon name="chevronLeft" size={13} />
+      </button>
+      <span className="min-w-[104px] text-center text-[12.5px] font-bold tracking-[-.01em] text-ink">
+        {label}
+      </span>
+      <button type="button" onClick={onNext} aria-label="Mes siguiente" className={flecha}>
+        <Icon name="chevronRight" size={13} />
+      </button>
+      <button
+        type="button"
+        onClick={onToday}
+        disabled={offset === 0}
+        title={offset === 0 ? "Ya estás en el mes actual" : "Volver al mes actual"}
         className={cn(
-          "relative inline-flex h-7 w-12 items-center rounded-full transition-colors sm:h-4 sm:w-7",
-          on ? "bg-slate-900" : "bg-slate-300",
+          "h-9 shrink-0 rounded-full px-2.5 text-[11.5px] font-bold transition-colors sm:h-[26px]",
+          offset === 0
+            ? "cursor-default text-ink-disabled"
+            : "bg-accent-soft text-accent hover:bg-accent-border/60",
         )}
       >
-        <span
-          className={cn(
-            "absolute left-1 inline-block h-5 w-5 rounded-full bg-white shadow transition-transform sm:left-0.5 sm:h-3 sm:w-3",
-            on ? "translate-x-5 sm:translate-x-3" : "translate-x-0",
-          )}
-        />
-      </span>
-    </button>
+        Hoy
+      </button>
+    </div>
   );
 }
 
-/* ── Screens ────────────────────────────────────────────────────────── */
+/* Select nativo con la apariencia de píldora de la barra de filtros. */
+function FilterSelect({
+  icon,
+  value,
+  onChange,
+  children,
+  "aria-label": ariaLabel,
+}: {
+  icon: IconName;
+  value: string;
+  onChange: (value: string) => void;
+  children: React.ReactNode;
+  "aria-label": string;
+}) {
+  return (
+    <div className="relative flex h-11 min-w-0 flex-1 items-center rounded-full border border-line bg-white sm:h-9 transition-colors hover:border-line-hover hover:bg-surface-subtle focus-within:border-accent-border sm:flex-none sm:basis-auto">
+      <Icon name={icon} size={14} className="pointer-events-none absolute left-3.5 text-ink-faint" />
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        aria-label={ariaLabel}
+        className="h-full w-full min-w-0 max-w-[220px] appearance-none truncate rounded-full bg-transparent pl-[34px] pr-8 text-[12.5px] font-semibold text-[#2B2B36] outline-none"
+      >
+        {children}
+      </select>
+      <Icon name="chevronDown" size={13} className="pointer-events-none absolute right-3 text-ink-ghost" />
+    </div>
+  );
+}
+
+function LeyendaPunto({ className, children }: { className: string; children: React.ReactNode }) {
+  return (
+    <span className="inline-flex items-center gap-1.5">
+      <span className={cn("h-[7px] w-[7px] rounded-full", className)} />
+      {children}
+    </span>
+  );
+}
 
 function KanbanScreen({
   activities,
@@ -1206,7 +1378,6 @@ function KanbanScreen({
   competencias,
   filters,
   setFilters,
-  density,
   useAvatars,
   isAdmin,
   currentUser,
@@ -1220,7 +1391,6 @@ function KanbanScreen({
   competencias: Competencia[];
   filters: Filters;
   setFilters: React.Dispatch<React.SetStateAction<Filters>>;
-  density: Density;
   useAvatars: boolean;
   isAdmin: boolean;
   currentUser: AuthUser;
@@ -1228,67 +1398,51 @@ function KanbanScreen({
   onAdd: (estado: EstadoActividad) => void;
 }) {
   const [view, setView] = useState<BoardView>("columns");
+  const [boardOffset, setBoardOffset] = useState(0);
+
+  const month = useMemo(() => boardMonth(boardOffset), [boardOffset]);
+  const buscando = filters.q.trim().length > 0;
+
+  const filtered = useMemo(
+    () => filterActivities(activities, filters, { funcionarios, competencias, gestiones }),
+    [activities, filters, funcionarios, competencias, gestiones],
+  );
+
+  // En columnas el conjunto visible se acota al mes del cursor; en semana y mes
+  // manda la navegación propia del calendario.
+  const visible = useMemo(
+    () => (view === "columns" ? filtered.filter((a) => inBoardMonth(a, month)) : filtered),
+    [filtered, month, view],
+  );
 
   const counts = useMemo(() => {
-    const m: Record<string, number> = {};
-    for (const a of activities) m[a.estado] = (m[a.estado] || 0) + 1;
-    m.fechaFinSuperada = activities.filter(
+    const cumplidas = visible.filter((a) => a.estado === "cumplida").length;
+    const vencidas = visible.filter(
       (a) => a.estado !== "cumplida" && daysBetween(TODAY_ISO, a.fechaFin) < 0,
     ).length;
-    return m;
-  }, [activities]);
+    return { total: visible.length, cumplidas, vencidas };
+  }, [visible]);
 
   return (
-    <div className="space-y-4">
-      <div className="grid grid-cols-1 items-center gap-2 sm:grid-cols-2 lg:grid-cols-4">
-          <div className="relative">
-            <Icon name="search" size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
-            <Input
-              placeholder="Buscar actividad…"
-              className="h-11 w-full pl-8 sm:h-9"
-              value={filters.q}
-              onChange={(e) => setFilters({ ...filters, q: e.target.value })}
-            />
-          </div>
-          <Select
-            value={filters.funcionario}
-            onChange={(e) => setFilters({ ...filters, funcionario: e.target.value })}
-            className="h-11 w-full sm:h-9"
-          >
-            <option value="all">Todos los funcionarios</option>
-            {funcionarios.map((f) => (
-              <option key={f.id} value={f.id}>
-                {f.nombre}
-              </option>
-            ))}
-          </Select>
-          <Select
-            value={filters.competencia}
-            onChange={(e) => setFilters({ ...filters, competencia: e.target.value })}
-            className="h-11 w-full sm:col-span-2 sm:h-9"
-          >
-            <option value="all">Todas las competencias</option>
-            {competencias.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.nombre} — {gestionNombre(c.gestionId, gestiones)}
-              </option>
-            ))}
-          </Select>
-      </div>
-
-      {/* Page header */}
-      <div className="flex flex-wrap items-stretch justify-between gap-3 sm:items-end">
+    <div className="flex flex-col gap-[18px]">
+      {/* Encabezado */}
+      <div className="flex flex-wrap items-end justify-between gap-5">
         <div className="min-w-0">
-          <h1 className="text-xl font-bold leading-tight text-slate-900 sm:text-2xl">Tablero de Actividades</h1>
-          <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-slate-500">
-            <span>{activities.length} actividades</span>
-            <span className="hidden h-1 w-1 rounded-full bg-slate-300 sm:block" />
+          <h1 className="text-[20px] font-extrabold leading-[1.15] tracking-[-.03em] sm:text-[23px]">
+            Tablero de Actividades
+          </h1>
+          <div className="mt-1.5 flex flex-wrap items-center gap-x-[11px] gap-y-1 text-[12.5px] font-medium text-ink-faint">
             <span>
-              <b className="text-red-600">{counts.fechaFinSuperada}</b> con fecha fin superada
+              {counts.total} {counts.total === 1 ? "actividad" : "actividades"}
             </span>
-            <span className="hidden h-1 w-1 rounded-full bg-slate-300 sm:block" />
+            <span className="hidden h-[3px] w-[3px] rounded-full bg-[#D0D0D8] sm:block" />
             <span>
-              <b className="text-slate-700">{counts.cumplida || 0}</b> cumplidas
+              <b className="font-bold text-[#E11D48]">{counts.vencidas}</b> con fecha fin superada
+            </span>
+            <span className="hidden h-[3px] w-[3px] rounded-full bg-[#D0D0D8] sm:block" />
+            <span>
+              <b className="font-bold text-ink-soft">{counts.cumplidas}</b>{" "}
+              {counts.cumplidas === 1 ? "cumplida" : "cumplidas"}
             </span>
           </div>
         </div>
@@ -1305,22 +1459,103 @@ function KanbanScreen({
         </div>
       </div>
 
+      {/* Barra de filtros */}
+      <div className="flex flex-wrap items-center gap-2.5">
+        {view === "columns" && (
+          <MonthCursor
+            label={month.label}
+            offset={boardOffset}
+            onPrev={() => setBoardOffset((o) => o - 1)}
+            onNext={() => setBoardOffset((o) => o + 1)}
+            onToday={() => setBoardOffset(0)}
+          />
+        )}
+
+        <div
+          className={cn(
+            "flex h-11 min-w-[190px] flex-1 items-center gap-1.5 rounded-full border bg-white pl-[7px] pr-1.5 sm:h-9 sm:flex-none sm:basis-[240px]",
+            buscando ? "border-accent-border ring-[3px] ring-accent/10" : "border-line",
+          )}
+        >
+          <Icon name="search" size={14} className="shrink-0 text-ink-ghost" />
+          <input
+            type="text"
+            value={filters.q}
+            onChange={(e) => setFilters({ ...filters, q: e.target.value })}
+            placeholder="Buscar actividad…"
+            aria-label="Buscar en el tablero"
+            className="h-full min-w-0 flex-1 border-0 bg-transparent text-[12.5px] font-medium text-ink outline-none placeholder:font-normal placeholder:text-ink-faint"
+          />
+          {buscando && (
+            <button
+              type="button"
+              onClick={() => setFilters({ ...filters, q: "" })}
+              aria-label="Limpiar búsqueda"
+              className="flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-full bg-estado-pendiente-bg text-ink-muted transition-colors hover:bg-chip hover:text-ink"
+            >
+              <Icon name="close" size={11} />
+            </button>
+          )}
+        </div>
+
+        {buscando && (
+          <span className="inline-flex h-11 shrink-0 items-center rounded-full bg-accent-soft px-[13px] text-[12px] font-bold text-accent sm:h-9">
+            {visible.length} {visible.length === 1 ? "resultado" : "resultados"}
+          </span>
+        )}
+
+        <FilterSelect
+          icon="users"
+          value={filters.funcionario}
+          onChange={(value) => setFilters({ ...filters, funcionario: value })}
+          aria-label="Filtrar por funcionario"
+        >
+          <option value="all">Todos los funcionarios</option>
+          {funcionarios.map((f) => (
+            <option key={f.id} value={f.id}>
+              {f.nombre}
+            </option>
+          ))}
+        </FilterSelect>
+
+        <FilterSelect
+          icon="briefcase"
+          value={filters.competencia}
+          onChange={(value) => setFilters({ ...filters, competencia: value })}
+          aria-label="Filtrar por competencia"
+        >
+          <option value="all">Todas las competencias</option>
+          {competencias.map((c) => (
+            <option key={c.id} value={c.id}>
+              {c.nombre} — {gestionNombre(c.gestionId, gestiones)}
+            </option>
+          ))}
+        </FilterSelect>
+
+        <div className="flex flex-wrap items-center gap-x-3.5 gap-y-1.5 text-[11px] font-semibold text-ink-ghost lg:ml-auto">
+          <LeyendaPunto className="bg-estado-vencida">Fin superado</LeyendaPunto>
+          <LeyendaPunto className="bg-estado-revision">Finaliza pronto</LeyendaPunto>
+          <LeyendaPunto className="bg-estado-pendiente">Fin futuro</LeyendaPunto>
+          <LeyendaPunto className="bg-estado-cumplida">Cumplida</LeyendaPunto>
+        </div>
+      </div>
+
       {view === "columns" ? (
         <KanbanBoard
-          activities={activities}
+          activities={visible}
           setActivities={setActivities}
           gestiones={gestiones}
           funcionarios={funcionarios}
           competencias={competencias}
+          month={month}
+          searching={buscando}
           useAvatars={useAvatars}
-          density={density}
           canCreate={isAdmin || Boolean(currentUser.funcionarioId)}
           canManageActivity={(activity) =>
             isAdmin || canFuncionarioEditActivity(activity, currentUser.funcionarioId)
           }
           onOpen={onOpen}
           onAdd={onAdd}
-          filters={filters}
         />
       ) : (
         <CalendarView
@@ -1336,6 +1571,51 @@ function KanbanScreen({
       )}
     </div>
   );
+}
+
+/* ── Estadísticas: rango del período ────────────────────────────────── */
+
+function monthRangeIso(offset: number): { from: string; to: string } {
+  const [year, month] = TODAY_ISO.split("-").map(Number);
+  return {
+    from: iso(new Date(Date.UTC(year, month - 1 + offset, 1, 12))),
+    to: iso(new Date(Date.UTC(year, month + offset, 0, 12))),
+  };
+}
+
+const SHORTCUTS: { id: string; label: string; range: () => { from: string; to: string } }[] = [
+  { id: "mes", label: "Este mes", range: () => monthRangeIso(0) },
+  { id: "mes-anterior", label: "Mes anterior", range: () => monthRangeIso(-1) },
+  { id: "30d", label: "Últimos 30 días", range: () => ({ from: iso(addDays(TODAY_ISO, -29)), to: TODAY_ISO }) },
+  { id: "90d", label: "Últimos 90 días", range: () => ({ from: iso(addDays(TODAY_ISO, -89)), to: TODAY_ISO }) },
+  {
+    id: "trimestre",
+    label: "Trimestre actual",
+    range: () => {
+      const [year, month] = TODAY_ISO.split("-").map(Number);
+      const inicio = Math.floor((month - 1) / 3) * 3;
+      return {
+        from: iso(new Date(Date.UTC(year, inicio, 1, 12))),
+        to: iso(new Date(Date.UTC(year, inicio + 3, 0, 12))),
+      };
+    },
+  },
+  {
+    id: "anio",
+    label: "Este año",
+    range: () => {
+      const year = Number(TODAY_ISO.slice(0, 4));
+      return { from: `${year}-01-01`, to: `${year}-12-31` };
+    },
+  },
+];
+
+/* "01 jun – 30 jun 2026", con ambos años si el rango los cruza. */
+function fmtRango(range: { from: string; to: string }): string {
+  const anioDesde = range.from.slice(0, 4);
+  const anioHasta = range.to.slice(0, 4);
+  const desde = anioDesde === anioHasta ? fmtFecha(range.from) : `${fmtFecha(range.from)} ${anioDesde}`;
+  return `${desde} – ${fmtFecha(range.to)} ${anioHasta}`;
 }
 
 function StatsScreen({
@@ -1359,29 +1639,30 @@ function StatsScreen({
   isAdmin: boolean;
   onOpen: (activityId: string) => void;
 }) {
-  const currentMonth = useMemo(() => {
-    const [year, month] = TODAY_ISO.split("-").map(Number);
-    return {
-      from: `${TODAY_ISO.slice(0, 7)}-01`,
-      to: iso(new Date(Date.UTC(year, month, 0, 12))),
-    };
-  }, []);
-  const [dateMode, setDateMode] = useState<StatsDateMode>("current-month");
-  const [customFrom, setCustomFrom] = useState(currentMonth.from);
-  const [customTo, setCustomTo] = useState(currentMonth.to);
+  const [statsIni, setStatsIni] = useState(SHORTCUTS[0].range().from);
+  const [statsFin, setStatsFin] = useState(SHORTCUTS[0].range().to);
+  const [menuRango, setMenuRango] = useState(false);
+  const rangoRef = useRef<HTMLDivElement>(null);
+  useClickAway(rangoRef, () => setMenuRango(false));
 
-  const activeRange = dateMode === "current-month"
-    ? currentMonth
-    : { from: customFrom, to: customTo };
-  const invalidRange = !activeRange.from || !activeRange.to || activeRange.from > activeRange.to;
-  const filteredActivities = useMemo(() => {
-    if (invalidRange) return [];
-    return activities.filter((activity) => {
-      const startDate = dateOnly(activity.fechaInicio);
-      const endDate = dateOnly(activity.fechaFin);
-      return startDate <= activeRange.to && endDate >= activeRange.from;
-    });
-  }, [activities, activeRange.from, activeRange.to, invalidRange]);
+  // Fechas invertidas: no se bloquea el guardado, se ordena el rango.
+  const invertido = Boolean(statsIni && statsFin && statsIni > statsFin);
+  const range = useMemo(() => {
+    const desde = statsIni || statsFin || TODAY_ISO;
+    const hasta = statsFin || statsIni || TODAY_ISO;
+    return desde <= hasta ? { from: desde, to: hasta } : { from: hasta, to: desde };
+  }, [statsIni, statsFin]);
+
+  // Una actividad entra si su rango se solapa con el período.
+  const filteredActivities = useMemo(
+    () =>
+      activities.filter((activity) => {
+        const inicio = dateOnly(activity.fechaInicio);
+        const fin = dateOnly(activity.fechaFin);
+        return inicio <= range.to && fin >= range.from;
+      }),
+    [activities, range],
+  );
 
   const visibleFuncionarios = isAdmin
     ? funcionarios
@@ -1389,119 +1670,129 @@ function StatsScreen({
   const subtitle = isAdmin
     ? "Métricas generales y cumplimiento por funcionario"
     : "Métricas de tu usuario";
+  const dias = daysBetween(range.from, range.to) + 1;
+  const atajoActivo = SHORTCUTS.find((s) => {
+    const r = s.range();
+    return r.from === range.from && r.to === range.to;
+  });
 
   return (
-    <div className="space-y-4">
-      <div>
-        <h1 className="text-xl font-bold leading-tight text-slate-900 sm:text-2xl">Estadísticas</h1>
-        <div className="mt-1 text-sm text-slate-500">
-          {subtitle} · corte al {fmtFechaLarga(TODAY_ISO)}
+    <div className="flex flex-col gap-[18px]">
+      <div className="flex flex-wrap items-end justify-between gap-5">
+        <div className="min-w-0">
+          <h1 className="text-[20px] font-extrabold leading-[1.15] tracking-[-.03em] sm:text-[23px]">
+            Estadísticas
+          </h1>
+          <div className="mt-1.5 text-[12.5px] font-medium text-ink-faint">
+            {subtitle} · {filteredActivities.length} de {activities.length} actividades · corte al{" "}
+            {fmtFechaLarga(TODAY_ISO)}
+          </div>
+        </div>
+
+        <div className="relative" ref={rangoRef}>
+          <button
+            type="button"
+            onClick={() => setMenuRango((v) => !v)}
+            aria-expanded={menuRango}
+            className="flex h-11 items-center gap-2 rounded-full border border-line bg-white px-[15px] text-[12.5px] font-[650] text-ink transition-colors hover:border-line-hover hover:bg-surface-subtle sm:h-[34px]"
+          >
+            <Icon name="calendar" size={14} className="text-ink-faint" />
+            {fmtRango(range)}
+            <Icon name="chevronDown" size={12} className="text-ink-ghost" />
+          </button>
+
+          {menuRango && (
+            <div className="absolute right-0 top-[calc(100%+9px)] z-[60] w-[320px] max-w-[calc(100vw-1.5rem)] rounded-2xl border border-line bg-white p-4 shadow-popover">
+              <div className="text-[10px] font-[750] uppercase tracking-[.06em] text-ink-label">Período</div>
+              <div className="mt-[11px] grid grid-cols-2 gap-2.5">
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="stats-date-from" className="!text-[11px]">
+                    Desde
+                  </Label>
+                  <Input
+                    id="stats-date-from"
+                    type="date"
+                    lang="es-EC"
+                    value={statsIni}
+                    onChange={(e) => setStatsIni(e.target.value)}
+                    className="!h-[38px] !rounded-btn border-line-dashed !text-[12.5px]"
+                  />
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="stats-date-to" className="!text-[11px]">
+                    Hasta
+                  </Label>
+                  <Input
+                    id="stats-date-to"
+                    type="date"
+                    lang="es-EC"
+                    value={statsFin}
+                    onChange={(e) => setStatsFin(e.target.value)}
+                    className={cn(
+                      "!h-[38px] !rounded-btn !text-[12.5px]",
+                      invertido ? "border-accent-border" : "border-line-dashed",
+                    )}
+                  />
+                </div>
+              </div>
+
+              {invertido && (
+                <div className="mt-2.5 flex items-center gap-[7px] rounded-[9px] bg-accent-softer px-2.5 py-2 text-[11px] font-[650] text-accent">
+                  <Icon name="refresh" size={12} />
+                  Fechas invertidas: se aplica {fmtRango(range)}
+                </div>
+              )}
+
+              <div className="mt-[13px] text-[10px] font-[750] uppercase tracking-[.06em] text-ink-label">
+                Atajos
+              </div>
+              <div className="mt-[9px] grid grid-cols-2 gap-[7px]">
+                {SHORTCUTS.map((atajo) => {
+                  const activo = atajoActivo?.id === atajo.id;
+                  return (
+                    <button
+                      key={atajo.id}
+                      type="button"
+                      onClick={() => {
+                        const r = atajo.range();
+                        setStatsIni(r.from);
+                        setStatsFin(r.to);
+                      }}
+                      className={cn(
+                        "h-9 rounded-btn border px-2 text-[11.5px] font-[650] transition-colors",
+                        activo
+                          ? "border-accent-border bg-accent-softer text-accent"
+                          : "border-line bg-white text-ink-soft hover:border-line-hover hover:bg-surface-subtle",
+                      )}
+                    >
+                      {atajo.label}
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div className="mt-[13px] flex items-center justify-between gap-2.5 border-t border-line-soft pt-3">
+                <span className="text-[11.5px] font-semibold text-ink-faint">
+                  {dias} {dias === 1 ? "día seleccionado" : "días seleccionados"}
+                </span>
+                <Button onClick={() => setMenuRango(false)}>Listo</Button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
-      <section
-        className="rounded-xl bg-white p-3 ring-1 ring-foreground/10 sm:p-4"
-        aria-label="Filtro de fechas para los gráficos"
-      >
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-          <div className="space-y-1.5">
-            <div className="text-xs font-medium text-slate-700">Período de los gráficos</div>
-            <div className="flex flex-col gap-2 min-[420px]:flex-row" role="group" aria-label="Tipo de período">
-              <Button
-                type="button"
-                size="sm"
-                variant={dateMode === "current-month" ? "default" : "outline"}
-                aria-pressed={dateMode === "current-month"}
-                onClick={() => setDateMode("current-month")}
-              >
-                <Icon name="calendar" size={14} /> Mes actual
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                variant={dateMode === "custom" ? "default" : "outline"}
-                aria-pressed={dateMode === "custom"}
-                onClick={() => setDateMode("custom")}
-              >
-                <Icon name="filter" size={14} /> Rango personalizado
-              </Button>
-            </div>
-          </div>
-
-          {dateMode === "custom" ? (
-            <div className="grid grid-cols-1 gap-2 min-[420px]:grid-cols-2">
-              <div className="space-y-1.5">
-                <Label htmlFor="stats-date-from">Desde</Label>
-                <Input
-                  id="stats-date-from"
-                  type="date"
-                  lang="es-EC"
-                  value={customFrom}
-                  max={customTo || undefined}
-                  aria-invalid={invalidRange}
-                  aria-describedby="stats-date-status"
-                  onChange={(event) => setCustomFrom(event.target.value)}
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="stats-date-to">Hasta</Label>
-                <Input
-                  id="stats-date-to"
-                  type="date"
-                  lang="es-EC"
-                  value={customTo}
-                  min={customFrom || undefined}
-                  aria-invalid={invalidRange}
-                  aria-describedby="stats-date-status"
-                  onChange={(event) => setCustomTo(event.target.value)}
-                />
-              </div>
-            </div>
-          ) : (
-            <div className="rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-600 ring-1 ring-slate-200">
-              {fmtFechaLarga(currentMonth.from)} – {fmtFechaLarga(currentMonth.to)}
-            </div>
-          )}
-        </div>
-
-        <div
-          id="stats-date-status"
-          className="mt-3 flex items-start gap-2 border-t border-slate-100 pt-3 text-xs"
-          aria-live="polite"
-        >
-          <Icon
-            name={invalidRange ? "alert" : "calendar"}
-            size={14}
-            className={invalidRange ? "mt-0.5 shrink-0 text-red-500" : "mt-0.5 shrink-0 text-slate-400"}
-          />
-          {invalidRange ? (
-            <span className="text-red-600">Selecciona un rango de fechas válido.</span>
-          ) : (
-            <span className="text-slate-500">
-              Rango de actividad: {fmtFechaLarga(activeRange.from)} – {fmtFechaLarga(activeRange.to)} ·{" "}
-              <b className="text-slate-700">{filteredActivities.length}</b> de {activities.length} actividades
-            </span>
-          )}
-        </div>
-      </section>
-
-      {invalidRange ? (
-        <div className="rounded-xl bg-white px-4 py-12 text-center text-sm text-slate-500 ring-1 ring-foreground/10">
-          Completa ambas fechas para mostrar las estadísticas.
-        </div>
-      ) : (
-        <StatsView
-          activities={filteredActivities}
-          gestiones={gestiones}
-          funcionarios={visibleFuncionarios}
-          responsables={funcionarios}
-          competencias={competencias}
-          entregables={entregables}
-          useAvatars={useAvatars}
-          dateRange={activeRange}
-          onOpenActivity={onOpen}
-        />
-      )}
+      <StatsView
+        activities={filteredActivities}
+        gestiones={gestiones}
+        funcionarios={visibleFuncionarios}
+        responsables={funcionarios}
+        competencias={competencias}
+        entregables={entregables}
+        useAvatars={useAvatars}
+        dateRange={range}
+        onOpenActivity={onOpen}
+      />
     </div>
   );
 }
@@ -1510,21 +1801,28 @@ function CatalogsScreen(props: {
   gestiones: Gestion[];
   setGestiones: React.Dispatch<React.SetStateAction<Gestion[]>>;
   funcionarios: Funcionario[];
-  setFuncionarios: React.Dispatch<React.SetStateAction<Funcionario[]>>;
   competencias: Competencia[];
   setCompetencias: React.Dispatch<React.SetStateAction<Competencia[]>>;
   entregables: Entregable[];
   setEntregables: React.Dispatch<React.SetStateAction<Entregable[]>>;
   activities: Actividad[];
   setActivities: React.Dispatch<React.SetStateAction<Actividad[]>>;
-  useAvatars: boolean;
 }) {
   return (
-    <div className="space-y-4">
-      <div>
-        <h1 className="text-xl font-bold leading-tight text-slate-900 sm:text-2xl">Catálogos</h1>
-        <div className="mt-1 text-sm text-slate-500">
-          Administra gestiones, funcionarios, competencias y entregables. Estos catálogos alimentan el tablero.
+    <div className="flex flex-col gap-[18px]">
+      <div className="flex flex-wrap items-end justify-between gap-5">
+        <div className="min-w-0">
+          <h1 className="text-[20px] font-extrabold leading-[1.15] tracking-[-.03em] sm:text-[23px]">Catálogos</h1>
+          <div className="mt-1.5 text-[12.5px] font-medium text-ink-faint">
+            Cada gestión define sus competencias y sus entregables
+          </div>
+        </div>
+        <div className="flex items-center gap-2.5 rounded-xl border border-line bg-white px-3.5 py-[7px] text-[11.5px] font-[650] text-ink-faint">
+          <span className="text-ink">Gestión</span>
+          <Icon name="chevronRight" size={12} className="text-ink-disabled" />
+          <span className="text-ink">Competencia</span>
+          <span className="text-ink-disabled">·</span>
+          <span className="text-ink">Entregable</span>
         </div>
       </div>
       <CatalogsView {...props} />
@@ -1534,20 +1832,38 @@ function CatalogsScreen(props: {
 
 function UsersScreen({
   funcionarios,
+  setFuncionarios,
+  gestiones,
+  activities,
   currentUser,
+  useAvatars,
+  persistFuncionarios,
 }: {
   funcionarios: Funcionario[];
+  setFuncionarios: React.Dispatch<React.SetStateAction<Funcionario[]>>;
+  gestiones: Gestion[];
+  activities: Actividad[];
   currentUser: AuthUser;
+  useAvatars: boolean;
+  persistFuncionarios: (next: Funcionario[], nextActivities?: Actividad[]) => Promise<void>;
 }) {
   return (
-    <div className="space-y-4">
-      <div>
-        <h1 className="text-xl font-bold leading-tight text-slate-900 sm:text-2xl">Usuarios</h1>
-        <div className="mt-1 text-sm text-slate-500">
-          Crea accesos, asigna roles y vincula cada usuario con su funcionario.
+    <div className="flex flex-col gap-[18px]">
+      <div className="min-w-0">
+        <h1 className="text-[20px] font-extrabold leading-[1.15] tracking-[-.03em] sm:text-[23px]">Usuarios</h1>
+        <div className="mt-1.5 text-[12.5px] font-medium text-ink-faint">
+          Funcionarios de la Dirección, su gestión y su rol en la plataforma
         </div>
       </div>
-      <UsersView funcionarios={funcionarios} currentUser={currentUser} />
+      <UsersView
+        funcionarios={funcionarios}
+        setFuncionarios={setFuncionarios}
+        gestiones={gestiones}
+        activities={activities}
+        currentUser={currentUser}
+        useAvatars={useAvatars}
+        persistFuncionarios={persistFuncionarios}
+      />
     </div>
   );
 }
@@ -1557,15 +1873,21 @@ function UsersScreen({
 function SyncIndicator({ state }: { state: SyncState }) {
   if (state === "idle") return null;
   const map: Record<Exclude<SyncState, "idle">, { icon: IconName; text: string; cls: string; spin?: boolean }> = {
-    saving: { icon: "loader", text: "Guardando…", cls: "text-slate-500", spin: true },
-    saved: { icon: "check", text: "Guardado", cls: "text-emerald-600" },
-    error: { icon: "alert", text: "Error al guardar", cls: "text-red-600" },
+    saving: { icon: "loader", text: "Guardando…", cls: "bg-estado-pendiente-bg text-ink-muted", spin: true },
+    saved: { icon: "checkCircle", text: "Guardado", cls: "bg-estado-cumplida-bg text-estado-cumplida-fg" },
+    error: { icon: "alert", text: "Error al guardar", cls: "bg-estado-vencida-bg text-estado-vencida-fg" },
   };
   const s = map[state];
   return (
-    <div className={cn("flex items-center gap-1.5 text-xs font-medium", s.cls)} title="Sincronización con la base de datos">
-      <Icon name={s.icon} size={14} className={s.spin ? "animate-spin" : undefined} />
-      <span className="hidden sm:inline">{s.text}</span>
+    <div
+      className={cn(
+        "flex h-8 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 text-[11.5px] font-[650] sm:px-[11px]",
+        s.cls,
+      )}
+      title="Sincronización con la base de datos"
+    >
+      <Icon name={s.icon} size={13} className={s.spin ? "animate-spin" : undefined} />
+      <span className="hidden lg:inline">{s.text}</span>
     </div>
   );
 }
@@ -1580,24 +1902,26 @@ function LoadingGate({
   onRetry: () => void;
 }) {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-50 p-6 text-slate-900">
+    <div className="flex min-h-screen items-center justify-center bg-app p-6 text-ink">
       {state === "error" ? (
-        <div className="max-w-md rounded-xl bg-white p-6 text-center ring-1 ring-foreground/10 shadow-sm">
-          <div className="mx-auto mb-3 flex h-10 w-10 items-center justify-center rounded-lg bg-red-100 text-red-600">
+        <div className="max-w-md rounded-section border border-line bg-white p-6 text-center shadow-card">
+          <div className="mx-auto mb-3 flex h-10 w-10 items-center justify-center rounded-btn bg-estado-vencida-bg text-estado-vencida-fg">
             <Icon name="alert" size={20} />
           </div>
-          <div className="text-sm font-semibold text-slate-900">No se pudo cargar desde la base de datos</div>
-          <p className="mx-auto mt-1.5 max-w-sm text-xs text-slate-500 break-words">{error}</p>
-          <p className="mx-auto mt-2 max-w-sm text-xs text-slate-400">
+          <div className="text-[16px] font-bold tracking-[-.02em]">
+            No se pudo cargar desde la base de datos
+          </div>
+          <p className="mx-auto mt-1.5 max-w-sm break-words text-[12px] font-medium text-ink-faint">{error}</p>
+          <p className="mx-auto mt-2 max-w-sm text-[12px] font-medium text-ink-ghost">
             Revisa que PostgreSQL esté arriba y que <span className="font-mono">DATABASE_URL</span> sea
             correcta.
           </p>
-          <Button className="mt-4" onClick={onRetry}>
+          <Button className="mt-4" shape="pill" onClick={onRetry}>
             <Icon name="refresh" size={14} /> Reintentar
           </Button>
         </div>
       ) : (
-        <div className="flex items-center gap-2.5 text-sm text-slate-500">
+        <div className="flex items-center gap-2.5 text-[13px] font-medium text-ink-faint">
           <Icon name="loader" size={18} className="animate-spin" />
           Cargando datos…
         </div>

@@ -21,7 +21,7 @@ import {
   type ActivityCreationState,
   type SubmissionGuard,
 } from "@/lib/activity-operation";
-import { createId } from "@/lib/utils";
+import { cn, createId } from "@/lib/utils";
 import {
   ESTADOS,
   TIPOS,
@@ -607,25 +607,25 @@ export function NewActivityDialog({
     <div
       ref={dialogRef}
       tabIndex={-1}
-      className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6"
       role="dialog"
       aria-modal="true"
       aria-labelledby="new-activity-dialog-title"
     >
-      <div className="absolute inset-0 bg-slate-900/30 backdrop-blur-[2px]" onClick={requestClose} />
+      <div className="absolute inset-0 bg-[rgba(18,18,26,.32)] backdrop-blur-[3px]" onClick={requestClose} />
       <form
         onSubmit={submit}
         noValidate
         aria-busy={isBusy}
-        className="relative z-10 flex max-h-[calc(100dvh-1rem)] w-full max-w-xl flex-col overflow-hidden rounded-xl bg-white ring-1 ring-foreground/10 shadow-xl sm:max-h-[calc(100dvh-2rem)]"
+        className="relative z-10 flex max-h-[calc(100dvh-1.5rem)] w-full max-w-[720px] flex-col overflow-hidden rounded-modal bg-white shadow-modal sm:max-h-[calc(100dvh-3rem)]"
       >
         <fieldset disabled={!draftHydrated || isBusy || creationState === "success" || Boolean(resultDialog)} className="contents">
-        <div className="flex shrink-0 items-start justify-between gap-3 border-b border-slate-100 px-3 py-3 sm:px-5 sm:py-4">
+        <div className="flex shrink-0 items-start justify-between gap-3.5 border-b border-line-soft px-5 py-4 sm:px-6 sm:py-5">
           <div className="min-w-0">
-            <div id="new-activity-dialog-title" className="text-base font-semibold text-slate-900">
+            <div id="new-activity-dialog-title" className="text-[18px] font-extrabold tracking-[-.025em]">
               {esReunion ? "Nueva reunión" : "Nueva actividad"}
             </div>
-            <div className="text-xs text-slate-500 mt-0.5">
+            <div className="mt-[3px] text-[12.5px] text-ink-faint">
               Se registrará en estado{" "}
               <Badge variant={estadoDef?.accent || "slate"}>{estadoDef?.label}</Badge>
             </div>
@@ -634,61 +634,68 @@ export function NewActivityDialog({
             type="button"
             onClick={requestClose}
             aria-label="Cerrar"
-            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md text-slate-500 hover:bg-slate-100 sm:h-auto sm:w-auto sm:p-1.5"
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-btn text-ink-faint transition-colors hover:bg-estado-pendiente-bg hover:text-ink sm:h-8 sm:w-8"
           >
             <Icon name="close" size={16} />
           </button>
         </div>
 
-        <div className="min-h-0 flex-1 overflow-y-auto px-3 py-3 sm:px-5 sm:py-4">
+        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5 sm:px-6">
           {restoredDraft && (
-            <div className="mb-3 flex items-start gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-700">
+            <div className="mb-3 flex items-start gap-2 rounded-input bg-estado-progreso-bg px-3 py-2.5 text-[11.5px] font-semibold text-estado-progreso-fg">
               <Icon name="refresh" size={14} className="mt-0.5 shrink-0" />
               <span>Recuperamos el borrador guardado en este navegador.</span>
             </div>
           )}
           {draftStorageWarning && (
-            <div className="mb-3 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700" role="alert">
+            <div className="mb-3 flex items-start gap-2 rounded-input bg-estado-revision-bg px-3 py-2.5 text-[11.5px] font-semibold text-estado-revision-fg" role="alert">
               <Icon name="alert" size={14} className="mt-0.5 shrink-0" />
               <span>{draftStorageWarning}</span>
             </div>
           )}
           {isBusy && (
-            <div className="mb-3 flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-medium text-slate-700" role="status" aria-live="polite">
+            <div className="mb-3 flex items-center gap-2 rounded-input border border-line-soft bg-surface-subtle px-3 py-2.5 text-[13px] font-semibold text-ink-soft" role="status" aria-live="polite">
               <Icon name="loader" size={16} className="shrink-0 animate-spin" />
               <span>{creationState === "verifying" ? "Verificando que la actividad se guardó…" : "Guardando actividad…"}</span>
             </div>
           )}
           {creationState === "failed" && resultDialog === null && (
-            <div className="mb-3 flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700" role="alert">
+            <div className="mb-3 flex items-start gap-2 rounded-input bg-estado-vencida-bg px-3 py-2.5 text-[11.5px] font-semibold text-estado-vencida-fg" role="alert">
               <Icon name="alert" size={14} className="mt-0.5 shrink-0" />
               <span>No pudimos confirmar el guardado. Tus datos permanecen en el formulario y puedes intentarlo nuevamente.</span>
             </div>
           )}
           {catalogosVacios ? (
-            <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 p-4 text-center sm:p-6">
-              <div className="mx-auto mb-2 flex h-9 w-9 items-center justify-center rounded-lg bg-amber-100 text-amber-700">
+            <div className="rounded-card border border-dashed border-line-dashed bg-surface-subtle p-5 text-center sm:p-6">
+              <div className="mx-auto mb-2 flex h-9 w-9 items-center justify-center rounded-input bg-estado-revision-bg text-estado-revision-fg">
                 <Icon name="alert" size={18} />
               </div>
-              <div className="text-sm font-medium text-slate-900">
-                Catálogos incompletos
-              </div>
-              <p className="mx-auto mt-1 max-w-sm text-xs text-slate-500">
+              <div className="text-[14px] font-bold">Catálogos incompletos</div>
+              <p className="mx-auto mt-1 max-w-sm text-[12px] text-ink-faint">
                 Necesitas al menos un funcionario y una competencia para crear
                 actividades. {isAdmin ? "Revísalos en la pestaña Catálogos." : "Tu usuario debe estar vinculado a un funcionario."}
               </p>
             </div>
           ) : (
             <div className="space-y-3">
-              <div className="space-y-1.5">
-              <Label htmlFor="tipo">Tipo</Label>
-              <Select id="tipo" value={tipo} onChange={(e) => setTipo(e.target.value as TipoActividad)}>
+              <div className="flex flex-col gap-2">
+              <Label>Tipo</Label>
+              <div className="inline-flex self-start gap-1 rounded-full bg-track p-1" role="group" aria-label="Tipo de actividad">
                 {TIPOS.map((t) => (
-                  <option key={t.id} value={t.id}>
+                  <button
+                    key={t.id}
+                    type="button"
+                    aria-pressed={tipo === t.id}
+                    onClick={() => setTipo(t.id)}
+                    className={cn(
+                      "h-[30px] rounded-full px-[18px] text-[12.5px] font-[650] transition-colors",
+                      tipo === t.id ? "bg-white text-ink shadow-seg" : "text-ink-muted hover:text-ink",
+                    )}
+                  >
                     {t.label}
-                  </option>
+                  </button>
                 ))}
-              </Select>
+              </div>
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="titulo">Título</Label>
@@ -698,7 +705,7 @@ export function NewActivityDialog({
                 value={titulo}
                 aria-invalid={Boolean(validationErrors.titulo)}
                 aria-describedby={validationErrors.titulo ? "titulo-error" : undefined}
-                className={validationErrors.titulo ? "border-red-300 focus-visible:ring-red-500/20" : ""}
+                className={validationErrors.titulo ? "!border-estado-vencida focus-visible:!ring-estado-vencida/20" : ""}
                 onChange={(e) => {
                   setTitulo(e.target.value);
                   clearValidationError("titulo");
@@ -724,7 +731,7 @@ export function NewActivityDialog({
                   value={gestionId}
                   aria-invalid={Boolean(validationErrors.gestionId)}
                   aria-describedby={validationErrors.gestionId ? "gestion-error" : undefined}
-                  className={validationErrors.gestionId ? "border-red-300 focus-visible:ring-red-500/20" : ""}
+                  className={validationErrors.gestionId ? "!border-estado-vencida focus-visible:!ring-estado-vencida/20" : ""}
                   onChange={(e) => {
                     const nextGestionId = e.target.value;
                     setGestionId(nextGestionId);
@@ -749,7 +756,7 @@ export function NewActivityDialog({
                     value={funcionarioId}
                     aria-invalid={Boolean(validationErrors.funcionarioId)}
                     aria-describedby={validationErrors.funcionarioId ? "funcionario-error" : undefined}
-                    className={validationErrors.funcionarioId ? "border-red-300 focus-visible:ring-red-500/20" : ""}
+                    className={validationErrors.funcionarioId ? "!border-estado-vencida focus-visible:!ring-estado-vencida/20" : ""}
                     onChange={(e) => {
                       setFuncionarioId(e.target.value);
                       setParticipantesIds((ids) => ids.filter((id) => id !== e.target.value));
@@ -767,7 +774,7 @@ export function NewActivityDialog({
               ) : (
                 <div className="space-y-1.5">
                   <Label>Funcionario responsable</Label>
-                  <div className="flex h-auto min-h-11 items-center break-words rounded-lg bg-slate-50 px-3 py-2 text-sm font-medium text-slate-700 ring-1 ring-foreground/5 sm:h-9 sm:min-h-0 sm:py-0">
+                  <div className="flex h-auto min-h-11 items-center break-words rounded-input border border-line-soft bg-surface-subtle px-3 py-2 text-[13px] font-semibold text-ink-soft sm:h-[38px] sm:min-h-0 sm:py-0">
                     {currentFuncionario?.nombre || currentUser.email}
                   </div>
                   <FieldError id="funcionario-error" message={validationErrors.funcionarioId} />
@@ -780,7 +787,7 @@ export function NewActivityDialog({
                   value={competenciaId}
                   aria-invalid={Boolean(validationErrors.competenciaId)}
                   aria-describedby={validationErrors.competenciaId ? "competencia-error" : undefined}
-                  className={validationErrors.competenciaId ? "border-red-300 focus-visible:ring-red-500/20" : ""}
+                  className={validationErrors.competenciaId ? "!border-estado-vencida focus-visible:!ring-estado-vencida/20" : ""}
                   onChange={(e) => {
                     setCompetenciaId(e.target.value);
                     clearValidationError("competenciaId");
@@ -794,7 +801,7 @@ export function NewActivityDialog({
                   ))}
                 </Select>
                 {competenciasDisponibles.length === 0 && !validationErrors.competenciaId && (
-                  <p className="text-xs text-amber-700">Esta gestión no tiene competencias disponibles.</p>
+                  <p className="text-[11px] font-semibold text-estado-revision-fg">Esta gestión no tiene competencias disponibles.</p>
                 )}
                 <FieldError id="competencia-error" message={validationErrors.competenciaId} />
               </div>
@@ -806,7 +813,7 @@ export function NewActivityDialog({
                     value={entregableId}
                     aria-invalid={Boolean(validationErrors.entregableId)}
                     aria-describedby={validationErrors.entregableId ? "entregable-error" : undefined}
-                    className={validationErrors.entregableId ? "border-red-300 focus-visible:ring-red-500/20" : ""}
+                    className={validationErrors.entregableId ? "!border-estado-vencida focus-visible:!ring-estado-vencida/20" : ""}
                     onChange={(e) => {
                       setEntregableId(e.target.value);
                       clearValidationError("entregableId");
@@ -820,7 +827,7 @@ export function NewActivityDialog({
                     ))}
                   </Select>
                 ) : (
-                  <div className="flex h-auto min-h-11 items-center rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-400 ring-1 ring-foreground/5 sm:h-9 sm:min-h-0 sm:py-0">
+                  <div className="flex h-auto min-h-11 items-center rounded-input border border-line-soft bg-surface-subtle px-3 py-2 text-[13px] text-ink-ghost sm:h-[38px] sm:min-h-0 sm:py-0">
                     Esta gestión no tiene entregables.
                   </div>
                 )}
@@ -837,7 +844,7 @@ export function NewActivityDialog({
                       value={fechaReunion}
                       aria-invalid={Boolean(validationErrors.fechaReunion)}
                       aria-describedby={validationErrors.fechaReunion ? "fecha-reunion-error" : undefined}
-                      className={validationErrors.fechaReunion ? "border-red-300 focus-visible:ring-red-500/20" : ""}
+                      className={validationErrors.fechaReunion ? "!border-estado-vencida focus-visible:!ring-estado-vencida/20" : ""}
                       onChange={(e) => {
                         setFechaReunion(e.target.value);
                         clearValidationError("fechaReunion");
@@ -854,7 +861,7 @@ export function NewActivityDialog({
                       value={horaReunion}
                       aria-invalid={Boolean(validationErrors.horaReunion)}
                       aria-describedby={validationErrors.horaReunion ? "hora-reunion-error" : undefined}
-                      className={validationErrors.horaReunion ? "border-red-300 focus-visible:ring-red-500/20" : ""}
+                      className={validationErrors.horaReunion ? "!border-estado-vencida focus-visible:!ring-estado-vencida/20" : ""}
                       onChange={(e) => {
                         setHoraReunion(e.target.value);
                         clearValidationError("horaReunion");
@@ -875,7 +882,7 @@ export function NewActivityDialog({
                       value={fechaInicio}
                       aria-invalid={Boolean(validationErrors.fechaInicio)}
                       aria-describedby={validationErrors.fechaInicio ? "fecha-inicio-error" : undefined}
-                      className={validationErrors.fechaInicio ? "border-red-300 focus-visible:ring-red-500/20" : ""}
+                      className={validationErrors.fechaInicio ? "!border-estado-vencida focus-visible:!ring-estado-vencida/20" : ""}
                       onChange={(e) => {
                         setFechaInicio(e.target.value);
                         clearValidationError("fechaInicio", "fechaFin");
@@ -893,7 +900,7 @@ export function NewActivityDialog({
                       value={fechaFin}
                       aria-invalid={Boolean(validationErrors.fechaFin)}
                       aria-describedby={validationErrors.fechaFin ? "fecha-fin-error" : undefined}
-                      className={validationErrors.fechaFin ? "border-red-300 focus-visible:ring-red-500/20" : ""}
+                      className={validationErrors.fechaFin ? "!border-estado-vencida focus-visible:!ring-estado-vencida/20" : ""}
                       onChange={(e) => {
                         setFechaFin(e.target.value);
                         clearValidationError("fechaInicio", "fechaFin");
@@ -906,7 +913,7 @@ export function NewActivityDialog({
             </div>
             <div className="space-y-1.5">
               <Label>Participantes adicionales (opcional)</Label>
-              <div className="max-h-36 overflow-y-auto rounded-lg border border-slate-200 bg-white p-2">
+              <div className="max-h-[150px] overflow-y-auto rounded-xl border border-line-dashed bg-white p-[7px]">
                 {funcionariosDisponibles.filter((f) => f.id !== funcionarioId).length > 0 ? (
                   <div className="space-y-1">
                     {funcionariosDisponibles
@@ -914,23 +921,23 @@ export function NewActivityDialog({
                       .map((f) => (
                         <label
                           key={f.id}
-                          className="flex min-h-11 cursor-pointer items-center gap-2 rounded-md px-2 py-2 text-sm text-slate-700 hover:bg-slate-50 sm:min-h-0 sm:py-1.5"
+                          className="flex min-h-11 cursor-pointer items-center gap-2.5 rounded-[9px] px-2.5 py-2 text-[13px] transition-colors hover:bg-surface-subtle sm:min-h-0"
                         >
                           <input
                             type="checkbox"
-                            className="h-5 w-5 shrink-0 rounded border-slate-300 text-slate-900 focus:ring-slate-900/20 sm:h-4 sm:w-4"
+                            className="h-5 w-5 shrink-0 accent-ink sm:h-4 sm:w-4"
                             checked={participantesIds.includes(f.id)}
                             onChange={() => setParticipantesIds((ids) => toggleId(ids, f.id))}
                           />
                           <span className="min-w-0 flex-1 truncate">{f.nombre}</span>
-                          <span className="max-w-[42%] shrink-0 truncate text-xs text-slate-400 sm:max-w-none">
+                          <span className="max-w-[42%] shrink-0 truncate text-[11px] text-ink-label sm:max-w-none">
                             {gestionNombre(f.gestionId, gestiones)}
                           </span>
                         </label>
                       ))}
                   </div>
                 ) : (
-                  <div className="px-2 py-3 text-sm text-slate-400">Sin participantes adicionales</div>
+                  <div className="px-2 py-3 text-[13px] text-ink-ghost">Sin participantes adicionales</div>
                 )}
               </div>
             </div>
@@ -958,11 +965,15 @@ export function NewActivityDialog({
           )}
         </div>
 
-        <div className="grid shrink-0 grid-cols-2 gap-2 border-t border-slate-100 bg-white px-3 py-3 sm:flex sm:items-center sm:justify-end sm:px-5">
-          <Button className="w-full sm:w-auto" type="button" variant="outline" onClick={requestClose}>
+        <div className="grid shrink-0 grid-cols-2 gap-2.5 border-t border-line-soft bg-white px-5 py-4 sm:flex sm:items-center sm:justify-end sm:px-6">
+          <Button className="w-full sm:!h-10 sm:w-auto sm:!rounded-input sm:!px-4" type="button" variant="outline" onClick={requestClose}>
             Cancelar
           </Button>
-          <Button className="w-full sm:w-auto" type="submit" disabled={catalogosVacios || !draftHydrated || isBusy}>
+          <Button
+            className="w-full sm:!h-10 sm:w-auto sm:!rounded-input sm:!px-[19px]"
+            type="submit"
+            disabled={catalogosVacios || !draftHydrated || isBusy}
+          >
             {isBusy ? (
               <>
                 <Icon name="loader" size={14} className="animate-spin" />
@@ -1022,19 +1033,26 @@ function CreationResultDialog({
   return (
     <div className="fixed inset-0 z-[60] flex items-end justify-center p-0 sm:items-center sm:p-4" role="dialog" aria-modal="true" aria-labelledby={`activity-result-${kind}-title`}>
       <div
-        className="absolute inset-0 bg-slate-900/40 backdrop-blur-[2px]"
+        className="absolute inset-0 bg-[rgba(18,18,26,.32)] backdrop-blur-[3px]"
         onClick={success ? undefined : onCloseError}
       />
-      <div className="relative z-10 w-full max-w-sm rounded-t-xl bg-white p-4 pb-[max(1rem,env(safe-area-inset-bottom))] ring-1 ring-foreground/10 shadow-xl sm:rounded-xl sm:p-5">
+      <div className="relative z-10 w-full max-w-[440px] rounded-t-modal bg-white p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] shadow-modal sm:rounded-modal sm:p-6">
         <div className="flex items-start gap-3">
-          <div className={success ? "flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-emerald-100 text-emerald-700" : "flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-red-100 text-red-600"}>
+          <div
+            className={cn(
+              "flex h-9 w-9 shrink-0 items-center justify-center rounded-input",
+              success
+                ? "bg-estado-cumplida-bg text-estado-cumplida-fg"
+                : "bg-estado-vencida-bg text-estado-vencida-fg",
+            )}
+          >
             <Icon name={success ? "checkCircle" : "alert"} size={18} />
           </div>
           <div className="min-w-0">
-            <div id={`activity-result-${kind}-title`} className="text-sm font-semibold text-slate-900">
+            <div id={`activity-result-${kind}-title`} className="text-[16px] font-extrabold tracking-[-.02em]">
               {success ? "Actividad guardada" : existing ? "Actividad previa encontrada" : "No se pudo guardar la actividad"}
             </div>
-            <p className="mt-1 text-xs leading-relaxed text-slate-500">
+            <p className="mt-1 text-[12.5px] leading-relaxed text-ink-faint">
               {success
                 ? "La actividad se guardó correctamente."
                 : existing
@@ -1091,7 +1109,7 @@ function CreationResultDialog({
 function FieldError({ id, message }: { id: string; message?: string }) {
   if (!message) return null;
   return (
-    <p id={id} className="text-xs text-red-600" role="alert">
+    <p id={id} className="text-[11px] font-semibold text-estado-vencida-fg" role="alert">
       {message}
     </p>
   );

@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous" />
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#EDEDF1;color:#12121A;font-family:'Plus Jakarta Sans',ui-sans-serif,system-ui,-apple-system,'Segoe UI',sans-serif;-webkit-font-smoothing:antialiased;font-variant-numeric:tabular-nums}
+a{color:#6D28D9;text-decoration:none}
+a:hover{color:#5B21B6;text-decoration:underline}
+button{font:inherit;cursor:pointer;border:0;background:none;color:inherit}
+</style>
+</helmet>
+
+<div style="min-height:100vh;padding:44px 48px 64px;background:#EDEDF1">
+  <div style="max-width:1900px;margin:0 auto">
+    <h1 style="margin:0;font-size:26px;font-weight:800;letter-spacing:-.03em">Kanban DGTAR · móvil</h1>
+    <p style="margin:8px 0 0;font-size:14px;font-weight:500;color:#7A7A88;max-width:640px">Mismos colores, tipografía y escalas que el escritorio. Las columnas del tablero se convierten en un selector de estado, y el calendario en una agenda por día.</p>
+
+    <div style="margin-top:40px;display:flex;gap:44px;flex-wrap:wrap;align-items:flex-start">
+
+      <div data-screen-label="Móvil · Tablero" style="display:flex;flex-direction:column;gap:14px">
+        <div style="font-size:12px;font-weight:750;letter-spacing:.06em;text-transform:uppercase;color:#9C9CAA">Tablero</div>
+        <x-import component-from-global-scope="IOSDevice" from="./ios-frame.jsx" hint-size="402px,874px">
+          <div style="height:100%;display:flex;flex-direction:column;background:#F4F4F6">
+            <div style="padding:56px 18px 12px;background:#fff;border-bottom:1px solid #ECECEF">
+              <div style="display:flex;align-items:center;justify-content:space-between;gap:12px">
+                <div style="display:flex;align-items:center;gap:10px">
+                  <div style="width:34px;height:34px;border-radius:11px;background:#12121A;color:#fff;display:flex;align-items:center;justify-content:center"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 5v11"></path><path d="M12 5v6"></path><path d="M18 5v14"></path></svg></div>
+                  <div><div style="font-size:15px;font-weight:800;letter-spacing:-.02em;line-height:1.1">Tablero</div><div style="font-size:11px;font-weight:500;color:#8A8A99">12 actividades · 2 vencidas</div></div>
+                </div>
+                <div style="display:flex;align-items:center;gap:9px">
+                  <button type="button" aria-label="Buscar" style="width:34px;height:34px;border-radius:999px;border:1px solid #ECECEF;display:flex;align-items:center;justify-content:center;color:#5B5B69"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"></circle><path d="m21 21-4.3-4.3"></path></svg></button>
+                  <div style="width:34px;height:34px;border-radius:999px;background:linear-gradient(135deg,#0ea5e9,#0284c7);color:#fff;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700">AC</div>
+                </div>
+              </div>
+              <div style="margin-top:14px;display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;padding-bottom:2px">
+                <span style="display:inline-flex;align-items:center;gap:7px;height:34px;padding:0 15px;border-radius:999px;background:#F1EBFF;color:#6D28D9;font-size:12.5px;font-weight:700;white-space:nowrap;box-shadow:0 0 0 1px rgba(109,40,217,.18)"><span style="width:7px;height:7px;border-radius:999px;background:#A5A5B3"></span>Pendiente<span style="font-weight:800">4</span></span>
+                <span style="display:inline-flex;align-items:center;gap:7px;height:34px;padding:0 15px;border-radius:999px;background:#F2F2F5;color:#5B5B69;font-size:12.5px;font-weight:650;white-space:nowrap"><span style="width:7px;height:7px;border-radius:999px;background:#3B82F6"></span>En progreso<span style="font-weight:800">3</span></span>
+                <span style="display:inline-flex;align-items:center;gap:7px;height:34px;padding:0 15px;border-radius:999px;background:#F2F2F5;color:#5B5B69;font-size:12.5px;font-weight:650;white-space:nowrap"><span style="width:7px;height:7px;border-radius:999px;background:#F59E0B"></span>En revisión<span style="font-weight:800">2</span></span>
+                <span style="display:inline-flex;align-items:center;gap:7px;height:34px;padding:0 15px;border-radius:999px;background:#F2F2F5;color:#5B5B69;font-size:12.5px;font-weight:650;white-space:nowrap"><span style="width:7px;height:7px;border-radius:999px;background:#10B981"></span>Cumplida<span style="font-weight:800">3</span></span>
+              </div>
+            </div>
+
+            <div style="flex:1;overflow-y:auto;padding:14px 18px 108px;display:flex;flex-direction:column;gap:11px">
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+                <div style="background:#fff;border:1px solid #ECECEF;border-radius:15px;padding:13px 15px"><div style="font-size:11.5px;font-weight:650;color:#8A8A99">Cumplidas</div><div style="margin-top:6px;display:flex;align-items:baseline;gap:7px"><span style="font-size:24px;font-weight:800;letter-spacing:-.03em;line-height:1">3</span><span style="font-size:11px;font-weight:700;color:#0B7A5A">+3</span></div></div>
+                <div style="background:#fff;border:1px solid #ECECEF;border-radius:15px;padding:13px 15px"><div style="font-size:11.5px;font-weight:650;color:#8A8A99">Cumplimiento</div><div style="margin-top:6px;display:flex;align-items:baseline;gap:7px"><span style="font-size:24px;font-weight:800;letter-spacing:-.03em;line-height:1">25%</span><span style="font-size:11px;font-weight:700;color:#C81E45">−4%</span></div></div>
+              </div>
+
+              <article style="position:relative;overflow:hidden;border-radius:16px;background:#fff;border:1px solid #ECECEF;padding:14px 15px 13px 17px">
+                <span style="position:absolute;left:0;top:0;bottom:0;width:3px;background:#A5A5B3"></span>
+                <div style="display:flex;align-items:flex-start;gap:10px">
+                  <div style="flex:1"><span style="display:inline-flex;padding:2px 9px;border-radius:999px;background:#E6F7F5;color:#0F766E;font-size:10.5px;font-weight:700">Gestión de Riesgos</span>
+                    <div style="margin-top:9px;font-size:14px;font-weight:650;line-height:1.35;letter-spacing:-.01em">Actualizar la matriz de riesgos volcánicos de Isabela</div></div>
+                  <div style="width:30px;height:30px;flex-shrink:0;border-radius:999px;background:linear-gradient(135deg,#14b8a6,#0d9488);color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700">DO</div>
+                </div>
+                <div style="margin-top:12px;display:flex;align-items:center;justify-content:space-between;gap:8px">
+                  <span style="display:inline-flex;align-items:center;gap:6px;font-size:11.5px;font-weight:550;color:#8A8A99"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M8 2v4"></path><path d="M16 2v4"></path><rect width="18" height="18" x="3" y="4" rx="2"></rect><path d="M3 10h18"></path></svg>12 jun – 28 jun</span>
+                  <span style="padding:4px 9px;border-radius:999px;background:#F2F2F5;color:#5B5B69;font-size:11px;font-weight:700">en 10d</span>
+                </div>
+              </article>
+
+              <article style="position:relative;overflow:hidden;border-radius:16px;background:#fff;border:1px solid #ECECEF;padding:14px 15px 13px 17px">
+                <span style="position:absolute;left:0;top:0;bottom:0;width:3px;background:#F59E0B"></span>
+                <div style="display:flex;align-items:flex-start;gap:10px">
+                  <div style="flex:1"><span style="display:inline-flex;padding:2px 9px;border-radius:999px;background:#E9F9EF;color:#15803D;font-size:10.5px;font-weight:700">Gestión Territorial</span>
+                    <div style="margin-top:9px;font-size:14px;font-weight:650;line-height:1.35;letter-spacing:-.01em">Levantamiento de uso de suelo en Puerto Ayora</div></div>
+                  <div style="width:30px;height:30px;flex-shrink:0;border-radius:999px;background:linear-gradient(135deg,#22c55e,#16a34a);color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700">MV</div>
+                </div>
+                <div style="margin-top:12px;display:flex;align-items:center;justify-content:space-between;gap:8px">
+                  <span style="display:inline-flex;align-items:center;gap:6px;font-size:11.5px;font-weight:550;color:#8A8A99"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M8 2v4"></path><path d="M16 2v4"></path><rect width="18" height="18" x="3" y="4" rx="2"></rect><path d="M3 10h18"></path></svg>03 jun – 20 jun</span>
+                  <span style="display:inline-flex;align-items:center;gap:5px;padding:4px 9px;border-radius:999px;background:#FEF4E2;color:#B45309;font-size:11px;font-weight:700"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"></path><path d="M12 9v4"></path><path d="M12 17h.01"></path></svg>en 2d</span>
+                </div>
+              </article>
+
+              <article style="position:relative;overflow:hidden;border-radius:16px;background:#fff;border:1px solid #ECECEF;padding:14px 15px 13px 17px">
+                <span style="position:absolute;left:0;top:0;bottom:0;width:3px;background:#F59E0B"></span>
+                <div style="display:flex;align-items:flex-start;gap:10px">
+                  <div style="flex:1"><div style="display:flex;flex-wrap:wrap;gap:5px"><span style="display:inline-flex;align-items:center;gap:4px;padding:2px 9px;border-radius:999px;background:#F1EBFF;color:#6D28D9;font-size:10.5px;font-weight:700"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle></svg>Reunión</span><span style="display:inline-flex;padding:2px 9px;border-radius:999px;background:#EAF7FE;color:#0369A1;font-size:10.5px;font-weight:700">DGTAR</span></div>
+                    <div style="margin-top:9px;font-size:14px;font-weight:650;line-height:1.35;letter-spacing:-.01em">Reunión de coordinación con GAD Santa Cruz</div></div>
+                  <div style="width:30px;height:30px;flex-shrink:0;border-radius:999px;background:linear-gradient(135deg,#0ea5e9,#0284c7);color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700">AC</div>
+                </div>
+                <div style="margin-top:12px;display:flex;align-items:center;justify-content:space-between;gap:8px">
+                  <span style="display:inline-flex;align-items:center;gap:6px;font-size:11.5px;font-weight:550;color:#8A8A99"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>21 jun · 09:00</span>
+                  <span style="padding:4px 9px;border-radius:999px;background:#FEF4E2;color:#B45309;font-size:11px;font-weight:700">en 3d</span>
+                </div>
+              </article>
+
+              <article style="position:relative;overflow:hidden;border-radius:16px;background:#fff;border:1px solid #ECECEF;padding:14px 15px 13px 17px">
+                <span style="position:absolute;left:0;top:0;bottom:0;width:3px;background:#A5A5B3"></span>
+                <div style="display:flex;align-items:flex-start;gap:10px">
+                  <div style="flex:1"><span style="display:inline-flex;padding:2px 9px;border-radius:999px;background:#F3EEFE;color:#6D28D9;font-size:10.5px;font-weight:700">G. y Saneamiento Ambiental</span>
+                    <div style="margin-top:9px;font-size:14px;font-weight:650;line-height:1.35;letter-spacing:-.01em">Inventario de puntos de descarga en Santa Cruz</div></div>
+                  <div style="width:30px;height:30px;flex-shrink:0;border-radius:999px;background:linear-gradient(135deg,#2563eb,#1d4ed8);color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700">KZ</div>
+                </div>
+                <div style="margin-top:12px;display:flex;align-items:center;justify-content:space-between;gap:8px">
+                  <span style="display:inline-flex;align-items:center;gap:6px;font-size:11.5px;font-weight:550;color:#8A8A99"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M8 2v4"></path><path d="M16 2v4"></path><rect width="18" height="18" x="3" y="4" rx="2"></rect><path d="M3 10h18"></path></svg>10 jun – 15 jul</span>
+                  <span style="padding:4px 9px;border-radius:999px;background:#F2F2F5;color:#5B5B69;font-size:11px;font-weight:700">en 27d</span>
+                </div>
+              </article>
+            </div>
+
+            <div style="position:absolute;left:0;right:0;bottom:0;padding:10px 18px 30px;background:rgba(255,255,255,.94);backdrop-filter:blur(14px);border-top:1px solid #ECECEF;display:flex;align-items:center;justify-content:space-between">
+              <span style="display:flex;flex-direction:column;align-items:center;gap:4px;color:#6D28D9;font-size:10px;font-weight:750"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"><path d="M6 5v11"></path><path d="M12 5v6"></path><path d="M18 5v14"></path></svg>Tablero</span>
+              <span style="display:flex;flex-direction:column;align-items:center;gap:4px;color:#A5A5B3;font-size:10px;font-weight:650"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"></path><path d="M18 17V9"></path><path d="M13 17V5"></path><path d="M8 17v-3"></path></svg>Datos</span>
+              <button type="button" aria-label="Nueva actividad" style="width:50px;height:50px;border-radius:999px;background:#12121A;color:#fff;display:flex;align-items:center;justify-content:center;box-shadow:0 6px 18px rgba(18,18,26,.30);margin-top:-24px"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M5 12h14"></path><path d="M12 5v14"></path></svg></button>
+              <span style="display:flex;flex-direction:column;align-items:center;gap:4px;color:#A5A5B3;font-size:10px;font-weight:650"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"><path d="M3 12h.01"></path><path d="M3 18h.01"></path><path d="M3 6h.01"></path><path d="M8 12h13"></path><path d="M8 18h13"></path><path d="M8 6h13"></path></svg>Catálogos</span>
+              <span style="display:flex;flex-direction:column;align-items:center;gap:4px;color:#A5A5B3;font-size:10px;font-weight:650"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M22 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>Usuarios</span>
+            </div>
+          </div>
+        </x-import>
+      </div>
+
+      <div data-screen-label="Móvil · Agenda" style="display:flex;flex-direction:column;gap:14px">
+        <div style="font-size:12px;font-weight:750;letter-spacing:.06em;text-transform:uppercase;color:#9C9CAA">Calendario · agenda</div>
+        <x-import component-from-global-scope="IOSDevice" from="./ios-frame.jsx" hint-size="402px,874px">
+          <div style="height:100%;display:flex;flex-direction:column;background:#F4F4F6">
+            <div style="padding:56px 18px 14px;background:#fff;border-bottom:1px solid #ECECEF">
+              <div style="display:flex;align-items:center;justify-content:space-between;gap:12px">
+                <div style="display:flex;align-items:baseline;gap:7px"><span style="font-size:19px;font-weight:800;letter-spacing:-.03em">Junio</span><span style="font-size:19px;font-weight:500;color:#A5A5B3;letter-spacing:-.03em">2026</span></div>
+                <div style="display:flex;align-items:center;gap:7px">
+                  <button type="button" aria-label="Anterior" style="width:34px;height:34px;border-radius:999px;border:1px solid #ECECEF;display:flex;align-items:center;justify-content:center;color:#5B5B69"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"></path></svg></button>
+                  <button type="button" style="height:34px;padding:0 14px;border-radius:999px;border:1px solid #ECECEF;font-size:12.5px;font-weight:700">Hoy</button>
+                  <button type="button" aria-label="Siguiente" style="width:34px;height:34px;border-radius:999px;border:1px solid #ECECEF;display:flex;align-items:center;justify-content:center;color:#5B5B69"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"></path></svg></button>
+                </div>
+              </div>
+              <div style="margin-top:14px;display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:6px">
+                <div style="display:flex;flex-direction:column;align-items:center;gap:6px;padding:8px 0;border-radius:12px;background:#F7F7F9"><span style="font-size:9.5px;font-weight:750;text-transform:uppercase;color:#A5A5B3">lun</span><span style="font-size:13px;font-weight:750;color:#4B4B57">15</span></div>
+                <div style="display:flex;flex-direction:column;align-items:center;gap:6px;padding:8px 0;border-radius:12px;background:#F7F7F9"><span style="font-size:9.5px;font-weight:750;text-transform:uppercase;color:#A5A5B3">mar</span><span style="font-size:13px;font-weight:750;color:#4B4B57">16</span></div>
+                <div style="display:flex;flex-direction:column;align-items:center;gap:6px;padding:8px 0;border-radius:12px;background:#F7F7F9"><span style="font-size:9.5px;font-weight:750;text-transform:uppercase;color:#A5A5B3">mié</span><span style="font-size:13px;font-weight:750;color:#4B4B57">17</span></div>
+                <div style="display:flex;flex-direction:column;align-items:center;gap:6px;padding:8px 0;border-radius:12px;background:#12121A"><span style="font-size:9.5px;font-weight:750;text-transform:uppercase;color:#B4B4C2">jue</span><span style="font-size:13px;font-weight:750;color:#fff">18</span></div>
+                <div style="display:flex;flex-direction:column;align-items:center;gap:6px;padding:8px 0;border-radius:12px;background:#F7F7F9"><span style="font-size:9.5px;font-weight:750;text-transform:uppercase;color:#A5A5B3">vie</span><span style="font-size:13px;font-weight:750;color:#4B4B57">19</span></div>
+                <div style="display:flex;flex-direction:column;align-items:center;gap:6px;padding:8px 0;border-radius:12px;background:#F7F7F9"><span style="font-size:9.5px;font-weight:750;text-transform:uppercase;color:#C4C4CE">sáb</span><span style="font-size:13px;font-weight:750;color:#A5A5B3">20</span></div>
+                <div style="display:flex;flex-direction:column;align-items:center;gap:6px;padding:8px 0;border-radius:12px;background:#F7F7F9"><span style="font-size:9.5px;font-weight:750;text-transform:uppercase;color:#C4C4CE">dom</span><span style="font-size:13px;font-weight:750;color:#A5A5B3">21</span></div>
+              </div>
+            </div>
+
+            <div style="flex:1;overflow-y:auto;padding:14px 18px 60px;display:flex;flex-direction:column;gap:14px">
+              <section style="border-radius:18px;background:#F7F2FF;border:1px solid #E4D8FB;padding:14px">
+                <div style="display:flex;align-items:center;justify-content:space-between;gap:10px">
+                  <div style="font-size:13.5px;font-weight:750">Jueves 18 de junio<span style="font-weight:600;color:#8A8A99"> · Hoy</span></div>
+                  <span style="padding:3px 9px;border-radius:999px;background:#fff;font-size:11px;font-weight:750;color:#6D28D9">3</span>
+                </div>
+                <div style="margin-top:11px;display:flex;flex-direction:column;gap:9px">
+                  <div style="position:relative;overflow:hidden;border-radius:13px;background:#fff;border:1px solid #E4D8FB;padding:11px 12px 11px 14px"><span style="position:absolute;left:0;top:0;bottom:0;width:3px;background:#F59E0B"></span>
+                    <div style="font-size:12.5px;font-weight:650;line-height:1.35">Informe técnico de ordenamiento territorial</div>
+                    <div style="margin-top:8px;display:flex;align-items:center;justify-content:space-between"><span style="padding:3px 8px;border-radius:999px;background:#FEF4E2;color:#B45309;font-size:10px;font-weight:750">Finaliza hoy</span><span style="width:22px;height:22px;border-radius:999px;background:linear-gradient(135deg,#22c55e,#16a34a);color:#fff;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700">MV</span></div>
+                  </div>
+                  <div style="position:relative;overflow:hidden;border-radius:13px;background:#fff;border:1px solid #E4D8FB;padding:11px 12px 11px 14px"><span style="position:absolute;left:0;top:0;bottom:0;width:3px;background:#A5A5B3"></span>
+                    <div style="font-size:12.5px;font-weight:650;line-height:1.35">Plan de manejo de desechos sólidos — fase II</div>
+                    <div style="margin-top:8px;display:flex;align-items:center;justify-content:space-between"><span style="padding:3px 8px;border-radius:999px;background:#F2F2F5;color:#5B5B69;font-size:10px;font-weight:750">en 12d</span><span style="width:22px;height:22px;border-radius:999px;background:linear-gradient(135deg,#8b5cf6,#7c3aed);color:#fff;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700">LN</span></div>
+                  </div>
+                  <div style="position:relative;overflow:hidden;border-radius:13px;background:#fff;border:1px solid #E4D8FB;padding:11px 12px 11px 14px"><span style="position:absolute;left:0;top:0;bottom:0;width:3px;background:#A5A5B3"></span>
+                    <div style="font-size:12.5px;font-weight:650;line-height:1.35">Monitoreo de calidad de agua — San Cristóbal</div>
+                    <div style="margin-top:8px;display:flex;align-items:center;justify-content:space-between"><span style="padding:3px 8px;border-radius:999px;background:#F2F2F5;color:#5B5B69;font-size:10px;font-weight:750">en 7d</span><span style="width:22px;height:22px;border-radius:999px;background:linear-gradient(135deg,#2563eb,#1d4ed8);color:#fff;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700">KZ</span></div>
+                  </div>
+                </div>
+              </section>
+
+              <section style="border-radius:18px;background:#fff;border:1px solid #ECECEF;padding:14px">
+                <div style="display:flex;align-items:center;justify-content:space-between;gap:10px">
+                  <div style="font-size:13.5px;font-weight:750">Viernes 19 de junio</div>
+                  <span style="padding:3px 9px;border-radius:999px;background:#F2F2F5;font-size:11px;font-weight:750;color:#5B5B69">2</span>
+                </div>
+                <div style="margin-top:11px;display:flex;flex-direction:column;gap:9px">
+                  <div style="position:relative;overflow:hidden;border-radius:13px;background:#FAFAFB;border:1px solid #F1F1F4;padding:11px 12px 11px 14px"><span style="position:absolute;left:0;top:0;bottom:0;width:3px;background:#F59E0B"></span>
+                    <div style="font-size:12.5px;font-weight:650;line-height:1.35">Levantamiento de uso de suelo en Puerto Ayora</div>
+                    <div style="margin-top:8px;display:flex;align-items:center;justify-content:space-between"><span style="padding:3px 8px;border-radius:999px;background:#FEF4E2;color:#B45309;font-size:10px;font-weight:750">en 1d</span><span style="width:22px;height:22px;border-radius:999px;background:linear-gradient(135deg,#22c55e,#16a34a);color:#fff;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700">MV</span></div>
+                  </div>
+                  <div style="position:relative;overflow:hidden;border-radius:13px;background:#FAFAFB;border:1px solid #F1F1F4;padding:11px 12px 11px 14px"><span style="position:absolute;left:0;top:0;bottom:0;width:3px;background:#A5A5B3"></span>
+                    <div style="font-size:12.5px;font-weight:650;line-height:1.35">Inventario de puntos de descarga</div>
+                    <div style="margin-top:8px;display:flex;align-items:center;justify-content:space-between"><span style="padding:3px 8px;border-radius:999px;background:#F2F2F5;color:#5B5B69;font-size:10px;font-weight:750">en 27d</span><span style="width:22px;height:22px;border-radius:999px;background:linear-gradient(135deg,#2563eb,#1d4ed8);color:#fff;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700">KZ</span></div>
+                  </div>
+                </div>
+              </section>
+
+              <section style="border-radius:18px;background:#fff;border:1px solid #ECECEF;padding:14px">
+                <div style="display:flex;align-items:center;justify-content:space-between;gap:10px">
+                  <div style="font-size:13.5px;font-weight:750">Domingo 21 de junio</div>
+                  <span style="padding:3px 9px;border-radius:999px;background:#F2F2F5;font-size:11px;font-weight:750;color:#5B5B69">1</span>
+                </div>
+                <div style="margin-top:11px">
+                  <div style="border-radius:15px;background:linear-gradient(135deg,#8B5CF6,#6D28D9);padding:12px 9px 9px;box-shadow:0 4px 14px rgba(109,40,217,.22)">
+                    <div style="font-size:9.5px;font-weight:750;letter-spacing:.05em;text-transform:uppercase;color:rgba(255,255,255,.86);padding:0 5px 9px">Reunión</div>
+                    <div style="border-radius:12px;background:#fff;padding:11px">
+                      <div style="font-size:12.5px;font-weight:650;line-height:1.35">Coordinación con GAD Santa Cruz</div>
+                      <div style="margin-top:7px;display:inline-flex;padding:3px 8px;border-radius:999px;background:#F2F2F5;color:#5B5B69;font-size:10px;font-weight:750">09:00 – 10:00</div>
+                      <div style="margin-top:9px;display:flex;align-items:center">
+                        <span style="width:22px;height:22px;border-radius:999px;background:linear-gradient(135deg,#0ea5e9,#0284c7);color:#fff;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;box-shadow:0 0 0 1.5px #fff">AC</span>
+                        <span style="width:22px;height:22px;border-radius:999px;background:linear-gradient(135deg,#22c55e,#16a34a);color:#fff;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;box-shadow:0 0 0 1.5px #fff;margin-left:-8px">MV</span>
+                        <span style="width:22px;height:22px;border-radius:999px;background:linear-gradient(135deg,#a855f7,#9333ea);color:#fff;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;box-shadow:0 0 0 1.5px #fff;margin-left:-8px">PJ</span>
+                        <span style="font-size:10px;font-weight:750;color:#8A8A99;margin-left:7px">+2</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </section>
+            </div>
+          </div>
+        </x-import>
+      </div>
+
+      <div data-screen-label="Móvil · Detalle" style="display:flex;flex-direction:column;gap:14px">
+        <div style="font-size:12px;font-weight:750;letter-spacing:.06em;text-transform:uppercase;color:#9C9CAA">Panel de detalle</div>
+        <x-import component-from-global-scope="IOSDevice" from="./ios-frame.jsx" hint-size="402px,874px">
+          <div style="height:100%;display:flex;flex-direction:column;background:#fff">
+            <div style="padding:56px 18px 12px;border-bottom:1px solid #F1F1F4;display:flex;align-items:center;justify-content:space-between;gap:12px">
+              <div style="display:flex;flex-wrap:wrap;gap:6px">
+                <span style="display:inline-flex;padding:3px 10px;border-radius:999px;background:#EAF7FE;color:#0369A1;font-size:11px;font-weight:700">DGTAR</span>
+                <span style="display:inline-flex;padding:3px 10px;border-radius:999px;background:#E9F1FE;color:#1D4ED8;font-size:11px;font-weight:700">En progreso</span>
+              </div>
+              <button type="button" aria-label="Cerrar" style="width:34px;height:34px;border-radius:11px;display:flex;align-items:center;justify-content:center;color:#8A8A99"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M18 6 6 18"></path><path d="m6 6 12 12"></path></svg></button>
+            </div>
+
+            <div style="flex:1;overflow-y:auto;padding:18px 18px 120px;display:flex;flex-direction:column;gap:20px">
+              <div>
+                <h2 style="margin:0;font-size:19px;font-weight:750;line-height:1.3;letter-spacing:-.025em">Seguimiento trimestral al Plan Galápagos</h2>
+                <p style="margin:9px 0 0;font-size:13.5px;line-height:1.6;color:#5B5B69">Consolidar el avance de los compromisos del Plan Galápagos del segundo trimestre y remitir el informe a la Secretaría Técnica.</p>
+              </div>
+
+              <div style="display:flex;align-items:center;gap:12px;padding:13px 14px;border-radius:15px;background:#FAFAFB;border:1px solid #F1F1F4">
+                <span style="width:40px;height:40px;border-radius:999px;background:linear-gradient(135deg,#0ea5e9,#0284c7);color:#fff;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700">AC</span>
+                <div><div style="font-size:14px;font-weight:700">Andrea Cevallos</div><div style="font-size:11.5px;color:#8A8A99">Directora de Planificación · DGTAR</div></div>
+              </div>
+
+              <div style="display:flex;align-items:center;gap:13px;padding:14px;border-radius:15px;background:#FEECEF;border:1px solid #FBD5DC">
+                <div style="width:38px;height:38px;flex-shrink:0;border-radius:12px;background:#fff;border:1px solid #FBD5DC;color:#C81E45;display:flex;align-items:center;justify-content:center"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"></path><path d="M12 9v4"></path><path d="M12 17h.01"></path></svg></div>
+                <div><div style="font-size:14px;font-weight:750;color:#C81E45">Fin superado 1d</div><div style="font-size:12px;color:#7A5560">Fecha de fin: 17 de junio de 2026</div></div>
+              </div>
+
+              <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px">
+                <div style="padding:11px 12px;border-radius:13px;background:#FAFAFB;border:1px solid #F1F1F4"><div style="font-size:9px;font-weight:750;letter-spacing:.06em;text-transform:uppercase;color:#B4B4C2">Creada</div><div style="margin-top:4px;font-size:13px;font-weight:700">10 may</div></div>
+                <div style="padding:11px 12px;border-radius:13px;background:#FAFAFB;border:1px solid #F1F1F4"><div style="font-size:9px;font-weight:750;letter-spacing:.06em;text-transform:uppercase;color:#B4B4C2">Inicio</div><div style="margin-top:4px;font-size:13px;font-weight:700">15 may</div></div>
+                <div style="padding:11px 12px;border-radius:13px;background:#FAFAFB;border:1px solid #F1F1F4"><div style="font-size:9px;font-weight:750;letter-spacing:.06em;text-transform:uppercase;color:#B4B4C2">Fin</div><div style="margin-top:4px;font-size:13px;font-weight:700">17 jun</div></div>
+              </div>
+
+              <div>
+                <div style="font-size:10px;font-weight:750;letter-spacing:.06em;text-transform:uppercase;color:#B4B4C2;margin-bottom:9px">Participantes</div>
+                <div style="display:flex;flex-wrap:wrap;gap:8px">
+                  <span style="display:inline-flex;align-items:center;gap:8px;padding:6px 13px 6px 6px;border-radius:999px;background:#FAFAFB;border:1px solid #F1F1F4"><span style="width:24px;height:24px;border-radius:999px;background:linear-gradient(135deg,#a855f7,#9333ea);color:#fff;display:flex;align-items:center;justify-content:center;font-size:9.5px;font-weight:700">PJ</span><span style="font-size:12.5px;font-weight:600">Paola Jaramillo</span></span>
+                  <span style="display:inline-flex;align-items:center;gap:8px;padding:6px 13px 6px 6px;border-radius:999px;background:#FAFAFB;border:1px solid #F1F1F4"><span style="width:24px;height:24px;border-radius:999px;background:linear-gradient(135deg,#22c55e,#16a34a);color:#fff;display:flex;align-items:center;justify-content:center;font-size:9.5px;font-weight:700">MV</span><span style="font-size:12.5px;font-weight:600">Marco Villacís</span></span>
+                </div>
+              </div>
+
+              <div>
+                <div style="font-size:10px;font-weight:750;letter-spacing:.06em;text-transform:uppercase;color:#B4B4C2;margin-bottom:12px">Historial</div>
+                <ol style="margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:14px">
+                  <li style="display:flex;align-items:flex-start;gap:12px"><span style="width:26px;height:26px;flex-shrink:0;border-radius:999px;background:#F2F2F5;color:#5B5B69;display:flex;align-items:center;justify-content:center"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M5 12h14"></path><path d="M12 5v14"></path></svg></span><div><div style="font-size:13px">Actividad creada por <b style="font-weight:750">Andrea</b></div><div style="font-size:11px;color:#9C9CAA">10 may</div></div></li>
+                  <li style="display:flex;align-items:flex-start;gap:12px"><span style="width:26px;height:26px;flex-shrink:0;border-radius:999px;background:#E9F1FE;color:#1D4ED8;display:flex;align-items:center;justify-content:center"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"></path><path d="m12 5 7 7-7 7"></path></svg></span><div><div style="font-size:13px">Movida a En progreso</div><div style="font-size:11px;color:#9C9CAA">15 may</div></div></li>
+                </ol>
+              </div>
+
+              <div>
+                <div style="font-size:10px;font-weight:750;letter-spacing:.06em;text-transform:uppercase;color:#B4B4C2;margin-bottom:9px">Observaciones</div>
+                <div style="padding:13px 14px;border-radius:13px;background:#FAFAFB;border:1px solid #F1F1F4;font-size:13px;line-height:1.6;color:#4B4B57">Falta la validación de dos indicadores por parte de la Gestión Territorial.</div>
+              </div>
+            </div>
+
+            <div style="position:absolute;left:0;right:0;bottom:0;padding:12px 18px 30px;background:rgba(255,255,255,.96);backdrop-filter:blur(14px);border-top:1px solid #F1F1F4;display:flex;gap:9px">
+              <button type="button" style="flex:1;height:46px;border-radius:13px;border:1px solid #E4E4E9;background:#fff;font-size:14px;font-weight:650;display:flex;align-items:center;justify-content:center;gap:7px"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"></path><path d="m15 5 4 4"></path></svg>Editar</button>
+              <button type="button" style="flex:1.4;height:46px;border-radius:13px;background:#12121A;color:#fff;font-size:14px;font-weight:650;display:flex;align-items:center;justify-content:center;gap:7px;box-shadow:0 3px 12px rgba(18,18,26,.24)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"></path></svg>Marcar cumplida</button>
+            </div>
+          </div>
+        </x-import>
+      </div>
+
+      <div data-screen-label="Móvil · Estadísticas" style="display:flex;flex-direction:column;gap:14px">
+        <div style="font-size:12px;font-weight:750;letter-spacing:.06em;text-transform:uppercase;color:#9C9CAA">Estadísticas</div>
+        <x-import component-from-global-scope="IOSDevice" from="./ios-frame.jsx" hint-size="402px,874px">
+          <div style="height:100%;display:flex;flex-direction:column;background:#F4F4F6">
+            <div style="padding:56px 18px 14px;background:#fff;border-bottom:1px solid #ECECEF">
+              <div style="font-size:19px;font-weight:800;letter-spacing:-.03em">Estadísticas</div>
+              <div style="margin-top:3px;font-size:12px;font-weight:500;color:#8A8A99">01 jun – 30 jun 2026 · 12 actividades</div>
+            </div>
+
+            <div style="flex:1;overflow-y:auto;padding:14px 18px 100px;display:flex;flex-direction:column;gap:12px">
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+                <div style="background:#fff;border:1px solid #ECECEF;border-radius:15px;padding:13px 15px"><div style="font-size:11.5px;font-weight:650;color:#8A8A99">Totales</div><div style="margin-top:6px;font-size:24px;font-weight:800;letter-spacing:-.03em;line-height:1">12</div></div>
+                <div style="background:#fff;border:1px solid #ECECEF;border-radius:15px;padding:13px 15px"><div style="font-size:11.5px;font-weight:650;color:#8A8A99">En progreso</div><div style="margin-top:6px;font-size:24px;font-weight:800;letter-spacing:-.03em;line-height:1;color:#1D4ED8">3</div></div>
+                <div style="background:#fff;border:1px solid #ECECEF;border-radius:15px;padding:13px 15px"><div style="font-size:11.5px;font-weight:650;color:#8A8A99">Fin superado</div><div style="margin-top:6px;font-size:24px;font-weight:800;letter-spacing:-.03em;line-height:1;color:#C81E45">2</div></div>
+                <div style="background:#fff;border:1px solid #ECECEF;border-radius:15px;padding:13px 15px"><div style="font-size:11.5px;font-weight:650;color:#8A8A99">Finalizan pronto</div><div style="margin-top:6px;font-size:24px;font-weight:800;letter-spacing:-.03em;line-height:1;color:#B45309">3</div></div>
+              </div>
+
+              <section style="background:#fff;border:1px solid #ECECEF;border-radius:18px;padding:16px">
+                <div style="font-size:14.5px;font-weight:750;letter-spacing:-.02em">Distribución por estado</div>
+                <div style="margin-top:12px;display:flex;align-items:center;gap:16px">
+                  <svg width="120" height="120" viewBox="0 0 120 120" role="img" aria-label="Distribución por estado">
+                    <circle cx="60" cy="60" r="42" fill="none" stroke="#A5A5B3" stroke-width="15" stroke-dasharray="84.96 178.93" stroke-dashoffset="0" transform="rotate(-90 60 60)"></circle>
+                    <circle cx="60" cy="60" r="42" fill="none" stroke="#3B82F6" stroke-width="15" stroke-dasharray="62.97 200.92" stroke-dashoffset="-87.96" transform="rotate(-90 60 60)"></circle>
+                    <circle cx="60" cy="60" r="42" fill="none" stroke="#F59E0B" stroke-width="15" stroke-dasharray="40.98 222.91" stroke-dashoffset="-153.94" transform="rotate(-90 60 60)"></circle>
+                    <circle cx="60" cy="60" r="42" fill="none" stroke="#10B981" stroke-width="15" stroke-dasharray="62.97 200.92" stroke-dashoffset="-197.92" transform="rotate(-90 60 60)"></circle>
+                    <text x="60" y="57" text-anchor="middle" font-size="22" font-weight="800" fill="#12121A" font-family="'Plus Jakarta Sans',sans-serif">12</text>
+                    <text x="60" y="71" text-anchor="middle" font-size="8" font-weight="600" fill="#9C9CAA" font-family="'Plus Jakarta Sans',sans-serif">actividades</text>
+                  </svg>
+                  <ul style="margin:0;padding:0;list-style:none;flex:1;display:flex;flex-direction:column;gap:9px">
+                    <li style="display:flex;align-items:center;justify-content:space-between;font-size:12.5px"><span style="display:inline-flex;align-items:center;gap:8px;font-weight:550;color:#4B4B57"><span style="width:8px;height:8px;border-radius:999px;background:#A5A5B3"></span>Pendiente</span><span style="font-weight:750">4</span></li>
+                    <li style="display:flex;align-items:center;justify-content:space-between;font-size:12.5px"><span style="display:inline-flex;align-items:center;gap:8px;font-weight:550;color:#4B4B57"><span style="width:8px;height:8px;border-radius:999px;background:#3B82F6"></span>En progreso</span><span style="font-weight:750">3</span></li>
+                    <li style="display:flex;align-items:center;justify-content:space-between;font-size:12.5px"><span style="display:inline-flex;align-items:center;gap:8px;font-weight:550;color:#4B4B57"><span style="width:8px;height:8px;border-radius:999px;background:#F59E0B"></span>En revisión</span><span style="font-weight:750">2</span></li>
+                    <li style="display:flex;align-items:center;justify-content:space-between;font-size:12.5px"><span style="display:inline-flex;align-items:center;gap:8px;font-weight:550;color:#4B4B57"><span style="width:8px;height:8px;border-radius:999px;background:#10B981"></span>Cumplida</span><span style="font-weight:750">3</span></li>
+                  </ul>
+                </div>
+              </section>
+
+              <section style="background:#fff;border:1px solid #ECECEF;border-radius:18px;padding:16px">
+                <div style="font-size:14.5px;font-weight:750;letter-spacing:-.02em">Gantt por gestión</div>
+                <div style="margin-top:3px;font-size:11.5px;color:#8A8A99">Junio 2026 · desliza para ver el mes</div>
+                <div style="margin-top:13px;display:flex;flex-direction:column;gap:11px">
+                  <div>
+                    <div style="display:flex;align-items:center;gap:7px;font-size:11.5px;font-weight:750"><span style="width:7px;height:7px;border-radius:999px;background:#0ea5e9"></span>DGTAR</div>
+                    <div style="margin-top:7px;position:relative;height:24px;border-radius:8px;background:#F7F7F9"><div style="position:absolute;top:3px;left:0%;width:56.67%;height:18px;border-radius:999px;background:#3B82F6"></div></div>
+                    <div style="margin-top:4px;font-size:10.5px;color:#8A8A99">Seguimiento trimestral · 15 may – 17 jun</div>
+                  </div>
+                  <div>
+                    <div style="display:flex;align-items:center;gap:7px;font-size:11.5px;font-weight:750"><span style="width:7px;height:7px;border-radius:999px;background:#22c55e"></span>Gestión Territorial</div>
+                    <div style="margin-top:7px;position:relative;height:24px;border-radius:8px;background:#F7F7F9"><div style="position:absolute;top:3px;left:6.67%;width:60%;height:18px;border-radius:999px;background:#A5A5B3"></div></div>
+                    <div style="margin-top:4px;font-size:10.5px;color:#8A8A99">Uso de suelo Pto. Ayora · 03 jun – 20 jun</div>
+                  </div>
+                  <div>
+                    <div style="display:flex;align-items:center;gap:7px;font-size:11.5px;font-weight:750"><span style="width:7px;height:7px;border-radius:999px;background:#8b5cf6"></span>G. y Saneamiento Ambiental</div>
+                    <div style="margin-top:7px;position:relative;height:24px;border-radius:8px;background:#F7F7F9"><div style="position:absolute;top:3px;left:0%;width:100%;height:18px;border-radius:999px;background:#3B82F6"></div></div>
+                    <div style="margin-top:4px;font-size:10.5px;color:#8A8A99">Plan de manejo fase II · 01 jun – 30 jun</div>
+                  </div>
+                  <div>
+                    <div style="display:flex;align-items:center;gap:7px;font-size:11.5px;font-weight:750"><span style="width:7px;height:7px;border-radius:999px;background:#14b8a6"></span>Gestión de Riesgos</div>
+                    <div style="margin-top:7px;position:relative;height:24px;border-radius:8px;background:#F7F7F9"><div style="position:absolute;top:3px;left:3.33%;width:50%;height:18px;border-radius:999px;background:#F59E0B"></div></div>
+                    <div style="margin-top:4px;font-size:10.5px;color:#8A8A99">Protocolo de derrames · 02 jun – 16 jun</div>
+                  </div>
+                </div>
+              </section>
+
+              <section style="background:#fff;border:1px solid #ECECEF;border-radius:18px;padding:16px">
+                <div style="font-size:14.5px;font-weight:750;letter-spacing:-.02em">Cumplimiento por funcionario</div>
+                <div style="margin-top:13px;display:flex;flex-direction:column;gap:13px">
+                  <div>
+                    <div style="display:flex;align-items:center;gap:10px"><span style="width:28px;height:28px;border-radius:999px;background:linear-gradient(135deg,#0ea5e9,#0284c7);color:#fff;display:flex;align-items:center;justify-content:center;font-size:10.5px;font-weight:700">AC</span><div style="flex:1"><div style="font-size:12.5px;font-weight:650">Andrea Cevallos</div><div style="font-size:10.5px;color:#9C9CAA">3 asignadas · 1 cumplida</div></div><span style="font-size:12.5px;font-weight:750">33%</span></div>
+                    <div style="margin-top:7px;height:6px;border-radius:999px;background:#F2F2F5;overflow:hidden"><div style="width:33%;height:100%;border-radius:999px;background:#F43F5E"></div></div>
+                  </div>
+                  <div>
+                    <div style="display:flex;align-items:center;gap:10px"><span style="width:28px;height:28px;border-radius:999px;background:linear-gradient(135deg,#8b5cf6,#7c3aed);color:#fff;display:flex;align-items:center;justify-content:center;font-size:10.5px;font-weight:700">LN</span><div style="flex:1"><div style="font-size:12.5px;font-weight:650">Lucía Naranjo</div><div style="font-size:10.5px;color:#9C9CAA">2 asignadas · 1 cumplida</div></div><span style="font-size:12.5px;font-weight:750">50%</span></div>
+                    <div style="margin-top:7px;height:6px;border-radius:999px;background:#F2F2F5;overflow:hidden"><div style="width:50%;height:100%;border-radius:999px;background:#F59E0B"></div></div>
+                  </div>
+                  <div>
+                    <div style="display:flex;align-items:center;gap:10px"><span style="width:28px;height:28px;border-radius:999px;background:linear-gradient(135deg,#a855f7,#9333ea);color:#fff;display:flex;align-items:center;justify-content:center;font-size:10.5px;font-weight:700">PJ</span><div style="flex:1"><div style="font-size:12.5px;font-weight:650">Paola Jaramillo</div><div style="font-size:10.5px;color:#9C9CAA">1 asignada · 1 cumplida</div></div><span style="font-size:12.5px;font-weight:750">100%</span></div>
+                    <div style="margin-top:7px;height:6px;border-radius:999px;background:#F2F2F5;overflow:hidden"><div style="width:100%;height:100%;border-radius:999px;background:#10B981"></div></div>
+                  </div>
+                  <div>
+                    <div style="display:flex;align-items:center;gap:10px"><span style="width:28px;height:28px;border-radius:999px;background:linear-gradient(135deg,#14b8a6,#0d9488);color:#fff;display:flex;align-items:center;justify-content:center;font-size:10.5px;font-weight:700">DO</span><div style="flex:1"><div style="font-size:12.5px;font-weight:650">Daniel Ortega</div><div style="font-size:10.5px;color:#9C9CAA">2 asignadas · 1 vencida</div></div><span style="font-size:12.5px;font-weight:750">0%</span></div>
+                    <div style="margin-top:7px;height:6px;border-radius:999px;background:#F2F2F5;overflow:hidden"><div style="width:2%;height:100%;border-radius:999px;background:#F43F5E"></div></div>
+                  </div>
+                </div>
+              </section>
+            </div>
+          </div>
+        </x-import>
+      </div>
+
+    </div>
+  </div>
+</div>
+</x-dc>
+</body>
+</html>
