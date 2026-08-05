@@ -59,7 +59,7 @@ type Tab = "kanban" | "stats" | "catalogs" | "users";
 type BoardView = "columns" | "week" | "month";
 type LoadState = "loading" | "ready" | "error";
 type SyncState = "idle" | "saving" | "saved" | "error";
-type GoogleBusyState = "status" | "sync" | "disconnect" | null;
+type GoogleBusyState = "status" | "sync" | "disconnect" | "preferences" | null;
 type HeaderMenu = "google" | "perfil" | null;
 
 interface GoogleStatus {
@@ -67,7 +67,18 @@ interface GoogleStatus {
   googleEmail: string | null;
   lastSyncedAt: string | null;
   lastError: string | null;
+  syncReuniones: boolean;
+  syncAsignaciones: boolean;
 }
+
+const GOOGLE_DISCONNECTED_STATUS: GoogleStatus = {
+  connected: false,
+  googleEmail: null,
+  lastSyncedAt: null,
+  lastError: null,
+  syncReuniones: true,
+  syncAsignaciones: true,
+};
 
 interface Settings {
   useAvatars: boolean;
@@ -807,7 +818,7 @@ function Header({
 
   return (
     <header className="sticky top-0 z-30 border-b border-line-strong bg-app/[.86] backdrop-blur-[14px]">
-      <div className="mx-auto flex max-w-[1500px] flex-wrap items-center gap-x-3 gap-y-2 px-3 py-2 sm:px-6 sm:py-3 xl:flex-nowrap xl:gap-[18px]">
+      <div className="mx-auto flex w-full max-w-[1500px] flex-wrap items-center gap-x-3 gap-y-2 px-3 py-2 sm:px-6 sm:py-3 xl:flex-nowrap xl:gap-[18px]">
         {/* marca */}
         <div className="order-1 flex shrink-0 items-center gap-[11px] xl:order-none">
           <div className="flex h-[38px] w-[38px] items-center justify-center rounded-xl bg-ink text-white shadow-[0_2px_6px_rgba(18,18,26,.18)]">
@@ -823,7 +834,7 @@ function Header({
 
         {/* navegación */}
         <nav
-          className="order-3 flex w-full min-w-0 items-center gap-1 overflow-x-auto rounded-full bg-track p-1 xl:order-none xl:w-auto xl:shrink-0 xl:overflow-visible"
+          className="order-3 flex w-full min-w-0 items-center gap-1 overflow-x-auto rounded-full bg-track p-1 xl:order-none xl:w-auto"
           aria-label="Navegación principal"
         >
           <TabBtn active={tab === "kanban"} onClick={() => setTab("kanban")}>
@@ -845,7 +856,7 @@ function Header({
         </nav>
 
         {/* buscador — comparte estado con el del Tablero */}
-        <div className="order-4 flex w-full min-w-0 justify-center xl:order-none xl:min-w-[220px] xl:flex-1">
+        <div className="order-4 flex w-full min-w-0 justify-center xl:order-none xl:flex-1">
           <HeaderSearch query={query} setQuery={setQuery} />
         </div>
 
@@ -857,17 +868,6 @@ function Header({
             open={menu === "google"}
             setOpen={(open) => setMenu(open ? "google" : null)}
           />
-          <Button
-            variant="outline"
-            shape="pill"
-            className="w-11 px-0 sm:w-auto sm:px-[13px]"
-            onClick={onExport}
-            title="Exportar actividades"
-            aria-label="Exportar actividades"
-          >
-            <Icon name="download" size={14} />
-            <span className="hidden sm:inline">Exportar</span>
-          </Button>
           <Button
             shape="pill"
             className="w-11 px-0 sm:w-auto sm:px-[15px]"
@@ -882,6 +882,7 @@ function Header({
             currentUser={currentUser}
             funcionarios={funcionarios}
             gestiones={gestiones}
+            onExport={onExport}
             open={menu === "perfil"}
             setOpen={(open) => setMenu(open ? "perfil" : null)}
           />
@@ -948,12 +949,14 @@ function ProfileMenu({
   currentUser,
   funcionarios,
   gestiones,
+  onExport,
   open,
   setOpen,
 }: {
   currentUser: AuthUser;
   funcionarios: Funcionario[];
   gestiones: Gestion[];
+  onExport: () => void;
   open: boolean;
   setOpen: (open: boolean) => void;
 }) {
@@ -1009,15 +1012,32 @@ function ProfileMenu({
               </Badge>
             )}
           </div>
-          <form action="/api/auth/logout" method="post" className="border-t border-line-soft pt-1.5">
+          <div className="border-t border-line-soft pt-1.5">
             <button
-              type="submit"
-              className="flex w-full items-center gap-2.5 rounded-btn px-[11px] py-2.5 text-left text-[13px] font-semibold text-estado-vencida-fg transition-colors hover:bg-estado-vencida-bg"
+              type="button"
+              /* Abre primero y cierra después: así no depende del orden de
+                 desmontaje del popover. */
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onExport();
+                setOpen(false);
+              }}
+              className="flex w-full items-center gap-2.5 rounded-btn px-[11px] py-2.5 text-left text-[13px] font-semibold text-ink-soft transition-colors hover:bg-surface-subtle hover:text-ink"
             >
-              <Icon name="logout" size={15} />
-              Cerrar sesión
+              <Icon name="download" size={15} className="text-ink-faint" />
+              Exportar actividades
             </button>
-          </form>
+            <form action="/api/auth/logout" method="post">
+              <button
+                type="submit"
+                className="flex w-full items-center gap-2.5 rounded-btn px-[11px] py-2.5 text-left text-[13px] font-semibold text-estado-vencida-fg transition-colors hover:bg-estado-vencida-bg"
+              >
+                <Icon name="logout" size={15} />
+                Cerrar sesión
+              </button>
+            </form>
+          </div>
         </div>
       )}
     </div>
@@ -1071,7 +1091,7 @@ function GoogleCalendarControl({
       setStatus(json);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error desconocido");
-      setStatus({ connected: false, googleEmail: null, lastSyncedAt: null, lastError: null });
+      setStatus(GOOGLE_DISCONNECTED_STATUS);
     } finally {
       setBusy((state) => (state === "status" ? null : state));
     }
@@ -1090,7 +1110,7 @@ function GoogleCalendarControl({
       } catch (err) {
         if (!cancelled) {
           setError(err instanceof Error ? err.message : "Error desconocido");
-          setStatus({ connected: false, googleEmail: null, lastSyncedAt: null, lastError: null });
+          setStatus(GOOGLE_DISCONNECTED_STATUS);
         }
       } finally {
         if (!cancelled) setBusy(null);
@@ -1116,6 +1136,36 @@ function GoogleCalendarControl({
     }
   }
 
+  // Los dos tipos son independientes, pero al menos uno debe quedar marcado:
+  // sin ninguno no habria nada que vincular en Google Calendar.
+  async function togglePreference(key: "syncReuniones" | "syncAsignaciones") {
+    if (!status?.connected) return;
+    const next = { syncReuniones: status.syncReuniones, syncAsignaciones: status.syncAsignaciones };
+    next[key] = !next[key];
+    if (!next.syncReuniones && !next.syncAsignaciones) {
+      setError("Selecciona al menos un tipo de actividad para sincronizar.");
+      return;
+    }
+    setBusy("preferences");
+    setError("");
+    setStatus({ ...status, ...next });
+    try {
+      const res = await fetch("/api/google/preferences", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(next),
+      });
+      const json = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(json?.error || res.statusText);
+      setStatus(json);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Error desconocido");
+      await loadStatus();
+    } finally {
+      setBusy(null);
+    }
+  }
+
   async function disconnect() {
     if (!window.confirm("¿Desvincular Google Calendar de este usuario?")) return;
     setBusy("disconnect");
@@ -1124,7 +1174,7 @@ function GoogleCalendarControl({
       const res = await fetch("/api/google/disconnect", { method: "POST" });
       const json = await res.json().catch(() => null);
       if (!res.ok) throw new Error(json?.error || res.statusText);
-      setStatus({ connected: false, googleEmail: null, lastSyncedAt: null, lastError: null });
+      setStatus(GOOGLE_DISCONNECTED_STATUS);
       setOpen(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error desconocido");
@@ -1198,6 +1248,31 @@ function GoogleCalendarControl({
           <div className="mt-2.5 truncate text-[13.5px] font-bold tracking-[-.01em]">{googleEmail}</div>
           <div className="mt-1 text-[11.5px] font-medium text-ink-faint">
             Última sincronización: {formatSyncDate(status.lastSyncedAt)}
+          </div>
+          <div className="mt-[13px] space-y-1.5">
+            <div className="text-[10px] font-bold uppercase tracking-[.06em] text-ink-label">
+              Sincronizar
+            </div>
+            {(
+              [
+                ["syncReuniones", "Reuniones"],
+                ["syncAsignaciones", "Asignaciones"],
+              ] as const
+            ).map(([key, label]) => (
+              <label
+                key={key}
+                className="flex cursor-pointer items-center gap-2 text-[12.5px] font-medium"
+              >
+                <input
+                  type="checkbox"
+                  className="h-3.5 w-3.5 accent-accent"
+                  checked={status[key]}
+                  disabled={busy === "preferences"}
+                  onChange={() => togglePreference(key)}
+                />
+                {label}
+              </label>
+            ))}
           </div>
           {(status.lastError || error) && (
             <div className="mt-2.5 rounded-btn bg-estado-vencida-bg p-2 text-[11.5px] font-medium text-estado-vencida-fg">

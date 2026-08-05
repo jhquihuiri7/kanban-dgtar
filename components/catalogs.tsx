@@ -106,7 +106,7 @@ type Dialogo =
   | { tipo: "gestion-editar"; gestion: Gestion }
   | { tipo: "competencia-nueva" }
   | { tipo: "competencia-editar"; competencia: Competencia }
-  | { tipo: "entregable-nuevo" }
+  | { tipo: "entregable-nuevo"; competencia: Competencia }
   | { tipo: "entregable-editar"; entregable: Entregable }
   | null;
 
@@ -133,10 +133,21 @@ export function CatalogsView({
 }) {
   const [gestionSel, setGestionSel] = useState<string | null>(null);
   const [dialogo, setDialogo] = useState<Dialogo>(null);
+  const [plegadas, setPlegadas] = useState<Record<string, true>>({});
 
   const activa = gestiones.find((g) => g.id === gestionSel) ?? gestiones[0] ?? null;
   const misCompetencias = activa ? competencias.filter((c) => c.gestionId === activa.id) : [];
-  const misEntregables = activa ? entregables.filter((e) => e.gestionId === activa.id) : [];
+  const idsCompetencias = new Set(misCompetencias.map((c) => c.id));
+  const misEntregables = entregables.filter((e) => idsCompetencias.has(e.competenciaId));
+
+  function togglePlegada(id: string) {
+    setPlegadas((prev) => {
+      const next = { ...prev };
+      if (next[id]) delete next[id];
+      else next[id] = true;
+      return next;
+    });
+  }
 
   function crearGestion(nombre: string) {
     const nueva: Gestion = {
@@ -153,29 +164,48 @@ export function CatalogsView({
       window.alert(`"${g.nombre}" tiene funcionarios asignados. Reasígnalos a otra gestión antes de eliminarla.`);
       return;
     }
+    const competenciaIds = new Set(competencias.filter((c) => c.gestionId === g.id).map((c) => c.id));
+    // Borrar la gestión arrastra sus competencias, así que rige la misma regla:
+    // no puede llevarse por delante ninguna actividad.
+    const ligadas = activities.filter((a) => competenciaIds.has(a.competenciaId)).length;
+    if (ligadas > 0) {
+      window.alert(
+        `"${g.nombre}" tiene ${ligadas} ${ligadas === 1 ? "actividad" : "actividades"} en sus competencias. ` +
+          `Reasígnalas a otra competencia antes de eliminar la gestión.`,
+      );
+      return;
+    }
     if (
       !window.confirm(
-        `¿Eliminar la gestión "${g.nombre}"? También se eliminarán sus competencias y entregables, y las actividades ligadas a esas competencias.`,
+        `¿Eliminar la gestión "${g.nombre}"? También se eliminarán sus competencias y entregables.`,
       )
     ) {
       return;
     }
-    const competenciaIds = new Set(competencias.filter((c) => c.gestionId === g.id).map((c) => c.id));
     setGestiones((prev) => prev.filter((item) => item.id !== g.id));
     setCompetencias((prev) => prev.filter((c) => c.gestionId !== g.id));
-    setEntregables((prev) => prev.filter((e) => e.gestionId !== g.id));
-    setActivities((prev) => prev.filter((a) => !competenciaIds.has(a.competenciaId)));
+    setEntregables((prev) => prev.filter((e) => !competenciaIds.has(e.competenciaId)));
     if (gestionSel === g.id) setGestionSel(null);
   }
 
+  // Una actividad no puede quedarse sin competencia, así que borrar la
+  // competencia nunca borra actividades: se bloquea hasta reasignarlas.
   function borrarCompetencia(c: Competencia) {
     const ligadas = activities.filter((a) => a.competenciaId === c.id).length;
-    const aviso = ligadas
-      ? `¿Eliminar la competencia "${c.nombre}"? Se eliminarán también sus ${ligadas} actividades.`
+    if (ligadas > 0) {
+      window.alert(
+        `"${c.nombre}" tiene ${ligadas} ${ligadas === 1 ? "actividad asignada" : "actividades asignadas"}. ` +
+          `Reasígnalas a otra competencia desde el panel de detalle antes de eliminarla.`,
+      );
+      return;
+    }
+    const suyos = entregables.filter((e) => e.competenciaId === c.id).length;
+    const aviso = suyos
+      ? `¿Eliminar la competencia "${c.nombre}"? Se eliminarán también sus ${suyos} ${suyos === 1 ? "entregable" : "entregables"}.`
       : `¿Eliminar la competencia "${c.nombre}"?`;
     if (!window.confirm(aviso)) return;
     setCompetencias((prev) => prev.filter((item) => item.id !== c.id));
-    setActivities((prev) => prev.filter((a) => a.competenciaId !== c.id));
+    setEntregables((prev) => prev.filter((e) => e.competenciaId !== c.id));
   }
 
   function borrarEntregable(e: Entregable) {
@@ -212,7 +242,8 @@ export function CatalogsView({
             gestiones.map((g) => {
               const esActiva = activa?.id === g.id;
               const nComp = competencias.filter((c) => c.gestionId === g.id).length;
-              const nEnt = entregables.filter((e) => e.gestionId === g.id).length;
+              const compIds = new Set(competencias.filter((c) => c.gestionId === g.id).map((c) => c.id));
+              const nEnt = entregables.filter((e) => compIds.has(e.competenciaId)).length;
               return (
                 <button
                   key={g.id}
@@ -250,7 +281,7 @@ export function CatalogsView({
         </section>
 
         {/* Detalle de la gestión activa */}
-        <section className="overflow-hidden rounded-section border border-line bg-white shadow-card">
+        <section className="min-w-0 overflow-hidden rounded-section border border-line bg-white shadow-card">
           {!activa ? (
             <div className="px-5 py-10 text-center text-[12.5px] font-semibold text-ink-ghost">
               Crea una gestión para empezar.
@@ -300,85 +331,117 @@ export function CatalogsView({
                 </div>
               ) : (
                 misCompetencias.map((c) => {
+                  const codigo = competenciaCodigo(c.id, competencias);
+                  const suyos = entregables.filter((e) => e.competenciaId === c.id);
                   const nActividades = activities.filter((a) => a.competenciaId === c.id).length;
+                  const abierta = !plegadas[c.id];
                   return (
-                    <div key={c.id} className="flex items-center gap-[11px] border-t border-line-soft px-5 py-3">
-                      <span className="shrink-0 rounded-[7px] bg-accent-soft px-2 py-0.5 text-[10px] font-extrabold text-accent">
-                        {competenciaCodigo(c.id, competencias)}
-                      </span>
-                      <div className="min-w-0 flex-1">
-                        <div className="text-[13.5px] font-bold leading-[1.3] tracking-[-.01em]">{c.nombre}</div>
-                        <div className="mt-[3px] text-[11px] font-medium text-ink-ghost">
-                          {nActividades} {nActividades === 1 ? "actividad" : "actividades"}
+                    <div key={c.id} className="border-t border-line-soft">
+                      {/* La fila entera pliega; los botones de acción cortan la
+                          propagación o al pulsarlos se plegaría la competencia. */}
+                      <div
+                        role="button"
+                        tabIndex={0}
+                        onClick={() => togglePlegada(c.id)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            togglePlegada(c.id);
+                          }
+                        }}
+                        aria-expanded={abierta}
+                        className="flex cursor-pointer items-center gap-[11px] px-5 py-3 transition-colors hover:bg-surface-subtle"
+                      >
+                        <span
+                          className={cn(
+                            "flex h-4 w-4 shrink-0 items-center justify-center text-ink-faint transition-transform duration-[180ms]",
+                            abierta && "rotate-90",
+                          )}
+                        >
+                          <Icon name="chevronRight" size={12} />
+                        </span>
+                        <span className="shrink-0 rounded-[7px] bg-accent-soft px-2 py-0.5 text-[10px] font-extrabold text-accent">
+                          {codigo}
+                        </span>
+                        <div className="min-w-0 flex-1">
+                          <div className="text-[13.5px] font-bold leading-[1.3] tracking-[-.01em]">{c.nombre}</div>
+                          <div className="mt-[3px] text-[11px] font-medium text-ink-ghost">
+                            {suyos.length} {suyos.length === 1 ? "entregable" : "entregables"} ·{" "}
+                            {nActividades} {nActividades === 1 ? "actividad" : "actividades"}
+                          </div>
+                        </div>
+                        <div className="flex shrink-0 gap-[7px]">
+                          <button
+                            type="button"
+                            aria-label={`Editar ${codigo}`}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setDialogo({ tipo: "competencia-editar", competencia: c });
+                            }}
+                            className={accionChica}
+                          >
+                            <Icon name="edit" size={13} />
+                          </button>
+                          <button
+                            type="button"
+                            aria-label={`Borrar ${codigo}`}
+                            title="Elimina también sus entregables y actividades"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              borrarCompetencia(c);
+                            }}
+                            className={borrarChico}
+                          >
+                            <Icon name="trash" size={13} />
+                          </button>
                         </div>
                       </div>
-                      <div className="flex shrink-0 gap-[7px]">
-                        <button
-                          type="button"
-                          aria-label="Editar competencia"
-                          onClick={() => setDialogo({ tipo: "competencia-editar", competencia: c })}
-                          className={accionChica}
-                        >
-                          <Icon name="edit" size={13} />
-                        </button>
-                        <button
-                          type="button"
-                          aria-label="Borrar competencia"
-                          title="Elimina también sus actividades"
-                          onClick={() => borrarCompetencia(c)}
-                          className={borrarChico}
-                        >
-                          <Icon name="trash" size={13} />
-                        </button>
-                      </div>
+
+                      {abierta && (
+                        <div className="pb-3.5 pl-[60px] pr-5">
+                          <div className="flex flex-col gap-[7px] border-l-[1.5px] border-dashed border-line-dashed pl-[18px]">
+                            {suyos.map((e) => (
+                              <div
+                                key={e.id}
+                                className="flex items-center gap-2.5 rounded-input border border-line-soft bg-surface-subtle px-3 py-2.5"
+                              >
+                                <Icon name="fileText" size={14} className="shrink-0 text-ink-ghost" strokeWidth={1.9} />
+                                <span className="min-w-0 flex-1 text-[12.5px] font-[650]">{e.nombre}</span>
+                                <div className="flex shrink-0 gap-1.5">
+                                  <button
+                                    type="button"
+                                    aria-label="Editar entregable"
+                                    onClick={() => setDialogo({ tipo: "entregable-editar", entregable: e })}
+                                    className="flex h-[27px] w-[27px] items-center justify-center rounded-lg border border-line bg-white text-ink-muted transition-colors hover:bg-app"
+                                  >
+                                    <Icon name="edit" size={12} />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    aria-label="Borrar entregable"
+                                    onClick={() => borrarEntregable(e)}
+                                    className="flex h-[27px] w-[27px] items-center justify-center rounded-lg bg-estado-vencida text-white transition-colors hover:bg-[#E11D48]"
+                                  >
+                                    <Icon name="trash" size={12} />
+                                  </button>
+                                </div>
+                              </div>
+                            ))}
+                            <button
+                              type="button"
+                              onClick={() => setDialogo({ tipo: "entregable-nuevo", competencia: c })}
+                              className="flex items-center gap-[7px] rounded-input border-[1.5px] border-dashed border-line-hover bg-white px-3 py-2.5 text-[12px] font-[650] text-ink-muted transition-colors hover:border-[#B9A6F0] hover:bg-[#FCFAFF] hover:text-accent"
+                            >
+                              <Icon name="plus" size={13} />
+                              Nuevo entregable en {codigo}
+                            </button>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   );
                 })
               )}
-
-              {/* Entregables: en este modelo cuelgan de la gestión, no de la competencia. */}
-              <div className="border-t border-line-soft bg-surface-subtle px-5 py-4">
-                <div className="text-[10px] font-[750] uppercase tracking-[.06em] text-ink-label">
-                  Entregables de la gestión
-                </div>
-                <div className="mt-3 flex flex-col gap-[7px] border-l-[1.5px] border-dashed border-line-dashed pl-[18px]">
-                  {misEntregables.map((e) => (
-                    <div
-                      key={e.id}
-                      className="flex items-center gap-2.5 rounded-input border border-line-soft bg-white px-3 py-2.5"
-                    >
-                      <Icon name="fileText" size={14} className="shrink-0 text-ink-ghost" strokeWidth={1.9} />
-                      <span className="min-w-0 flex-1 truncate text-[12.5px] font-[650]">{e.nombre}</span>
-                      <div className="flex shrink-0 gap-1.5">
-                        <button
-                          type="button"
-                          aria-label="Editar entregable"
-                          onClick={() => setDialogo({ tipo: "entregable-editar", entregable: e })}
-                          className="flex h-[27px] w-[27px] items-center justify-center rounded-lg border border-line bg-white text-ink-muted transition-colors hover:bg-app"
-                        >
-                          <Icon name="edit" size={12} />
-                        </button>
-                        <button
-                          type="button"
-                          aria-label="Borrar entregable"
-                          onClick={() => borrarEntregable(e)}
-                          className="flex h-[27px] w-[27px] items-center justify-center rounded-lg bg-estado-vencida text-white transition-colors hover:bg-[#E11D48]"
-                        >
-                          <Icon name="trash" size={12} />
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                  <button
-                    type="button"
-                    onClick={() => setDialogo({ tipo: "entregable-nuevo" })}
-                    className="flex items-center gap-[7px] rounded-input border-[1.5px] border-dashed border-line-hover bg-white px-3 py-2.5 text-[12px] font-[650] text-ink-muted transition-colors hover:border-[#B9A6F0] hover:bg-[#FCFAFF] hover:text-accent"
-                  >
-                    <Icon name="plus" size={13} />
-                    Nuevo entregable en {activa.nombre}
-                  </button>
-                </div>
-              </div>
             </>
           )}
         </section>
@@ -446,14 +509,15 @@ export function CatalogsView({
       {dialogo?.tipo === "entregable-nuevo" && activa && (
         <NameDialog
           title="Nuevo entregable"
-          context={`Pertenecerá a ${activa.nombre}`}
+          context={`Pertenecerá a ${competenciaCodigo(dialogo.competencia.id, competencias)} · ${dialogo.competencia.nombre}`}
           initialValue=""
           placeholder="p. ej. Informe trimestral"
           onClose={() => setDialogo(null)}
           onSave={(nombre) => {
+            const competenciaId = dialogo.competencia.id;
             setEntregables((prev) => [
               ...prev,
-              { id: nextCatalogId(entregables, "e"), nombre, gestionId: activa.id },
+              { id: nextCatalogId(entregables, "e"), nombre, competenciaId },
             ]);
             setDialogo(null);
           }}
@@ -463,7 +527,7 @@ export function CatalogsView({
       {dialogo?.tipo === "entregable-editar" && activa && (
         <NameDialog
           title="Editar entregable"
-          context={`Entregable de ${activa.nombre}`}
+          context={`${competenciaCodigo(dialogo.entregable.competenciaId, competencias)} · ${activa.nombre}`}
           initialValue={dialogo.entregable.nombre}
           onClose={() => setDialogo(null)}
           onSave={(nombre) => {

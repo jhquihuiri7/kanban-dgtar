@@ -114,7 +114,9 @@ export function NewActivityDialog({
   const [resultadosAlcanzados, setResultadosAlcanzados] = useState("");
   const [funcionarioId, setFuncionarioId] = useState(funcionariosDisponibles[0]?.id || "");
   const [participantesIds, setParticipantesIds] = useState<string[]>([]);
-  const [gestionId, setGestionId] = useState(gestiones[0]?.id || "");
+  // Los tres campos del catálogo arrancan vacíos a propósito: obligan a elegir
+  // en vez de aceptar el primero de la lista sin que el usuario lo mire.
+  const [gestionId, setGestionId] = useState("");
   const [competenciaId, setCompetenciaId] = useState("");
   const [entregableId, setEntregableId] = useState("");
   const [fechaInicio, setFechaInicio] = useState(() => todayIsoForZone(ZONE_TZ));
@@ -146,7 +148,8 @@ export function NewActivityDialog({
   const isBusy = creationState === "saving" || creationState === "verifying";
 
   const competenciasDisponibles = competencias.filter((c) => c.gestionId === gestionId);
-  const entregablesDisponibles = entregables.filter((e) => e.gestionId === gestionId);
+  // El entregable cuelga de la competencia, así que la lista sigue a esta.
+  const entregablesDisponibles = entregables.filter((e) => e.competenciaId === competenciaId);
 
   useEffect(() => {
     if (!open) {
@@ -238,8 +241,6 @@ export function NewActivityDialog({
       setRestoredDraft(true);
     } else {
       const initialFuncionarioId = isAdmin ? funcionarios[0]?.id || "" : currentUser.funcionarioId || "";
-      const initialFuncionario = funcionarios.find((f) => f.id === initialFuncionarioId);
-      const initialGestionId = initialFuncionario?.gestionId || gestiones[0]?.id || "";
       const initialRequestId = createId("activity_request");
 
       setTipo("asignacion");
@@ -250,8 +251,8 @@ export function NewActivityDialog({
       setResultadosAlcanzados("");
       setFuncionarioId(initialFuncionarioId);
       setParticipantesIds([]);
-      setGestionId(initialGestionId);
-      setCompetenciaId(competencias.find((c) => c.gestionId === initialGestionId)?.id || "");
+      setGestionId("");
+      setCompetenciaId("");
       setEntregableId("");
       const initialDay = todayIsoForZone(ZONE_TZ);
       setFechaInicio(initialDay);
@@ -388,9 +389,12 @@ export function NewActivityDialog({
   const effectiveEstado = estado;
   const esReunion = effectiveTipo === "reunion";
   const currentFuncionario = funcionariosDisponibles.find((f) => f.id === currentUser.funcionarioId);
+  // Sin entregables tampoco se puede crear: los tres niveles del catálogo son
+  // obligatorios en el formulario.
+  const catalogosBase = gestiones.length === 0 || competencias.length === 0 || entregables.length === 0;
   const catalogosVacios = isAdmin
-    ? funcionariosDisponibles.length === 0 || gestiones.length === 0 || competencias.length === 0
-    : !currentUser.funcionarioId || gestiones.length === 0 || competencias.length === 0;
+    ? funcionariosDisponibles.length === 0 || catalogosBase
+    : !currentUser.funcionarioId || catalogosBase;
   const estadoDef = ESTADOS.find((e) => e.id === effectiveEstado);
 
   function clearValidationError(...fields: ValidationField[]) {
@@ -416,8 +420,8 @@ export function NewActivityDialog({
     if (!competenciaId || !competenciasDisponibles.some((competencia) => competencia.id === competenciaId)) {
       next.competenciaId = "Selecciona una competencia válida para esta gestión.";
     }
-    if (entregableId && !entregablesDisponibles.some((entregable) => entregable.id === entregableId)) {
-      next.entregableId = "Selecciona un entregable válido o deja este campo vacío.";
+    if (!entregableId || !entregablesDisponibles.some((entregable) => entregable.id === entregableId)) {
+      next.entregableId = "Selecciona un entregable válido para esta competencia.";
     }
     if (esReunion) {
       if (!isCalendarDate(fechaReunion)) next.fechaReunion = "Selecciona una fecha válida para la reunión.";
@@ -735,11 +739,14 @@ export function NewActivityDialog({
                   onChange={(e) => {
                     const nextGestionId = e.target.value;
                     setGestionId(nextGestionId);
-                    setCompetenciaId(competencias.find((competencia) => competencia.gestionId === nextGestionId)?.id || "");
+                    // Competencia y entregable cuelgan de la gestión: al
+                    // cambiarla se limpian para que se elijan de nuevo.
+                    setCompetenciaId("");
                     setEntregableId("");
                     clearValidationError("gestionId", "competenciaId", "entregableId");
                   }}
                 >
+                  <option value="">Selecciona una gestión</option>
                   {gestiones.map((g) => (
                     <option key={g.id} value={g.id}>
                       {g.nombre}
@@ -790,7 +797,9 @@ export function NewActivityDialog({
                   className={validationErrors.competenciaId ? "!border-estado-vencida focus-visible:!ring-estado-vencida/20" : ""}
                   onChange={(e) => {
                     setCompetenciaId(e.target.value);
-                    clearValidationError("competenciaId");
+                    // El entregable pertenece a la competencia: al cambiarla, se limpia.
+                    setEntregableId("");
+                    clearValidationError("competenciaId", "entregableId");
                   }}
                 >
                   <option value="">Selecciona una competencia</option>
@@ -800,36 +809,33 @@ export function NewActivityDialog({
                     </option>
                   ))}
                 </Select>
-                {competenciasDisponibles.length === 0 && !validationErrors.competenciaId && (
+                {gestionId && competenciasDisponibles.length === 0 && !validationErrors.competenciaId && (
                   <p className="text-[11px] font-semibold text-estado-revision-fg">Esta gestión no tiene competencias disponibles.</p>
                 )}
                 <FieldError id="competencia-error" message={validationErrors.competenciaId} />
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="entregable">Entregable (opcional)</Label>
-                {entregablesDisponibles.length > 0 ? (
-                  <Select
-                    id="entregable"
-                    value={entregableId}
-                    aria-invalid={Boolean(validationErrors.entregableId)}
-                    aria-describedby={validationErrors.entregableId ? "entregable-error" : undefined}
-                    className={validationErrors.entregableId ? "!border-estado-vencida focus-visible:!ring-estado-vencida/20" : ""}
-                    onChange={(e) => {
-                      setEntregableId(e.target.value);
-                      clearValidationError("entregableId");
-                    }}
-                  >
-                    <option value="">Sin entregable</option>
-                    {entregablesDisponibles.map((en) => (
-                      <option key={en.id} value={en.id}>
-                        {en.nombre}
-                      </option>
-                    ))}
-                  </Select>
-                ) : (
-                  <div className="flex h-auto min-h-11 items-center rounded-input border border-line-soft bg-surface-subtle px-3 py-2 text-[13px] text-ink-ghost sm:h-[38px] sm:min-h-0 sm:py-0">
-                    Esta gestión no tiene entregables.
-                  </div>
+                <Label htmlFor="entregable">Entregable</Label>
+                <Select
+                  id="entregable"
+                  value={entregableId}
+                  aria-invalid={Boolean(validationErrors.entregableId)}
+                  aria-describedby={validationErrors.entregableId ? "entregable-error" : undefined}
+                  className={validationErrors.entregableId ? "!border-estado-vencida focus-visible:!ring-estado-vencida/20" : ""}
+                  onChange={(e) => {
+                    setEntregableId(e.target.value);
+                    clearValidationError("entregableId");
+                  }}
+                >
+                  <option value="">Selecciona un entregable</option>
+                  {entregablesDisponibles.map((en) => (
+                    <option key={en.id} value={en.id}>
+                      {en.nombre}
+                    </option>
+                  ))}
+                </Select>
+                {competenciaId && entregablesDisponibles.length === 0 && !validationErrors.entregableId && (
+                  <p className="text-[11px] font-semibold text-estado-revision-fg">Esta competencia no tiene entregables disponibles.</p>
                 )}
                 <FieldError id="entregable-error" message={validationErrors.entregableId} />
               </div>

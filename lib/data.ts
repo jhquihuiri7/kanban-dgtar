@@ -23,7 +23,7 @@ export interface Gestion {
 export interface Entregable {
   id: string;
   nombre: string;
-  gestionId: string;
+  competenciaId: string;
 }
 
 export interface Funcionario {

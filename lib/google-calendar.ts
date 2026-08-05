@@ -35,6 +35,13 @@ export interface GoogleConnectionStatus {
   googleEmail: string | null;
   lastSyncedAt: string | null;
   lastError: string | null;
+  syncReuniones: boolean;
+  syncAsignaciones: boolean;
+}
+
+export interface GoogleSyncPreferences {
+  syncReuniones: boolean;
+  syncAsignaciones: boolean;
 }
 
 interface GoogleSyncAccount {
@@ -43,6 +50,8 @@ interface GoogleSyncAccount {
   funcionarioId: string | null;
   googleEmail: string;
   refreshTokenEncrypted: string;
+  syncReuniones: boolean;
+  syncAsignaciones: boolean;
 }
 
 interface EventMapping {
@@ -454,7 +463,15 @@ function mapAccount(row: Row): GoogleSyncAccount {
     funcionarioId: (row.funcionario_id as string | null) ?? null,
     googleEmail: row.google_email as string,
     refreshTokenEncrypted: row.refresh_token_encrypted as string,
+    syncReuniones: row.sync_reuniones !== false,
+    syncAsignaciones: row.sync_asignaciones !== false,
   };
+}
+
+// Un tipo de actividad solo se envia a Google si su casilla esta marcada; al
+// desmarcarla el evento deja de ser visible y se elimina en el proximo sync.
+function syncsActivityType(account: GoogleSyncAccount, tipo: string): boolean {
+  return tipo === "reunion" ? account.syncReuniones : account.syncAsignaciones;
 }
 
 async function listGoogleAccounts(userIds?: string[]): Promise<GoogleSyncAccount[]> {
@@ -464,6 +481,7 @@ async function listGoogleAccounts(userIds?: string[]): Promise<GoogleSyncAccount
   if (userIds?.length) params.push(userIds);
   const result = await getPool().query(
     `SELECT ga.user_id, ga.google_email, ga.refresh_token_encrypted,
+            ga.sync_reuniones, ga.sync_asignaciones,
             u.email AS app_email, u.funcionario_id
      FROM google_accounts ga
      JOIN usuarios u ON u.id = ga.user_id
@@ -551,8 +569,10 @@ async function syncAccount(
   const accessToken = await refreshAccessToken(account);
   const mappings = await listEventMappings(account.userId);
   const funcionarioIds = funcionarioIdsForAccount(account, next.funcionarios);
-  const visibleActivities = next.actividades.filter((activity) =>
-    visibleForFuncionarioIds(funcionarioIds, activity),
+  const visibleActivities = next.actividades.filter(
+    (activity) =>
+      syncsActivityType(account, activity.tipo) &&
+      visibleForFuncionarioIds(funcionarioIds, activity),
   );
   const nextById = new Map(visibleActivities.map((activity) => [activity.id, activity]));
   let failed = 0;
@@ -699,21 +719,51 @@ export async function connectGoogleAccount(req: Request, userId: string, code: s
 export async function getGoogleConnectionStatus(userId: string): Promise<GoogleConnectionStatus> {
   await ensureSchema();
   const result = await getPool().query(
-    `SELECT google_email, last_synced_at, last_error
+    `SELECT google_email, last_synced_at, last_error, sync_reuniones, sync_asignaciones
      FROM google_accounts
      WHERE user_id = $1`,
     [userId],
   );
   const row = result.rows[0];
   if (!row) {
-    return { connected: false, googleEmail: null, lastSyncedAt: null, lastError: null };
+    return {
+      connected: false,
+      googleEmail: null,
+      lastSyncedAt: null,
+      lastError: null,
+      syncReuniones: true,
+      syncAsignaciones: true,
+    };
   }
   return {
     connected: true,
     googleEmail: (row.google_email as string) || null,
     lastSyncedAt: (row.last_synced_at as string | null) ?? null,
     lastError: (row.last_error as string) || null,
+    syncReuniones: row.sync_reuniones !== false,
+    syncAsignaciones: row.sync_asignaciones !== false,
   };
+}
+
+export async function updateGoogleSyncPreferences(
+  userId: string,
+  preferences: GoogleSyncPreferences,
+): Promise<GoogleConnectionStatus> {
+  await ensureSchema();
+  if (!preferences.syncReuniones && !preferences.syncAsignaciones) {
+    throw new Error("Selecciona al menos un tipo de actividad para sincronizar.");
+  }
+  const result = await getPool().query(
+    `UPDATE google_accounts
+     SET sync_reuniones = $2, sync_asignaciones = $3, updated_at = $4
+     WHERE user_id = $1`,
+    [userId, preferences.syncReuniones, preferences.syncAsignaciones, nowIso()],
+  );
+  if (!result.rowCount) throw new Error("No hay una cuenta de Google vinculada.");
+  // Reenvia todo para crear los eventos del tipo recien activado y borrar los
+  // del tipo desactivado.
+  await syncLatestGoogleCalendars({ userIds: [userId], force: true });
+  return getGoogleConnectionStatus(userId);
 }
 
 export async function disconnectGoogleAccount(userId: string): Promise<void> {

@@ -21,7 +21,7 @@ const funcionarios: Funcionario[] = [
   { id: "f2", nombre: "Participante", email: "f2@example.com", cargo: "Técnico", gestionId: "g1", color: "#000" },
 ];
 const competencias: Competencia[] = [{ id: "c1", nombre: "Competencia", gestionId: "g1" }];
-const entregables: Entregable[] = [{ id: "e1", nombre: "Entregable", gestionId: "g1" }];
+const entregables: Entregable[] = [{ id: "e1", nombre: "Entregable", competenciaId: "c1" }];
 
 function activity(overrides: Partial<Actividad> = {}): Actividad {
   return {
@@ -181,15 +181,19 @@ test("archived compatibility and catalog consistency are explicit", () => {
     ),
     null,
   );
-  const otherGestion: Gestion = { id: "g2", nombre: "Gestión 2", color: "" };
+  // El entregable debe colgar de la misma competencia que la actividad.
+  const otherCompetencia: Competencia = { id: "c2", nombre: "Competencia 2", gestionId: "g1" };
   const mismatchedDocument = {
-    gestiones: [...gestiones, otherGestion],
+    gestiones,
     funcionarios,
-    competencias,
-    entregables: [{ ...entregables[0], gestionId: "g2" }],
+    competencias: [...competencias, otherCompetencia],
+    entregables: [{ ...entregables[0], competenciaId: "c2" }],
     actividades: [activity()],
   };
-  assert.match(validateActivityDocument(mismatchedDocument)?.message ?? "", /misma gestión/);
+  assert.match(
+    validateActivityDocument(mismatchedDocument)?.message ?? "",
+    /debe pertenecer a la competencia/,
+  );
   assert.match(
     validateActivityDocument({ ...documentWith(activity()), gestiones: [...gestiones, { ...gestiones[0] }] })?.message ?? "",
     /duplicado/,

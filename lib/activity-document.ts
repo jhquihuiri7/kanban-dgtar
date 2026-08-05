@@ -144,8 +144,8 @@ export function validateActivityDocument(data: ActivityDocumentInput): ActivityD
     if (!validRequiredText(entregable.nombre, 1_000)) {
       return invalid(`entregables[${index}].nombre es obligatorio y admite hasta 1000 caracteres.`);
     }
-    if (!validEntityId(entregable.gestionId) || !gestiones.has(entregable.gestionId)) {
-      return invalid(`entregables[${index}].gestionId no existe.`);
+    if (!validEntityId(entregable.competenciaId) || !competencias.has(entregable.competenciaId)) {
+      return invalid(`entregables[${index}].competenciaId no existe.`);
     }
     return null;
   });
@@ -182,10 +182,9 @@ export function validateActivityDocument(data: ActivityDocumentInput): ActivityD
       if (!validEntityId(value.entregableId) || !entregables.has(value.entregableId)) {
         return invalid(`${prefix}.entregableId no existe.`);
       }
-      const competencia = competencias.get(value.competenciaId);
       const entregable = entregables.get(value.entregableId);
-      if (competencia?.gestionId !== entregable?.gestionId) {
-        return invalid(`${prefix}: la competencia y el entregable deben pertenecer a la misma gestión.`);
+      if (entregable?.competenciaId !== value.competenciaId) {
+        return invalid(`${prefix}: el entregable debe pertenecer a la competencia de la actividad.`);
       }
     }
 

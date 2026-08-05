@@ -125,7 +125,7 @@ function mapEntregable(r: Row): Entregable {
   return {
     id: r.id as string,
     nombre: r.nombre as string,
-    gestionId: r.gestion_id as string,
+    competenciaId: r.competencia_id as string,
   };
 }
 
@@ -422,12 +422,12 @@ export async function writeAll(
     }
     for (const e of data.entregables) {
       await client.query(
-        `INSERT INTO entregables (id, nombre, gestion_id)
+        `INSERT INTO entregables (id, nombre, competencia_id)
          VALUES ($1, $2, $3)
          ON CONFLICT (id) DO UPDATE
            SET nombre = EXCLUDED.nombre,
-               gestion_id = EXCLUDED.gestion_id`,
-        [e.id, e.nombre, e.gestionId],
+               competencia_id = EXCLUDED.competencia_id`,
+        [e.id, e.nombre, e.competenciaId],
       );
     }
     for (const a of data.actividades) {

@@ -519,19 +519,24 @@ function EditForm({
     () => competencias.find((c) => c.id === draft.competenciaId)?.gestionId || gestiones[0]?.id || "",
   );
   const competenciasDisponibles = competencias.filter((c) => c.gestionId === gestionId);
-  const entregablesDisponibles = entregables.filter((e) => e.gestionId === gestionId);
+  // El entregable cuelga de la competencia, no de la gestión.
+  const entregablesDisponibles = entregables.filter((e) => e.competenciaId === draft.competenciaId);
 
   useEffect(() => {
     const compForGestion = competencias.filter((c) => c.gestionId === gestionId);
     if (!compForGestion.some((c) => c.id === draft.competenciaId)) {
       set("competenciaId", compForGestion[0]?.id || "");
     }
-    const entForGestion = entregables.filter((e) => e.gestionId === gestionId);
-    if (!entForGestion.some((e) => e.id === draft.entregableId)) {
-      set("entregableId", entForGestion[0]?.id || null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gestionId, competencias]);
+
+  // Al cambiar de competencia, el entregable elegido deja de ser válido.
+  useEffect(() => {
+    if (draft.entregableId && !entregablesDisponibles.some((e) => e.id === draft.entregableId)) {
+      set("entregableId", null);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [gestionId, competencias, entregables]);
+  }, [draft.competenciaId, entregables]);
 
   return (
     <div className="space-y-3">

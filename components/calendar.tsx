@@ -638,7 +638,7 @@ export function CalendarView({
     "flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-line bg-white text-ink-muted transition-colors hover:border-line-hover hover:bg-surface-subtle sm:h-8 sm:w-8";
 
   return (
-    <div className="rounded-section border border-line bg-white p-4 shadow-card sm:p-5">
+    <div className="min-w-0 rounded-section border border-line bg-white p-4 shadow-card sm:p-5">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
           <span className="text-[17px] font-extrabold tracking-[-.03em] sm:text-[19px]">{titulo}</span>

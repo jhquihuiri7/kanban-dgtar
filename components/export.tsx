@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import { Button, Icon, Input, Label } from "@/components/ui";
 import {
   ESTADOS,
@@ -215,7 +216,13 @@ export function ExportDialog({
       );
   }, [activities, desde, hasta]);
 
-  if (!open) return null;
+  // El modal se monta en <body> con un portal. Dentro del árbol de la app
+  // quedaba bajo el backdrop-filter de la cabecera, que crea un backdrop root
+  // y alteraba su pintado pese a tener z-50.
+  const [montado, setMontado] = useState(false);
+  useEffect(() => setMontado(true), []);
+
+  if (!open || !montado) return null;
 
   const rangoInvalido = !desde || !hasta;
   const sinResultados = !rangoInvalido && seleccionadas.length === 0;
@@ -228,8 +235,8 @@ export function ExportDialog({
     onClose();
   }
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6">
+  return createPortal(
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-6">
       <div className="absolute inset-0 bg-[rgba(18,18,26,.32)] backdrop-blur-[3px]" onClick={onClose} />
       <div className="relative z-10 max-h-[calc(100dvh-1.5rem)] w-full max-w-[460px] overflow-y-auto rounded-modal bg-white p-5 shadow-modal sm:p-6">
         <div className="flex items-start justify-between gap-3.5">
@@ -290,6 +297,7 @@ export function ExportDialog({
           </Button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

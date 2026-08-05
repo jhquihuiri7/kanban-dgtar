@@ -308,6 +308,12 @@ function GanttChart({
                   {e.label}
                 </span>
               ))}
+              {todayIndex >= 0 && (
+                <span className="inline-flex items-center gap-1.5 text-accent">
+                  <span className="h-[11px] w-[9px] rounded-[2px] border-x border-accent/40 bg-accent/[.07]" />
+                  Hoy
+                </span>
+              )}
             </div>
           </div>
         )
@@ -320,25 +326,40 @@ function GanttChart({
               Gestión / funcionario
             </div>
             <div className="grid" style={trackStyle}>
-              {cabecera.map((c) => (
-                <div
-                  key={c.key}
-                  style={{ gridColumn: `${c.index + 1} / span ${c.span}` }}
-                  className="border-l border-line-soft py-[11px] text-center text-[10.5px] font-bold text-ink-faint first:border-l-0"
-                >
-                  {c.label}
-                </div>
-              ))}
+              {cabecera.map((c) => {
+                const esHoy = c.key === TODAY_ISO;
+                return (
+                  <div
+                    key={c.key}
+                    style={{ gridColumn: `${c.index + 1} / span ${c.span}` }}
+                    title={esHoy ? "Hoy" : undefined}
+                    className={cn(
+                      "border-l border-line-soft py-[11px] text-center text-[10.5px] font-bold first:border-l-0",
+                      esHoy ? "bg-accent-soft text-accent" : "text-ink-faint",
+                    )}
+                  >
+                    {c.label}
+                  </div>
+                );
+              })}
             </div>
           </div>
 
           <div className="relative">
+            {/* Banda de «hoy». z-10 la deja por encima del fondo opaco de las
+                filas y por debajo de las barras, que suben a z-20. */}
             {todayIndex >= 0 && (
-              <div className="pointer-events-none absolute inset-y-0 left-[280px] right-0 grid" style={trackStyle}>
+              <div
+                className="pointer-events-none absolute inset-y-0 left-[280px] right-0 z-10 grid"
+                style={trackStyle}
+                aria-hidden="true"
+              >
                 <div
                   style={{ gridColumn: `${todayIndex + 1} / span 1` }}
-                  className="border-x border-accent/[.28] bg-accent/[.07]"
-                />
+                  className="relative border-x border-accent/40 bg-accent/[.07]"
+                >
+                  <span className="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-accent/60" />
+                </div>
               </div>
             )}
 
@@ -355,7 +376,7 @@ function GanttChart({
                       type="button"
                       onClick={() => toggle(gestion.key)}
                       title={`${gestion.nombre} · ${gestion.total} actividades`}
-                      className="relative grid w-full grid-cols-[280px_1fr] border-b border-line-soft bg-app text-left"
+                      className="grid w-full grid-cols-[280px_1fr] border-b border-line-soft bg-app text-left"
                     >
                       <div className="flex items-center gap-2 border-r border-line px-[18px] py-2.5">
                         <span
@@ -389,7 +410,7 @@ function GanttChart({
                               type="button"
                               onClick={() => toggle(fila.key)}
                               title={`${fila.nombre} · ${fila.actividades.length} actividades`}
-                              className="relative grid w-full grid-cols-[280px_1fr] border-b border-line-soft bg-white text-left hover:bg-surface-subtle"
+                              className="grid w-full grid-cols-[280px_1fr] border-b border-line-soft bg-white text-left hover:bg-surface-subtle"
                             >
                               <div className="flex items-center gap-2 border-r border-line py-2 pl-[30px] pr-3">
                                 <span
@@ -419,7 +440,7 @@ function GanttChart({
                                         background: ESTADO_HEX[item.act.estado] ?? ESTADO_HEX.pendiente,
                                         opacity: 0.55,
                                       }}
-                                      className="h-[7px] rounded-full"
+                                      className="relative z-20 h-[7px] rounded-full"
                                     />
                                   ))}
                               </div>
@@ -429,7 +450,7 @@ function GanttChart({
                               fila.actividades.map((item) => (
                                 <div
                                   key={item.act.id}
-                                  className="relative grid grid-cols-[280px_1fr] border-b border-line-soft bg-white"
+                                  className="grid grid-cols-[280px_1fr] border-b border-line-soft bg-white"
                                 >
                                   <div className="border-r border-line" />
                                   <div className="grid items-center px-1 py-1" style={trackStyle}>
@@ -441,7 +462,7 @@ function GanttChart({
                                         gridColumn: `${item.startIndex + 1} / span ${item.span}`,
                                         background: ESTADO_HEX[item.act.estado] ?? ESTADO_HEX.pendiente,
                                       }}
-                                      className="flex h-7 items-center overflow-hidden rounded-full px-3 text-left text-[12px] font-[650] text-white transition-opacity hover:opacity-90"
+                                      className="relative z-20 flex h-7 items-center overflow-hidden rounded-full px-3 text-left text-[12px] font-[650] text-white transition-opacity hover:opacity-90"
                                     >
                                       <span className="truncate">{item.act.titulo}</span>
                                     </button>
@@ -549,16 +570,27 @@ interface SankeyNode {
   n: number;
 }
 
-const SANKEY_H = 292;
+const SANKEY_H_MIN = 292;
 const SANKEY_GAP = 12;
-const COL_X = { gestion: 150, competencia: 350, entregable: 520 };
+// Alto mínimo por nodo para que su etiqueta siga siendo legible.
+const SANKEY_NODO_MIN = 20;
+const SANKEY_W = 780;
+const COL_X = { gestion: 190, competencia: 390, entregable: 560 };
+
+/* El lienzo crece con la columna más poblada: con alto fijo, un período con
+   muchos entregables comprimía los nodos hasta solaparse las etiquetas. */
+function sankeyAlto(...columnas: number[]): number {
+  const nodos = Math.max(1, ...columnas);
+  return Math.max(SANKEY_H_MIN, nodos * SANKEY_NODO_MIN + (nodos - 1) * SANKEY_GAP);
+}
 
 function layoutColumn(
   entradas: { id: string; label: string; n: number; color: string }[],
+  alto: number,
 ): SankeyNode[] {
   const total = entradas.reduce((n, e) => n + e.n, 0);
   if (total === 0 || entradas.length === 0) return [];
-  const disponible = Math.max(20, SANKEY_H - SANKEY_GAP * (entradas.length - 1));
+  const disponible = Math.max(20, alto - SANKEY_GAP * (entradas.length - 1));
   const unidad = disponible / total;
   let y = 0;
   return entradas.map((e) => {
@@ -625,6 +657,8 @@ function SankeyFlow({
       return ca - cb || a.localeCompare(b);
     });
 
+    const alto = sankeyAlto(gestionIds.length, compIds.length, entIds.length);
+
     const nodosGestion = layoutColumn(
       gestionIds.map((id) => ({
         id,
@@ -632,6 +666,7 @@ function SankeyFlow({
         n: porGestion.get(id) ?? 0,
         color: colorGestion(id),
       })),
+      alto,
     );
     const nodosCompetencia = layoutColumn(
       compIds.map((id) => ({
@@ -643,6 +678,7 @@ function SankeyFlow({
         n: porCompetencia.get(id) ?? 0,
         color: "#6D28D9",
       })),
+      alto,
     );
     const nodosEntregable = layoutColumn(
       entIds.map((id) => ({
@@ -654,6 +690,7 @@ function SankeyFlow({
         n: porEntregable.get(id) ?? 0,
         color: id === SIN_ENTREGABLE ? "#C4C4CE" : "#F59E0B",
       })),
+      alto,
     );
 
     const buscar = (lista: SankeyNode[], id: string) => lista.find((n) => n.id === id);
@@ -673,7 +710,7 @@ function SankeyFlow({
       const y2 = destino.y + destino.h / 2;
       return {
         id: `gc-${compId}`,
-        d: `M${COL_X.gestion + 10},${y1} C255,${y1} 255,${y2} ${COL_X.competencia},${y2}`,
+        d: `M${COL_X.gestion + 10},${y1} C290,${y1} 290,${y2} ${COL_X.competencia},${y2}`,
         color: origen.color,
         w: Math.max(1, destino.h),
       };
@@ -693,7 +730,7 @@ function SankeyFlow({
       const y2 = destino.y + destino.h / 2;
       return {
         id: `ce-${entId}`,
-        d: `M${COL_X.competencia + 10},${y1} C440,${y1} 440,${y2} ${COL_X.entregable},${y2}`,
+        d: `M${COL_X.competencia + 10},${y1} C480,${y1} 480,${y2} ${COL_X.entregable},${y2}`,
         color: "#6D28D9",
         w: Math.max(1, destino.h),
       };
@@ -701,6 +738,7 @@ function SankeyFlow({
 
     return {
       total: activities.length,
+      alto,
       nodosGestion,
       nodosCompetencia,
       nodosEntregable,
@@ -750,12 +788,13 @@ function SankeyFlow({
       ) : (
         <div className="mt-1.5 overflow-x-auto">
           <svg
-            viewBox="0 0 700 292"
+            viewBox={`0 0 ${SANKEY_W} ${modelo.alto}`}
             width="100%"
-            height="300"
+            height={modelo.alto}
+            preserveAspectRatio="xMidYMid meet"
             role="img"
             aria-label="Diagrama de gestiones, competencias y entregables"
-            className="min-w-[560px] overflow-visible"
+            className="min-w-[620px]"
           >
             {modelo.enlaces.map((k) => (
               <path key={k.id} d={k.d} fill="none" stroke={k.color} strokeWidth={k.w} strokeOpacity=".26" />
@@ -764,14 +803,14 @@ function SankeyFlow({
               <React.Fragment key={n.id}>
                 <rect x={COL_X.gestion} y={n.y} width="10" height={n.h} rx="3" fill={n.color} />
                 <text
-                  x={COL_X.gestion - 8}
+                  x={COL_X.gestion - 10}
                   y={n.y + n.h / 2 + 3.5}
                   textAnchor="end"
                   fontSize="10.5"
                   fontWeight="650"
                   fill="#4B4B57"
                 >
-                  {truncar(n.label, 26)} · {n.n}
+                  {truncar(n.label, 24)} · {n.n}
                 </text>
               </React.Fragment>
             ))}
@@ -794,14 +833,14 @@ function SankeyFlow({
               <React.Fragment key={n.id}>
                 <rect x={COL_X.entregable} y={n.y} width="10" height={n.h} rx="3" fill={n.color} />
                 <text
-                  x={COL_X.entregable + 16}
+                  x={COL_X.entregable + 18}
                   y={n.y + n.h / 2 + 3.5}
                   textAnchor="start"
                   fontSize="10.5"
                   fontWeight="650"
                   fill="#4B4B57"
                 >
-                  {truncar(n.label, 22)} · {n.n}
+                  {truncar(n.label, 24)} · {n.n}
                 </text>
               </React.Fragment>
             ))}

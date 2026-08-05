@@ -1,14 +1,20 @@
 import type { Metadata, Viewport } from "next";
-import { Plus_Jakarta_Sans } from "next/font/google";
+import localFont from "next/font/local";
 import "./globals.css";
 
-/* Fuente variable: los pesos intermedios del handoff (550/650/750) sólo se
-   renderizan correctamente con el eje continuo, no con instancias estáticas. */
-const jakarta = Plus_Jakarta_Sans({
-  subsets: ["latin"],
+/* Fuente variable autoalojada. Se sirve desde el repo en lugar de
+   `next/font/google` porque ese cargador descarga los .woff2 durante el build,
+   y el build de Docker falla si no alcanza fonts.gstatic.com. El eje continuo
+   es necesario para los pesos intermedios del handoff (550/650/750). */
+const jakarta = localFont({
+  src: [
+    { path: "./fonts/PlusJakartaSans-latin.woff2", style: "normal" },
+    { path: "./fonts/PlusJakartaSans-latin-ext.woff2", style: "normal" },
+  ],
+  weight: "200 800",
   display: "swap",
-  weight: ["400", "500", "600", "700", "800"],
   variable: "--font-jakarta",
+  fallback: ["ui-sans-serif", "system-ui", "-apple-system", "Segoe UI", "sans-serif"],
 });
 
 export const metadata: Metadata = {

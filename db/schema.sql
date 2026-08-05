@@ -42,13 +42,89 @@ ALTER TABLE competencias DROP COLUMN IF EXISTS codigo;
 ALTER TABLE competencias DROP COLUMN IF EXISTS articulo;
 ALTER TABLE competencias DROP COLUMN IF EXISTS activo;
 
+-- Cada entregable pertenece a una sola competencia (y a la gestión de esta).
 CREATE TABLE IF NOT EXISTS entregables (
-  id         text PRIMARY KEY,
-  nombre     text NOT NULL,
-  gestion_id text NOT NULL REFERENCES gestiones(id) ON DELETE CASCADE
+  id             text PRIMARY KEY,
+  nombre         text NOT NULL,
+  competencia_id text NOT NULL REFERENCES competencias(id) ON DELETE CASCADE
 );
 
-CREATE INDEX IF NOT EXISTS entregables_gestion_id_idx ON entregables(gestion_id);
+-- Migración: entregables colgaban de la gestión y pasan a colgar de la
+-- competencia. El bloque solo corre mientras exista la columna antigua, así que
+-- una base ya migrada (o recién creada) lo salta.
+DO $entregables$
+DECLARE
+  ultimo_id int;
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'entregables' AND column_name = 'gestion_id'
+  ) THEN
+    ALTER TABLE entregables
+      ADD COLUMN IF NOT EXISTS competencia_id text REFERENCES competencias(id) ON DELETE CASCADE;
+
+    -- 1. La competencia que más lo usa conserva la fila original.
+    CREATE TEMP TABLE _ent_pares ON COMMIT DROP AS
+      SELECT a.entregable_id AS ent, a.competencia_id AS comp, count(*) AS usos
+      FROM actividades a
+      WHERE a.entregable_id IS NOT NULL
+      GROUP BY 1, 2;
+
+    CREATE TEMP TABLE _ent_principal ON COMMIT DROP AS
+      SELECT DISTINCT ON (ent) ent, comp
+      FROM _ent_pares
+      ORDER BY ent, usos DESC, comp;
+
+    UPDATE entregables e
+    SET competencia_id = p.comp
+    FROM _ent_principal p
+    WHERE e.id = p.ent;
+
+    -- 2. Cada competencia adicional recibe su propia copia y sus actividades
+    --    se repuntan a ella: así ningún entregable queda compartido y ninguna
+    --    actividad pierde el vínculo.
+    SELECT coalesce(max(nullif(regexp_replace(id, '\D', '', 'g'), '')::int), 0)
+      INTO ultimo_id FROM entregables;
+
+    CREATE TEMP TABLE _ent_replicas ON COMMIT DROP AS
+      SELECT s.ent,
+             s.comp,
+             'e' || (ultimo_id + row_number() OVER (ORDER BY s.ent, s.comp))::text AS nuevo_id
+      FROM _ent_pares s
+      JOIN _ent_principal p ON p.ent = s.ent
+      WHERE s.comp <> p.comp;
+
+    -- gestion_id sigue siendo NOT NULL hasta el final del bloque: la réplica
+    -- hereda la gestión del original.
+    INSERT INTO entregables (id, nombre, gestion_id, competencia_id)
+    SELECT r.nuevo_id, e.nombre, e.gestion_id, r.comp
+    FROM _ent_replicas r
+    JOIN entregables e ON e.id = r.ent;
+
+    UPDATE actividades a
+    SET entregable_id = r.nuevo_id
+    FROM _ent_replicas r
+    WHERE a.entregable_id = r.ent AND a.competencia_id = r.comp;
+
+    -- 3. Los que ninguna actividad usa van a la primera competencia de su
+    --    gestión; quedan visibles en Catálogos para reubicarlos a mano.
+    UPDATE entregables e
+    SET competencia_id = (
+      SELECT c.id FROM competencias c WHERE c.gestion_id = e.gestion_id ORDER BY c.id LIMIT 1
+    )
+    WHERE e.competencia_id IS NULL;
+
+    -- 4. Un entregable de una gestión sin competencias no tiene sitio posible.
+    DELETE FROM entregables WHERE competencia_id IS NULL;
+
+    ALTER TABLE entregables ALTER COLUMN competencia_id SET NOT NULL;
+    ALTER TABLE entregables DROP COLUMN gestion_id;
+  END IF;
+END
+$entregables$;
+
+CREATE INDEX IF NOT EXISTS entregables_competencia_id_idx ON entregables(competencia_id);
+DROP INDEX IF EXISTS entregables_gestion_id_idx;
 
 -- Migración de bases existentes: funcionarios.unidad (texto) -> funcionarios.gestion_id (FK).
 ALTER TABLE funcionarios ADD COLUMN IF NOT EXISTS gestion_id text REFERENCES gestiones(id);
@@ -115,7 +191,9 @@ CREATE TABLE IF NOT EXISTS actividades (
   titulo              text NOT NULL,
   descripcion         text NOT NULL DEFAULT '',
   funcionario_id      text REFERENCES funcionarios(id) ON DELETE CASCADE,
-  competencia_id      text REFERENCES competencias(id) ON DELETE CASCADE,
+  -- RESTRICT: una actividad no puede quedarse sin competencia, así que la
+  -- competencia no se borra mientras tenga actividades. Reasígnalas primero.
+  competencia_id      text REFERENCES competencias(id) ON DELETE RESTRICT,
   entregable_id       text REFERENCES entregables(id) ON DELETE SET NULL,
   estado              text NOT NULL,
   fecha_creacion      text NOT NULL,
@@ -401,6 +479,8 @@ CREATE TABLE IF NOT EXISTS google_accounts (
   scope                   text NOT NULL DEFAULT '',
   last_synced_at          text,
   last_error              text NOT NULL DEFAULT '',
+  sync_reuniones          boolean NOT NULL DEFAULT true,
+  sync_asignaciones       boolean NOT NULL DEFAULT true,
   created_at              text NOT NULL,
   updated_at              text NOT NULL
 );
@@ -411,6 +491,8 @@ ALTER TABLE google_accounts ADD COLUMN IF NOT EXISTS refresh_token_encrypted tex
 ALTER TABLE google_accounts ADD COLUMN IF NOT EXISTS scope text NOT NULL DEFAULT '';
 ALTER TABLE google_accounts ADD COLUMN IF NOT EXISTS last_synced_at text;
 ALTER TABLE google_accounts ADD COLUMN IF NOT EXISTS last_error text NOT NULL DEFAULT '';
+ALTER TABLE google_accounts ADD COLUMN IF NOT EXISTS sync_reuniones boolean NOT NULL DEFAULT true;
+ALTER TABLE google_accounts ADD COLUMN IF NOT EXISTS sync_asignaciones boolean NOT NULL DEFAULT true;
 ALTER TABLE google_accounts ADD COLUMN IF NOT EXISTS created_at text NOT NULL DEFAULT '';
 ALTER TABLE google_accounts ADD COLUMN IF NOT EXISTS updated_at text NOT NULL DEFAULT '';
 
@@ -500,6 +582,18 @@ BEGIN
     ALTER TABLE actividades DROP CONSTRAINT actividades_competencia_id_fkey;
   END IF;
 
+  -- Bases antiguas la tienen en CASCADE: borrar la competencia arrastraba sus
+  -- actividades. Se recrea en RESTRICT para que la base rechace ese borrado.
+  IF EXISTS (
+    SELECT 1
+    FROM pg_constraint
+    WHERE conrelid = 'actividades'::regclass
+      AND conname = 'actividades_competencia_id_fkey'
+      AND confdeltype = 'c'
+  ) THEN
+    ALTER TABLE actividades DROP CONSTRAINT actividades_competencia_id_fkey;
+  END IF;
+
   IF NOT EXISTS (
     SELECT 1
     FROM pg_constraint
@@ -508,6 +602,6 @@ BEGIN
   ) THEN
     ALTER TABLE actividades
       ADD CONSTRAINT actividades_competencia_id_fkey
-      FOREIGN KEY (competencia_id) REFERENCES competencias(id) ON DELETE CASCADE;
+      FOREIGN KEY (competencia_id) REFERENCES competencias(id) ON DELETE RESTRICT;
   END IF;
 END $$;

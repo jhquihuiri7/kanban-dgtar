@@ -368,22 +368,25 @@ async function resolveAndValidateReferences(
     throw new ActivityRequestError(422, "VALIDATION_ERROR", "La competencia indicada no existe.");
   }
 
-  if (request.entregableId) {
-    const entregableResult = await client.query(
-      "SELECT id, gestion_id FROM entregables WHERE id = $1",
-      [request.entregableId],
+  // El entregable es obligatorio al crear: toda actividad nueva debe colgar de
+  // un entregable concreto de su competencia.
+  if (!request.entregableId) {
+    throw new ActivityRequestError(422, "VALIDATION_ERROR", "Selecciona un entregable para la actividad.");
+  }
+  const entregableResult = await client.query(
+    "SELECT id, competencia_id FROM entregables WHERE id = $1",
+    [request.entregableId],
+  );
+  const entregable = entregableResult.rows[0];
+  if (!entregable) {
+    throw new ActivityRequestError(422, "VALIDATION_ERROR", "El entregable indicado no existe.");
+  }
+  if (entregable.competencia_id !== competencia.id) {
+    throw new ActivityRequestError(
+      422,
+      "VALIDATION_ERROR",
+      "El entregable debe pertenecer a la competencia de la actividad.",
     );
-    const entregable = entregableResult.rows[0];
-    if (!entregable) {
-      throw new ActivityRequestError(422, "VALIDATION_ERROR", "El entregable indicado no existe.");
-    }
-    if (entregable.gestion_id !== competencia.gestion_id) {
-      throw new ActivityRequestError(
-        422,
-        "VALIDATION_ERROR",
-        "El entregable y la competencia deben pertenecer a la misma gestión.",
-      );
-    }
   }
 
   const participantesIds = request.participantesIds.filter((id) => id !== funcionarioId);

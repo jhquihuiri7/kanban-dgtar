@@ -234,7 +234,7 @@ function KanbanCard({
               {comp ? gestionNombre(comp.gestionId, gestiones) : "—"}
             </Badge>
           </div>
-          <h3 className="mt-2 text-[13.5px] font-[650] leading-[1.35] tracking-[-.01em] text-ink">
+          <h3 className="mt-2 break-words text-[13.5px] font-[650] leading-[1.35] tracking-[-.01em] text-ink">
             {act.titulo}
           </h3>
         </div>
