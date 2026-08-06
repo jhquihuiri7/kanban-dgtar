@@ -147,6 +147,11 @@ export function NewActivityDialog({
   const draftKey = activityDraftStorageKey(currentUser.id, draftScope || "pending-tab");
   const isBusy = creationState === "saving" || creationState === "verifying";
 
+  // Una gestión sin competencias no permitiría completar la actividad, así que
+  // ni siquiera se ofrece como opción.
+  const gestionesDisponibles = gestiones.filter((g) =>
+    competencias.some((c) => c.gestionId === g.id),
+  );
   const competenciasDisponibles = competencias.filter((c) => c.gestionId === gestionId);
   // El entregable cuelga de la competencia, así que la lista sigue a esta.
   const entregablesDisponibles = entregables.filter((e) => e.competenciaId === competenciaId);
@@ -229,9 +234,11 @@ export function NewActivityDialog({
       setFuncionarioId(isAdmin ? storedDraft.funcionarioId : currentUser.funcionarioId || "");
       const validFuncionarioIds = new Set(funcionarios.map((funcionario) => funcionario.id));
       setParticipantesIds(storedDraft.participantesIds.filter((id) => validFuncionarioIds.has(id)));
-      setGestionId(storedDraft.gestionId);
-      setCompetenciaId(storedDraft.competenciaId);
-      setEntregableId(storedDraft.entregableId);
+      // El catálogo nunca se restaura: gestión, competencia y entregable
+      // arrancan siempre en blanco para obligar a elegirlos conscientemente.
+      setGestionId("");
+      setCompetenciaId("");
+      setEntregableId("");
       setFechaInicio(storedDraft.fechaInicio);
       setFechaFin(storedDraft.fechaFin);
       setFechaReunion(storedDraft.fechaReunion);
@@ -391,7 +398,8 @@ export function NewActivityDialog({
   const currentFuncionario = funcionariosDisponibles.find((f) => f.id === currentUser.funcionarioId);
   // Sin entregables tampoco se puede crear: los tres niveles del catálogo son
   // obligatorios en el formulario.
-  const catalogosBase = gestiones.length === 0 || competencias.length === 0 || entregables.length === 0;
+  const catalogosBase =
+    gestionesDisponibles.length === 0 || competencias.length === 0 || entregables.length === 0;
   const catalogosVacios = isAdmin
     ? funcionariosDisponibles.length === 0 || catalogosBase
     : !currentUser.funcionarioId || catalogosBase;
@@ -414,7 +422,7 @@ export function NewActivityDialog({
     if (!responsibleId || !funcionariosDisponibles.some((f) => f.id === responsibleId)) {
       next.funcionarioId = "Selecciona un funcionario responsable válido.";
     }
-    if (!gestionId || !gestiones.some((gestion) => gestion.id === gestionId)) {
+    if (!gestionId || !gestionesDisponibles.some((gestion) => gestion.id === gestionId)) {
       next.gestionId = "Selecciona una gestión válida.";
     }
     if (!competenciaId || !competenciasDisponibles.some((competencia) => competencia.id === competenciaId)) {
@@ -747,7 +755,7 @@ export function NewActivityDialog({
                   }}
                 >
                   <option value="">Selecciona una gestión</option>
-                  {gestiones.map((g) => (
+                  {gestionesDisponibles.map((g) => (
                     <option key={g.id} value={g.id}>
                       {g.nombre}
                     </option>

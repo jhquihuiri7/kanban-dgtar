@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Avatar, Icon, type IconName } from "@/components/ui";
 import { cn } from "@/lib/utils";
 import {
@@ -572,10 +572,22 @@ interface SankeyNode {
 
 const SANKEY_H_MIN = 292;
 const SANKEY_GAP = 12;
-// Alto mínimo por nodo para que su etiqueta siga siendo legible.
-const SANKEY_NODO_MIN = 20;
-const SANKEY_W = 780;
-const COL_X = { gestion: 190, competencia: 390, entregable: 560 };
+// Alto mínimo por nodo para que siga siendo un objetivo de hover usable.
+const SANKEY_NODO_MIN = 16;
+const SANKEY_W_MIN = 320;
+const SANKEY_NODO_W = 10;
+const SANKEY_PAD = 2;
+
+/* Sin etiquetas dentro del lienzo las tres columnas se reparten todo el ancho
+   disponible; el ancho real lo mide el contenedor. */
+function columnasX(ancho: number) {
+  const util = Math.max(SANKEY_W_MIN, ancho) - SANKEY_PAD * 2 - SANKEY_NODO_W;
+  return {
+    gestion: SANKEY_PAD,
+    competencia: SANKEY_PAD + util / 2,
+    entregable: SANKEY_PAD + util,
+  };
+}
 
 /* El lienzo crece con la columna más poblada: con alto fijo, un período con
    muchos entregables comprimía los nodos hasta solaparse las etiquetas. */
@@ -601,8 +613,42 @@ function layoutColumn(
   });
 }
 
-function truncar(texto: string, max: number): string {
-  return texto.length > max ? `${texto.slice(0, max - 1)}…` : texto;
+/* Datos del nodo bajo el cursor, en coordenadas del lienzo. */
+function marca(n: SankeyNode, x: number, columna: string) {
+  return {
+    key: `${columna}-${n.id}`,
+    label: n.label,
+    n: n.n,
+    x: x + SANKEY_NODO_W / 2,
+    y: n.y + n.h / 2,
+  };
+}
+
+/* El tooltip se aparta hacia dentro del lienzo según la columna del nodo. */
+function tooltipLeft(x: number, ancho: number): number {
+  if (x < ancho / 3) return x + 12;
+  if (x > (ancho * 2) / 3) return x - 12;
+  return x;
+}
+
+/* El lienzo se dibuja en las mismas unidades que el ancho medido del
+   contenedor, así que no hace falta escalar el SVG ni truncar etiquetas. */
+function useAnchoContenedor<T extends HTMLElement>() {
+  const ref = useRef<T | null>(null);
+  const [ancho, setAncho] = useState(SANKEY_W_MIN);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const observer = new ResizeObserver(([entry]) => {
+      setAncho(entry.contentRect.width);
+    });
+    observer.observe(el);
+    setAncho(el.getBoundingClientRect().width);
+    return () => observer.disconnect();
+  }, []);
+
+  return [ref, Math.max(SANKEY_W_MIN, ancho)] as const;
 }
 
 function SankeyFlow({
@@ -616,6 +662,16 @@ function SankeyFlow({
   entregables: Entregable[];
   gestiones: Gestion[];
 }) {
+  const [contenedorRef, ancho] = useAnchoContenedor<HTMLDivElement>();
+  const [hover, setHover] = useState<{
+    key: string;
+    label: string;
+    n: number;
+    x: number;
+    y: number;
+  } | null>(null);
+  const COL_X = useMemo(() => columnasX(ancho), [ancho]);
+
   const modelo = useMemo(() => {
     const porGestion = new Map<string, number>();
     const porCompetencia = new Map<string, number>();
@@ -674,7 +730,9 @@ function SankeyFlow({
         label:
           id === SIN_GESTION
             ? "Sin competencia"
-            : competenciaCodigo(id, competencias),
+            : `${competenciaCodigo(id, competencias)} · ${
+                competencias.find((c) => c.id === id)?.nombre ?? "Competencia"
+              }`,
         n: porCompetencia.get(id) ?? 0,
         color: "#6D28D9",
       })),
@@ -695,6 +753,10 @@ function SankeyFlow({
 
     const buscar = (lista: SankeyNode[], id: string) => lista.find((n) => n.id === id);
 
+    // Puntos de control a media distancia entre columnas.
+    const cxGC = (COL_X.gestion + SANKEY_NODO_W + COL_X.competencia) / 2;
+    const cxCE = (COL_X.competencia + SANKEY_NODO_W + COL_X.entregable) / 2;
+
     // Cada enlace nace en la porción del nodo origen que le corresponde.
     const usadoGestion = new Map<string, number>();
     const enlacesGC = compIds.map((compId) => {
@@ -710,7 +772,7 @@ function SankeyFlow({
       const y2 = destino.y + destino.h / 2;
       return {
         id: `gc-${compId}`,
-        d: `M${COL_X.gestion + 10},${y1} C290,${y1} 290,${y2} ${COL_X.competencia},${y2}`,
+        d: `M${COL_X.gestion + SANKEY_NODO_W},${y1} C${cxGC},${y1} ${cxGC},${y2} ${COL_X.competencia},${y2}`,
         color: origen.color,
         w: Math.max(1, destino.h),
       };
@@ -730,7 +792,7 @@ function SankeyFlow({
       const y2 = destino.y + destino.h / 2;
       return {
         id: `ce-${entId}`,
-        d: `M${COL_X.competencia + 10},${y1} C480,${y1} 480,${y2} ${COL_X.entregable},${y2}`,
+        d: `M${COL_X.competencia + SANKEY_NODO_W},${y1} C${cxCE},${y1} ${cxCE},${y2} ${COL_X.entregable},${y2}`,
         color: "#6D28D9",
         w: Math.max(1, destino.h),
       };
@@ -749,17 +811,7 @@ function SankeyFlow({
         w: number;
       }[],
     };
-  }, [activities, competencias, entregables, gestiones]);
-
-  const rankingCompetencias = useMemo(() => {
-    return competencias
-      .map((c) => ({
-        c,
-        n: activities.filter((a) => a.competenciaId === c.id).length,
-      }))
-      .filter((x) => x.n > 0)
-      .sort((a, b) => b.n - a.n);
-  }, [activities, competencias]);
+  }, [COL_X, activities, competencias, entregables, gestiones]);
 
   const vacio = modelo.total === 0;
 
@@ -786,93 +838,80 @@ function SankeyFlow({
           <EmptyBox icon="chart">{VACIO}</EmptyBox>
         </div>
       ) : (
-        <div className="mt-1.5 overflow-x-auto">
+        <div ref={contenedorRef} className="relative mt-1.5">
           <svg
-            viewBox={`0 0 ${SANKEY_W} ${modelo.alto}`}
+            viewBox={`0 0 ${ancho} ${modelo.alto}`}
             width="100%"
             height={modelo.alto}
-            preserveAspectRatio="xMidYMid meet"
             role="img"
             aria-label="Diagrama de gestiones, competencias y entregables"
-            className="min-w-[620px]"
           >
             {modelo.enlaces.map((k) => (
-              <path key={k.id} d={k.d} fill="none" stroke={k.color} strokeWidth={k.w} strokeOpacity=".26" />
+              <path
+                key={k.id}
+                d={k.d}
+                fill="none"
+                stroke={k.color}
+                strokeWidth={k.w}
+                strokeOpacity={hover ? ".14" : ".26"}
+                className="transition-[stroke-opacity]"
+              />
             ))}
-            {modelo.nodosGestion.map((n) => (
-              <React.Fragment key={n.id}>
-                <rect x={COL_X.gestion} y={n.y} width="10" height={n.h} rx="3" fill={n.color} />
-                <text
-                  x={COL_X.gestion - 10}
-                  y={n.y + n.h / 2 + 3.5}
-                  textAnchor="end"
-                  fontSize="10.5"
-                  fontWeight="650"
-                  fill="#4B4B57"
+            {[
+              { nodos: modelo.nodosGestion, x: COL_X.gestion, align: "start" as const },
+              { nodos: modelo.nodosCompetencia, x: COL_X.competencia, align: "center" as const },
+              { nodos: modelo.nodosEntregable, x: COL_X.entregable, align: "end" as const },
+            ].map(({ nodos, x, align }) =>
+              nodos.map((n) => (
+                <g
+                  key={`${align}-${n.id}`}
+                  tabIndex={0}
+                  role="button"
+                  aria-label={`${n.label}: ${n.n} actividades`}
+                  className="cursor-pointer outline-none"
+                  onMouseEnter={() => setHover(marca(n, x, align))}
+                  onFocus={() => setHover(marca(n, x, align))}
+                  onMouseLeave={() => setHover(null)}
+                  onBlur={() => setHover(null)}
                 >
-                  {truncar(n.label, 24)} · {n.n}
-                </text>
-              </React.Fragment>
-            ))}
-            {modelo.nodosCompetencia.map((n) => (
-              <React.Fragment key={n.id}>
-                <rect x={COL_X.competencia} y={n.y} width="10" height={n.h} rx="3" fill={n.color} />
-                <text
-                  x={COL_X.competencia + 5}
-                  y={Math.max(8, n.y - 3)}
-                  textAnchor="middle"
-                  fontSize="9.5"
-                  fontWeight="700"
-                  fill="#6D28D9"
-                >
-                  {n.label}
-                </text>
-              </React.Fragment>
-            ))}
-            {modelo.nodosEntregable.map((n) => (
-              <React.Fragment key={n.id}>
-                <rect x={COL_X.entregable} y={n.y} width="10" height={n.h} rx="3" fill={n.color} />
-                <text
-                  x={COL_X.entregable + 18}
-                  y={n.y + n.h / 2 + 3.5}
-                  textAnchor="start"
-                  fontSize="10.5"
-                  fontWeight="650"
-                  fill="#4B4B57"
-                >
-                  {truncar(n.label, 24)} · {n.n}
-                </text>
-              </React.Fragment>
-            ))}
+                  {/* Zona sensible más ancha que el nodo para facilitar el hover. */}
+                  <rect
+                    x={x - 6}
+                    y={n.y - 2}
+                    width={SANKEY_NODO_W + 12}
+                    height={n.h + 4}
+                    fill="transparent"
+                  />
+                  <rect
+                    x={x}
+                    y={n.y}
+                    width={SANKEY_NODO_W}
+                    height={n.h}
+                    rx="3"
+                    fill={n.color}
+                    opacity={hover && hover.key !== `${align}-${n.id}` ? 0.45 : 1}
+                  />
+                </g>
+              )),
+            )}
           </svg>
+
+          {hover && (
+            <div
+              className="pointer-events-none absolute z-10 max-w-[240px] rounded-btn bg-ink px-2.5 py-1.5 text-[11px] font-semibold leading-snug text-white shadow-lg"
+              style={{
+                top: hover.y,
+                left: tooltipLeft(hover.x, ancho),
+                transform: `translate(${
+                  hover.x < ancho / 3 ? "0" : hover.x > (ancho * 2) / 3 ? "-100%" : "-50%"
+                }, -50%)`,
+              }}
+            >
+              {hover.label} · {hover.n}
+            </div>
+          )}
         </div>
       )}
-
-      <div className="mt-3.5 border-t border-line-soft pt-3.5">
-        <div className="text-[10px] font-[750] uppercase tracking-[.05em] text-ink-label">
-          Competencias del Estatuto
-        </div>
-        {rankingCompetencias.length === 0 ? (
-          <div className="mt-2.5 text-[11.5px] font-semibold text-ink-ghost">{VACIO}</div>
-        ) : (
-          <ol className="mt-2.5 grid grid-cols-1 gap-2 sm:grid-cols-2">
-            {rankingCompetencias.map(({ c, n }) => (
-              <li
-                key={c.id}
-                className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-[9px] rounded-btn bg-surface-subtle px-2.5 py-2"
-              >
-                <span className="rounded-md bg-accent-soft px-[7px] py-0.5 text-[10px] font-extrabold text-accent">
-                  {competenciaCodigo(c.id, competencias)}
-                </span>
-                <span className="truncate text-[11.5px] font-[550] text-ink-soft" title={c.nombre}>
-                  {c.nombre}
-                </span>
-                <span className="text-[12px] font-bold tabular-nums">{n}</span>
-              </li>
-            ))}
-          </ol>
-        )}
-      </div>
     </Section>
   );
 }
